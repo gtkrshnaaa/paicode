@@ -1,0 +1,27 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pai-code"
+version = "0.1.0"
+authors = [
+  { name="Nama Anda", email="email@anda.com" },
+]
+description = "A command-line based agentic AI for software development."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "google-generativeai",
+    "python-dotenv",
+]
+
+[project.scripts]
+pai = "pai:main"

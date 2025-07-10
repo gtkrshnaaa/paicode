@@ -1,4 +1,7 @@
+#!/usr/bin/env python
 # pai.py
+
+import argparse
 
 import argparse
 from pai_code import agent, fs
