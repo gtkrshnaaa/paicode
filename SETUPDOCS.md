@@ -2,112 +2,115 @@ Written in Indonesian
 
 ---
 
-### 1. Struktur Folder (Tree)
+### **Panduan Setup Proyek: Pai Code**
 
-Struktur ini memisahkan kode utama aplikasi (`pai_code/`) dari skrip eksekusi, file konfigurasi, dan file pendukung lainnya.
+Dokumen ini menjelaskan langkah-langkah yang diperlukan untuk melakukan persiapan dan instalasi lingkungan pengembangan proyek Pai Code.
+
+#### **1. Struktur Direktori Proyek**
+
+Proyek ini menggunakan struktur direktori sr untuk aplikasi Python guna memisahkan kode sumber dari file konfigurasi dan skrip eksekusi.
 
 ```
 pai-code/
-├── .env                  # (JANGAN di-commit ke Git) Menyimpan API Key
-├── .gitignore            # Daftar file/folder yang diabaikan oleh Git
-├── README.md             # Deskripsi proyek dan cara penggunaan
-├── requirements.txt      # Daftar library Python yang dibutuhkan
-├── pai.py                # <<< ENTRY POINT: Skrip utama yang dijalankan dari terminal
+├── .env
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── pai.py
 │
-└── pai_code/             # <<< SOURCE CODE: Paket utama berisi logika aplikasi
-    ├── __init__.py       # Menandakan bahwa ini adalah sebuah Python package
-    ├── agent.py          # Logika agent, konstruksi prompt, dan alur kerja
-    ├── fs.py             # Fungsi-fungsi untuk operasi file system (baca, tulis, buat folder)
-    └── llm.py            # Modul untuk berkomunikasi dengan Gemini API
+└── pai_code/
+    ├── __init__.py
+    ├── agent.py
+    ├── fs.py
+    └── llm.py
 ```
 
-**Penjelasan Singkat Setiap File/Folder:**
+**Deskripsi Komponen:**
 
-*   `pai-code/`: Folder root dari proyek kita.
-*   `pai.py`: Ini adalah "pintu gerbang" aplikasi. File inilah yang akan kita panggil dari terminal (`python pai.py ...`). Tugasnya hanya mem-parsing argumen CLI dan memanggil fungsi yang relevan dari dalam paket `pai_code`.
-*   `pai_code/`: Ini adalah "jantung" aplikasi. Semua logika inti ada di sini.
-    *   `__init__.py`: File kosong yang membuat Python mengenali `pai_code/` sebagai sebuah modul yang bisa di-import.
-    *   `agent.py`: Otak dari si Pai. Dia yang akan memutuskan apa yang harus dilakukan berdasarkan perintah.
-    *   `fs.py`: "Tangan" dari si Pai. Isinya fungsi-fungsi seperti `create_file()`, `read_file()`, `create_directory()` yang berinteraksi langsung dengan file system.
-    *   `llm.py`: "Mulut dan Telinga" si Pai. Modul ini khusus untuk mengirim prompt ke Gemini dan menerima responsnya.
-*   `requirements.txt`: "Daftar belanjaan" untuk `pip`. Semua library eksternal yang kita butuhkan dicatat di sini.
-*   `.env`: File rahasia untuk menyimpan kunci API Gemini. File ini tidak boleh di-upload ke GitHub.
-*   `.gitignore`: "Daftar hitam" untuk Git. Kita akan suruh Git untuk mengabaikan file seperti `.env` dan folder `__pycache__`.
+*   `pai.py`: Titik masuk (entry point) aplikasi yang dieksekusi dari command line. Berfungsi untuk mem-parsing argumen dan memanggil logika dari paket `pai_code`.
+*   `pai_code/`: Paket utama yang berisi seluruh logika inti aplikasi.
+    *   `agent.py`: Modul yang berisi logika agent, termasuk pemrosesan tugas dan konstruksi prompt.
+    *   `fs.py`: Modul yang berisi fungsi-fungsi untuk berinteraksi dengan file system (misalnya, membuat file, membaca file, membuat direktori).
+    *   `llm.py`: Modul yang bertanggung jawab untuk komunikasi dengan Gemini API.
+*   `requirements.txt`: File yang mendefinisikan semua dependensi (library) Python yang dibutuhkan oleh proyek.
+*   `.env`: File untuk menyimpan variabel lingkungan, seperti kunci API. File ini tidak untuk dilacak oleh sistem kontrol versi.
+*   `.gitignore`: File konfigurasi untuk Git yang menentukan file atau direktori mana yang harus diabaikan.
 
 ---
 
-### 2. Setup Instalasi Kebutuhan
+#### **2. Langkah-Langkah Instalasi**
 
-Sekarang, ayo kita siapkan semuanya agar bisa langsung *ngoding*. Ikuti langkah-langkah ini di terminalmu.
+Ikuti prosedur berikut untuk menyiapkan lingkungan pengembangan.
 
-**Langkah 1: Buat Struktur Folder di Komputermu**
+**Langkah 1: Inisialisasi Struktur Direktori**
 
-Kamu bisa membuat folder dan file di atas secara manual, atau gunakan perintah ini di terminal:
+Jalankan perintah berikut di terminal untuk membuat struktur direktori dan file yang diperlukan.
 
 ```bash
-# Buat folder utama
+# Membuat direktori root dan masuk ke dalamnya
 mkdir pai-code
 cd pai-code
 
-# Buat folder source code
+# Membuat direktori source code
 mkdir pai_code
 
-# Buat file-file kosong
+# Membuat file-file yang diperlukan
 touch pai.py README.md requirements.txt .gitignore .env
 touch pai_code/__init__.py pai_code/agent.py pai_code/fs.py pai_code/llm.py
 ```
 
-**Langkah 2: Setup Virtual Environment (Sangat Direkomendasikan!)**
+**Langkah 2: Konfigurasi Virtual Environment**
 
-Ini akan mengisolasi library project kita dari library Python di sistem global.
+Penggunaan virtual environment direkomendasikan untuk mengisolasi dependensi proyek dan menghindari konflik dengan paket Python sistem.
 
-```bash
-# Buat virtual environment bernama 'venv'
-python -m venv venv
+1.  **Buat virtual environment:**
+    ```bash
+    python -m venv venv
+    ```
 
-# Aktifkan virtual environment
-# Untuk macOS/Linux:
-source venv/bin/activate
+2.  **Aktifkan virtual environment:**
+    *   **Untuk macOS/Linux:**
+        ```bash
+        source venv/bin/activate
+        ```
+    *   **Untuk Windows (Command Prompt/PowerShell):**
+        ```bash
+        .\venv\Scripts\activate
+        ```
+    Setelah aktif, nama environment (`venv`) akan muncul di awal baris prompt terminal.
 
-# Untuk Windows (Command Prompt/PowerShell):
-.\venv\Scripts\activate
-```
-*Setelah aktif, kamu akan melihat `(venv)` di awal baris terminalmu.*
+**Langkah 3: Mendefinisikan Dependensi**
 
-**Langkah 3: Isi File `requirements.txt`**
-
-Buka file `requirements.txt` dan isikan nama library yang kita butuhkan. Kita butuh library Gemini dan satu lagi untuk membaca file `.env` dengan mudah.
+Buka file `requirements.txt` dan tambahkan konten berikut untuk mendaftarkan library yang akan digunakan.
 
 ```txt
 # requirements.txt
-
 google-generativeai
 python-dotenv
 ```
 
-**Langkah 4: Install Semua Kebutuhan**
+**Langkah 4: Instalasi Dependensi**
 
-Dengan virtual environment yang masih aktif, jalankan perintah ini:
+Dengan virtual environment yang sudah aktif, eksekusi perintah di bawah ini untuk menginstal semua library yang terdaftar di `requirements.txt`.
 
 ```bash
 pip install -r requirements.txt
 ```
-Pip akan membaca file `requirements.txt` dan menginstall semua library yang terdaftar di sana.
 
-**Langkah 5: Siapkan API Key di File `.env`**
+**Langkah 5: Konfigurasi Kunci API**
 
-1.  Dapatkan API Key kamu dari [Google AI Studio](https://aistudio.google.com/app/apikey).
-2.  Buka file `.env` dan tambahkan baris berikut. Ganti `xxxxxxxx` dengan API key kamu.
+Kunci API untuk layanan LLM disimpan dalam file `.env` agar tidak terekspos dalam kode sumber.
 
-```env
-# .env
+1.  Dapatkan kunci API dari Google AI Studio.
+2.  Buka file `.env` dan tambahkan baris berikut, ganti nilai `YOUR_API_KEY_HERE` dengan kunci API.
+    ```env
+    # .env
+    GEMINI_API_KEY="YOUR_API_KEY_HERE"
+    ```
 
-GEMINI_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-```
+**Langkah 6: Konfigurasi Git Ignore**
 
-**Langkah 6: Isi File `.gitignore`**
-
-Buka file `.gitignore` dan tambahkan konten ini. Ini akan mencegah file-file yang tidak perlu dan sensitif terkirim ke repository Git.
+Isi file `.gitignore` dengan konten berikut untuk memastikan file-file yang tidak relevan atau sensitif (seperti `.env` dan direktori `venv`) tidak termasuk dalam riwayat kontrol versi.
 
 ```gitignore
 # .gitignore
@@ -129,3 +132,5 @@ __pycache__/
 ```
 
 ---
+
+Setelah menyelesaikan semua langkah di atas, lingkungan pengembangan untuk proyek Pai Code telah siap. Kode program utama dapat mulai diimplementasikan pada file-file di dalam direktori `pai_code/`.
