@@ -5,8 +5,11 @@ import os
 def create_file(file_path: str):
     """Membuat sebuah file kosong jika belum ada."""
     try:
-        # Memastikan direktori induk ada
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        # Hanya buat direktori jika nama direktorinya ada (tidak kosong)
+        dir_name = os.path.dirname(file_path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+            
         with open(file_path, 'w') as f:
             pass
         print(f"File berhasil dibuat: {file_path}")
@@ -40,8 +43,11 @@ def read_file(file_path: str) -> str | None:
 def write_to_file(file_path: str, content: str):
     """Menulis atau menimpa konten ke dalam sebuah file."""
     try:
-        # Memastikan direktori induk ada
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        # Logika yang sama diterapkan di sini
+        dir_name = os.path.dirname(file_path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+
         with open(file_path, 'w') as f:
             f.write(content)
         print(f"Konten berhasil ditulis ke: {file_path}")
