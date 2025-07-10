@@ -65,17 +65,17 @@ Penggunaan virtual environment direkomendasikan untuk mengisolasi dependensi pro
 
 1.  **Buat virtual environment:**
     ```bash
-    python -m venv venv
+    python3 -m pyvenv venv
     ```
 
 2.  **Aktifkan virtual environment:**
     *   **Untuk macOS/Linux:**
         ```bash
-        source venv/bin/activate
+        source pyvenv/bin/activate
         ```
     *   **Untuk Windows (Command Prompt/PowerShell):**
         ```bash
-        .\venv\Scripts\activate
+        .\pyvenv\Scripts\activate
         ```
     Setelah aktif, nama environment (`venv`) akan muncul di awal baris prompt terminal.
 
