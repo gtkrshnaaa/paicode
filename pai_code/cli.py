@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-# UBAH BAGIAN INI:
 from . import agent, fs  
 
 def main():
