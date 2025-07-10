@@ -72,7 +72,7 @@ Bisa di jalankan di route project
 2.  **Aktifkan virtual environment:**
     *   **Untuk macOS/Linux:**
         ```bash
-        source pyvenv/bin/activate
+        source venv/bin/activate
         ```
     *   **Untuk Windows (Command Prompt/PowerShell):**
         ```bash
