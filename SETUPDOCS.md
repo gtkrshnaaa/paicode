@@ -16,19 +16,19 @@ pai-code/
 ├── .gitignore
 ├── README.md
 ├── requirements.txt
-├── pai.py
 │
 └── pai_code/
     ├── __init__.py
     ├── agent.py
+    ├── cli.py
     ├── fs.py
     └── llm.py
 ```
 
 **Deskripsi Komponen:**
 
-*   `pai.py`: Titik masuk (entry point) aplikasi yang dieksekusi dari command line. Berfungsi untuk mem-parsing argumen dan memanggil logika dari paket `pai_code`.
 *   `pai_code/`: Paket utama yang berisi seluruh logika inti aplikasi.
+    *   `cli.py`: Untuk menjalankan pai code.
     *   `agent.py`: Modul yang berisi logika agent, termasuk pemrosesan tugas dan konstruksi prompt.
     *   `fs.py`: Modul yang berisi fungsi-fungsi untuk berinteraksi dengan file system (misalnya, membuat file, membaca file, membuat direktori).
     *   `llm.py`: Modul yang bertanggung jawab untuk komunikasi dengan Gemini API.
