@@ -24,4 +24,4 @@ dependencies = [
 ]
 
 [project.scripts]
-pai = "pai:main"
+pai = "pai_code.cli:main"

@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-# pai.py
 
 import argparse
-
-import argparse
-from pai_code import agent, fs
+# UBAH BAGIAN INI:
+from . import agent, fs  
 
 def main():
     parser = argparse.ArgumentParser(
@@ -14,24 +12,20 @@ def main():
     
     subparsers = parser.add_subparsers(dest='command', required=True, help='Perintah yang tersedia')
 
-    # Perintah: touch
+    # ... (Sisa kode parser persis sama) ...
     parser_touch = subparsers.add_parser('touch', help='Membuat file kosong')
     parser_touch.add_argument('filename', type=str, help='Nama file yang akan dibuat')
 
-    # Perintah: mkdir
     parser_mkdir = subparsers.add_parser('mkdir', help='Membuat direktori baru')
     parser_mkdir.add_argument('dirname', type=str, help='Nama direktori yang akan dibuat')
 
-    # Perintah: read
     parser_read = subparsers.add_parser('read', help='Membaca dan menampilkan isi file')
     parser_read.add_argument('filename', type=str, help='Nama file yang akan dibaca')
     
-    # Perintah: write
     parser_write = subparsers.add_parser('write', help='Menulis kode ke file berdasarkan deskripsi tugas')
     parser_write.add_argument('file', type=str, help='File target untuk ditulis')
     parser_write.add_argument('task', type=str, help='Deskripsi tugas untuk kode yang akan ditulis')
 
-    # Perintah: auto
     parser_auto = subparsers.add_parser('auto', help='Mode otonom untuk menyelesaikan tugas kompleks')
     parser_auto.add_argument('task', type=str, help='Deskripsi tugas komprehensif untuk diselesaikan oleh agent')
 
