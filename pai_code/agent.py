@@ -18,7 +18,12 @@ def _execute_plan(plan: str) -> str:
     print(f"---------------------------------------\n{plan}\n---------------------------------------")
     
     execution_results = []
-    actions = plan.strip().split('\n')
+    
+    # Filter semua baris dari output AI.
+    # Hanya proses baris yang mengandung '::' karena itu adalah format perintah.
+    # Ini akan secara otomatis mengabaikan teks biasa, judul, atau markdown.
+    all_lines = plan.strip().split('\n')
+    actions = [line for line in all_lines if '::' in line]
     
     for action in actions:
         # Membersihkan setiap baris dari spasi dan karakter backtick (`)
@@ -37,7 +42,6 @@ def _execute_plan(plan: str) -> str:
                 path_to_read = parts[1]
                 content = fs.read_file(path_to_read)
                 if content is not None:
-                    # Menambahkan output ke log untuk konteks AI berikutnya
                     execution_results.append(f"--- ISI FILE: {path_to_read} ---\n{content}\n-----------------------------")
                 else:
                     execution_results.append(f"Error: Gagal membaca file atau file tidak ditemukan: {path_to_read}")
@@ -53,6 +57,8 @@ def _execute_plan(plan: str) -> str:
                 execution_results.append("Tugas dianggap selesai.")
                 break
             else:
+                # Blok ini sekarang kemungkinannya kecil untuk tereksekusi,
+                # karena kita sudah filter di awal. Tapi tetap dipertahankan untuk keamanan.
                 msg = f"Warning: Perintah tidak dikenal dari AI: {command}"
                 print(msg)
                 execution_results.append(msg)
@@ -88,7 +94,6 @@ def start_interactive_session():
 
         context_str = "\n".join(session_context)
 
-        # --- PROMPT DIMULAI ---
         prompt = f"""
 Anda adalah sebuah AI agent otonom yang sangat teliti. Tugas Anda adalah membantu pengguna dengan file system.
 
@@ -102,7 +107,7 @@ Perintah yang tersedia:
 7. `TREE::path` - Menampilkan struktur direktori. Ini adalah alat observasi UTAMA Anda.
 8. `FINISH::` - Menandakan tugas selesai.
 
-PENTING: Gunakan output dari perintah `TREE` dan `READ` untuk memahami kondisi proyek saat ini sebelum membuat rencana aksi.
+PENTING: Hanya berikan daftar perintah yang bisa dieksekusi. Jangan sertakan teks penjelasan atau penomoran dalam output Anda. Langsung berikan perintah seperti `TOUCH::file.txt`.
 
 --- RIWAYAT SEBELUMNYA ---
 {context_str}
@@ -113,7 +118,6 @@ Permintaan terbaru dari pengguna:
 
 Berdasarkan SELURUH riwayat dan hasil observasi dari `TREE` dan `READ`, buat rencana aksi yang paling akurat.
 """
-        # --- AKHIR PROMPT ---
         
         plan = llm.generate_text(prompt)
         system_response = _execute_plan(plan)
