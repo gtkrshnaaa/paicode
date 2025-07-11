@@ -15,7 +15,7 @@ if not API_KEY:
 genai.configure(api_key=API_KEY)
 
 # Inisialisasi model
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def generate_text(prompt: str) -> str:
     """Mengirim prompt ke Gemini API dan mengembalikan respons teks."""
