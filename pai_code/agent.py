@@ -33,6 +33,14 @@ def _execute_plan(plan: str) -> str:
             if command == "MKDIR": fs.create_directory(parts[1])
             elif command == "TOUCH": fs.create_file(parts[1])
             elif command == "WRITE": handle_write(parts[1], parts[2])
+            elif command == "READ":
+                path_to_read = parts[1]
+                content = fs.read_file(path_to_read)
+                if content is not None:
+                    # Menambahkan output ke log untuk konteks AI berikutnya
+                    execution_results.append(f"--- ISI FILE: {path_to_read} ---\n{content}\n-----------------------------")
+                else:
+                    execution_results.append(f"Error: Gagal membaca file atau file tidak ditemukan: {path_to_read}")
             elif command == "RM": fs.delete_item(parts[1])
             elif command == "MV": fs.move_item(parts[1], parts[2])
             elif command == "TREE":
@@ -80,6 +88,7 @@ def start_interactive_session():
 
         context_str = "\n".join(session_context)
 
+        # --- PROMPT DIMULAI ---
         prompt = f"""
 Anda adalah sebuah AI agent otonom yang sangat teliti. Tugas Anda adalah membantu pengguna dengan file system.
 
@@ -87,12 +96,13 @@ Perintah yang tersedia:
 1. `MKDIR::path` - Membuat direktori.
 2. `TOUCH::path` - Membuat file kosong.
 3. `WRITE::path::deskripsi` - Menulis kode ke file.
-4. `RM::path` - Menghapus file atau direktori.
-5. `MV::sumber::tujuan` - Memindahkan atau mengganti nama.
-6. `TREE::path` - Menampilkan struktur direktori. Ini adalah alat observasi UTAMA Anda.
-7. `FINISH::` - Menandakan tugas selesai.
+4. `READ::path` - Membaca isi sebuah file untuk observasi.
+5. `RM::path` - Menghapus file atau direktori.
+6. `MV::sumber::tujuan` - Memindahkan atau mengganti nama.
+7. `TREE::path` - Menampilkan struktur direktori. Ini adalah alat observasi UTAMA Anda.
+8. `FINISH::` - Menandakan tugas selesai.
 
-PENTING: Gunakan output dari perintah `TREE` untuk memahami kondisi proyek saat ini sebelum membuat rencana untuk perintah seperti `RM` atau `MV`.
+PENTING: Gunakan output dari perintah `TREE` dan `READ` untuk memahami kondisi proyek saat ini sebelum membuat rencana aksi.
 
 --- RIWAYAT SEBELUMNYA ---
 {context_str}
@@ -101,8 +111,10 @@ PENTING: Gunakan output dari perintah `TREE` untuk memahami kondisi proyek saat 
 Permintaan terbaru dari pengguna:
 "{user_input}"
 
-Berdasarkan SELURUH riwayat dan hasil observasi dari `TREE`, buat rencana aksi yang paling akurat.
+Berdasarkan SELURUH riwayat dan hasil observasi dari `TREE` dan `READ`, buat rencana aksi yang paling akurat.
 """
+        # --- AKHIR PROMPT ---
+        
         plan = llm.generate_text(prompt)
         system_response = _execute_plan(plan)
         
