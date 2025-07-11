@@ -39,8 +39,26 @@ Membangun sebuah **AI coding companion** yang berjalan secara lokal, dapat berin
 
 2. **Auto Mode**
 
-   * `pai auto "<comprehensive task>"`
-     → Agent bekerja secara otonom untuk menyelesaikan tugas kompleks, termasuk membuat file, folder, dan menulis atau memodifikasi isi kode yang relevan
+   * `pai auto`
+     → Agent memasuki **mode interaktif stateful**, di mana pengguna dapat memberikan instruksi secara bertahap dalam satu sesi yang berkelanjutan.
+     Dalam mode ini:
+
+     * Setiap perintah pengguna dianggap sebagai lanjutan konteks dari instruksi sebelumnya
+
+     * Agent akan menyusun prompt berdasarkan histori percakapan selama sesi berjalan
+
+     * Seluruh riwayat perintah dan hasil dieksekusi dicatat di dalam folder khusus `.pai_history/` pada direktori proyek
+
+     * Sesi dapat dihentikan dengan perintah `exit` atau `quit`
+
+   > Contoh interaksi:
+
+   ```bash
+   $ pai auto
+   pai> buat file kalkulator.py dan isi fungsi tambah
+   pai> tambahkan validasi input untuk angka negatif
+   pai> tampilkan isi file tersebut
+   ```
 
 ---
 

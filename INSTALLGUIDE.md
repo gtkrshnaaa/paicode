@@ -102,15 +102,33 @@ Verifikasi konten yang ditulis oleh agent tanpa perlu membuka editor teks.
 ```
 *   **Hasil:** Isi dari file `kalkulator.py` akan ditampilkan langsung di terminal Anda.
 
-**5. Menguji Mode Otonom (`auto`)**
-Berikan tugas yang lebih kompleks dan biarkan agent merencanakan serta mengeksekusi langkah-langkahnya sendiri.
+**5. Menguji Mode Otonom (Auto Mode / Talk Mode)**
+Uji kemampuan *agentic AI* untuk bekerja secara kontekstual melalui sesi interaktif.
+
 ```bash
-(venv) user@localhost:~/proyek-coba$ pai auto "Buat file README.md dengan judul '# Proyek Kalkulator Sederhana' dan isi 'Dibuat menggunakan Pai Code.' Lalu, buat juga file .gitignore untuk mengabaikan direktori `__pycache__/`."
+(venv) user@localhost:~/proyek-coba$ pai auto
 ```
-*   **Hasil:**
-    1.  Agent akan menampilkan rencananya (misalnya, `WRITE::README.md::...` dan `WRITE::.gitignore::...`).
-    2.  Agent akan meminta persetujuan Anda untuk melanjutkan (`Tekan Enter untuk melanjutkan...`).
-    3.  Setelah Anda menekan Enter, agent akan mengeksekusi setiap langkah dalam rencananya.
-    4.  Anda dapat memverifikasi keberadaan dan isi dari `README.md` dan `.gitignore` menggunakan perintah `ls -a` dan `pai read`.
+
+* **Hasil:**
+
+  1. Terminal akan masuk ke mode `auto` interaktif (prompt berubah menjadi `pai>`).
+  2. Anda dapat memberikan perintah secara bertahap, misalnya:
+
+     ```bash
+     pai> buat file kalkulator.py dan isi fungsi tambah
+     pai> tambahkan fungsi kurang
+     pai> tampilkan isi file
+     pai> buat file README.md untuk dokumentasi
+     ```
+  3. Setiap instruksi akan diproses dengan mempertimbangkan perintah sebelumnya dalam satu konteks terpadu.
+  4. Semua interaksi sesi akan disimpan dalam `.pai_history/session.log` di dalam direktori proyek untuk keperluan kontekstualisasi lanjutan.
+  5. Untuk keluar dari sesi, gunakan perintah `exit` atau `quit`.
+
+* **Verifikasi:**
+
+  * Gunakan perintah `ls`, `ls -a`, dan `pai read` untuk melihat perubahan file.
+  * Buka file `.pai_history/session.log` untuk meninjau riwayat percakapan.
+
 
 ---
+
