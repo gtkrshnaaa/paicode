@@ -5,7 +5,6 @@ from datetime import datetime
 from . import llm
 from . import fs
 
-# Direktori untuk menyimpan riwayat sesi
 HISTORY_DIR = ".pai_history"
 
 def _execute_plan(plan: str):
@@ -35,18 +34,24 @@ def _execute_plan(plan: str):
             elif command == "WRITE":
                 file_path = parts[1]
                 write_task = parts[2]
-                print(f"Mengeksekusi WRITE untuk {file_path}")
-                handle_write(file_path, write_task) # Menggunakan kembali logika handle_write
+                print(f"Executing WRITE for {file_path}")
+                handle_write(file_path, write_task)
+            elif command == "RM":
+                fs.delete_item(parts[1])
+            elif command == "MV":
+                fs.move_item(parts[1], parts[2])
+            elif command == "LS":
+                path_to_list = parts[1] if len(parts) > 1 else '.'
+                fs.list_directory(path_to_list)
             elif command == "FINISH":
                 print("Agent menganggap tugas ini selesai.")
                 break
             else:
-                print(f"Perintah tidak dikenal dari AI: {command}")
+                print(f"Warning: Perintah tidak dikenal dari AI: {command}")
         except IndexError:
-            print(f"Format perintah dari AI salah: {action}")
+            print(f"Error: Format perintah dari AI salah: {action}")
         except Exception as e:
-            print(f"Terjadi kesalahan saat eksekusi '{action}': {e}")
-
+            print(f"Error: Terjadi kesalahan saat eksekusi '{action}': {e}")
 
 def handle_write(file_path: str, task: str):
     """Menangani perintah 'write' dengan membuat prompt dan menulis hasilnya."""
@@ -60,12 +65,10 @@ Tolong berikan HANYA kode program mentah (raw code) untuk file tersebut tanpa pe
     if code_content:
         fs.write_to_file(file_path, code_content)
     else:
-        print("Gagal menghasilkan konten, file tidak ditulis.")
-
+        print("Error: Gagal menghasilkan konten, file tidak ditulis.")
 
 def start_interactive_session():
     """Memulai sesi interaktif (chat mode) dengan agent."""
-    # Setup riwayat
     if not os.path.exists(HISTORY_DIR):
         os.makedirs(HISTORY_DIR)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -82,25 +85,26 @@ def start_interactive_session():
             break
 
         if user_input.lower() in ['exit', 'quit']:
-            print("👋 Sesi berakhir.")
+            print("Sesi berakhir.")
             break
         
         if not user_input:
             continue
 
-        # Gabungkan konteks sebelumnya
         context_str = "\n".join(session_context)
 
         prompt = f"""
-Anda adalah sebuah AI agent otonom interaktif. Anda sedang berada dalam sesi chat dengan pengguna.
-Tugas Anda adalah membantu pengguna menyelesaikan tugas pengembangan software langkah demi langkah.
+Anda adalah sebuah AI agent otonom interaktif. Tugas Anda adalah membantu pengguna menyelesaikan tugas pengembangan software.
 Anda dapat melakukan operasi pada file system dengan mengeluarkan perintah dalam format yang telah ditentukan.
 
 Perintah yang tersedia:
 1. `MKDIR::path/to/directory` - Membuat sebuah direktori.
 2. `TOUCH::path/to/file.ext` - Membuat sebuah file kosong.
 3. `WRITE::path/to/file.ext::Deskripsi singkat apa yang harus ditulis di file ini.` - Menulis kode ke file.
-4. `FINISH::` - Menandakan bahwa tugas dari pengguna telah selesai.
+4. `RM::path/to/delete` - Menghapus file atau direktori.
+5. `MV::path/sumber::path/tujuan` - Memindahkan atau mengganti nama file/direktori.
+6. `LS::path/to/list` - Melihat daftar isi direktori. `path` bersifat opsional, default ke direktori saat ini ('.').
+7. `FINISH::` - Menandakan bahwa tugas dari pengguna telah selesai.
 
 Berikut adalah riwayat percakapan sejauh ini:
 ---
@@ -110,16 +114,12 @@ Berikut adalah riwayat percakapan sejauh ini:
 Permintaan terbaru dari pengguna adalah:
 "{user_input}"
 
-Berdasarkan SELURUH riwayat dan permintaan terbaru, hasilkan daftar perintah yang diperlukan untuk memenuhi permintaan terbaru ini.
+Berdasarkan SELURUH riwayat dan permintaan terbaru, hasilkan daftar perintah yang diperlukan.
 Hanya hasilkan perintahnya saja, satu per baris.
 """
-        # Hasilkan rencana dari LLM
         plan = llm.generate_text(prompt)
-        
-        # Eksekusi rencana
         _execute_plan(plan)
         
-        # Simpan interaksi ke riwayat untuk konteks berikutnya dan logging
         interaction_log = f"User: {user_input}\nAI Plan:\n{plan}\n"
         session_context.append(interaction_log)
         with open(log_file_path, 'a') as f:
