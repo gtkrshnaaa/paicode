@@ -13,9 +13,9 @@ authors = [
 description = "A command-line based agentic AI for software development."
 readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "MIT License" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -25,3 +25,6 @@ dependencies = [
 
 [project.scripts]
 pai = "pai_code.cli:main"
+
+[tool.setuptools]
+packages = ["pai_code"]
