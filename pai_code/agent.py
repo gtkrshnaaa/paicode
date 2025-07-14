@@ -10,66 +10,59 @@ VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "FINISH
 
 def _execute_plan(plan: str) -> str:
     """
-    Mengeksekusi rencana aksi yang dibuat oleh LLM.
-    Fungsi ini dimodifikasi untuk memastikan SEMUA output (komentar AI dan hasil perintah)
-    tercatat dalam log dengan benar.
+    Executes the action plan created by the LLM.
     """
     if not plan:
-        return "Agent tidak menghasilkan rencana aksi."
+        return "Agent did not produce an action plan."
 
     all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
     execution_results = []
     
-    print("\n--- Hasil Eksekusi Rencana ---")
+    print("\n--- Plan Execution Results ---")
     
     for action in all_lines:
         try:
             command_candidate, _, params = action.partition('::')
             command_candidate = command_candidate.upper().strip()
             
-            # Cek apakah baris ini adalah perintah yang valid atau hanya komentar
             if command_candidate in VALID_COMMANDS:
                 result = ""
                 
-                # Menampilkan aksi yang akan dijalankan, kecuali untuk perintah yang outputnya besar
                 if command_candidate not in ["WRITE", "READ", "TREE"]:
-                    print(f"-> Aksi: {action}")
+                    print(f"-> Action: {action}")
 
                 if command_candidate == "WRITE":
                     file_path, _, _ = params.partition('::')
-                    print(f"-> Aksi: Menulis konten ke file '{file_path}'...")
+                    print(f"-> Action: Writing content to file '{file_path}'...")
                     result = handle_write(file_path, params)
                 
                 elif command_candidate == "READ":
                     path_to_read = params
-                    print(f"-> Aksi: Membaca file '{path_to_read}'...")
+                    print(f"-> Action: Reading file '{path_to_read}'...")
                     content = fs.read_file(path_to_read)
                     if content is not None:
-                        # Tampilkan konten ke konsol
-                        print(f"--- ISI FILE: {path_to_read} ---\n{content}\n-----------------------------")
-                        # Siapkan hasil LENGKAP untuk log
-                        result = f"Success: Berhasil membaca {path_to_read}\n--- ISI FILE: {path_to_read} ---\n{content}\n-----------------------------"
+                        print(f"--- FILE CONTENT: {path_to_read} ---\n{content}\n-----------------------------")
+                        result = f"Success: Read {path_to_read}\n--- FILE CONTENT: {path_to_read} ---\n{content}\n-----------------------------"
                     else:
-                        result = f"Error: Gagal membaca file: {path_to_read}"
+                        result = f"Error: Failed to read file: {path_to_read}"
 
                 elif command_candidate == "TREE":
                     path_to_list = params if params else '.'
-                    print(f"-> Aksi: Menampilkan struktur direktori dari '{path_to_list}'...")
+                    print(f"-> Action: Displaying directory structure for '{path_to_list}'...")
                     tree_output = fs.tree_directory(path_to_list)
                     if tree_output:
                         print(tree_output)
-                        # KUNCI PERBAIKAN: Hasilnya adalah output pohon itu sendiri
                         result = tree_output
                     else:
-                        result = "Error: Gagal menampilkan struktur direktori."
+                        result = "Error: Failed to display directory structure."
                 
                 elif command_candidate == "FINISH":
-                    result = params if params else "Tugas dianggap selesai."
+                    result = params if params else "Task is considered complete."
                     print(f"Agent: {result}")
                     execution_results.append(result)
                     break 
 
-                else: # Perintah lain: MKDIR, TOUCH, RM, MV
+                else: # Other commands: MKDIR, TOUCH, RM, MV
                     if command_candidate == "MKDIR": result = fs.create_directory(params)
                     elif command_candidate == "TOUCH": result = fs.create_file(params)
                     elif command_candidate == "RM": result = fs.delete_item(params)
@@ -77,90 +70,86 @@ def _execute_plan(plan: str) -> str:
                         source, _, dest = params.partition('::')
                         result = fs.move_item(source, dest)
                 
-                # Cetak pesan status (Success/Error) jika ada dan belum dicetak
                 if result and command_candidate not in ["READ", "TREE"]:
-                     if "Success" in result or "Error" in result or "Warning" in result:
-                           print(result)
+                      if "Success" in result or "Error" in result or "Warning" in result:
+                            print(result)
 
-                # Tambahkan semua hasil ke daftar untuk dicatat ke log
                 if result:
                     execution_results.append(result)
 
             else:
-                # KUNCI PERBAIKAN: Komentar dari AI juga dicatat ke log
                 print(f"{action}")
                 execution_results.append(action)
 
         except Exception as e:
-            msg = f"Error: Terjadi kesalahan saat memproses '{action}': {e}"
+            msg = f"Error: An exception occurred while processing '{action}': {e}"
             print(msg)
             execution_results.append(msg)
 
     print("---------------------------------")
-    # Gabungkan semua output yang terkumpul menjadi satu string untuk log
-    return "\n".join(execution_results) if execution_results else "Eksekusi selesai tanpa hasil."
+    return "\n".join(execution_results) if execution_results else "Execution finished with no result."
 
 def handle_write(file_path: str, params: str) -> str:
-    """Menjalankan LLM untuk membuat konten dan menulisnya ke file."""
+    """Invokes the LLM to create content and write it to a file."""
     _, _, description = params.partition('::')
     
-    prompt = f"Anda adalah asisten pemrograman ahli. Tulis kode lengkap untuk file '{file_path}' berdasarkan deskripsi berikut: \"{description}\". Berikan HANYA kode mentah tanpa penjelasan atau markdown."
+    prompt = f"You are an expert programming assistant. Write the complete code for the file '{file_path}' based on the following description: \"{description}\". Provide ONLY the raw code without any explanations or markdown."
     
     code_content = llm.generate_text(prompt)
     
     if code_content:
         return fs.write_to_file(file_path, code_content)
     else:
-        return f"Error: Gagal menghasilkan konten dari LLM untuk file: {file_path}"
+        return f"Error: Failed to generate content from LLM for file: {file_path}"
 
 def start_interactive_session():
-    """Memulai sesi interaktif dengan agent."""
+    """Starts an interactive session with the agent."""
     if not os.path.exists(HISTORY_DIR):
         os.makedirs(HISTORY_DIR)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
 
     session_context = []
-    print("Memasuki mode auto interaktif. Ketik 'exit' atau 'quit' untuk keluar.")
+    print("Entering interactive auto mode. Type 'exit' or 'quit' to leave.")
     
     while True:
         try:
             user_input = input("pai> ").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\nSesi dihentikan."); break
+            print("\nSession terminated."); break
         if user_input.lower() in ['exit', 'quit']:
-            print("Sesi berakhir."); break
+            print("Session ended."); break
         if not user_input: continue
 
         context_str = "\n".join(session_context)
 
         prompt = f"""
-Anda adalah Pai, sebuah AI agent otonom yang sangat teliti. Tugas Anda adalah membantu pengguna dengan file system.
+You are Pai, a meticulous autonomous AI agent. Your job is to assist the user with file system operations.
 
-Perintah yang tersedia:
+Available commands:
 1. `MKDIR::path`
 2. `TOUCH::path`
-3. `WRITE::path::deskripsi`
+3. `WRITE::path::description`
 4. `READ::path`
 5. `RM::path`
-6. `MV::sumber::tujuan`
+6. `MV::source::destination`
 7. `TREE::path`
-8. `FINISH::pesan penutup opsional`
+8. `FINISH::optional closing message`
 
-ATURAN DAN CARA BERPIKIR PENTING:
-- **Gunakan Hasil Perintah Sebelumnya:** Perhatikan baik-baik bagian `Aksi` dari riwayat. Gunakan output dari perintah sebelumnya (seperti `TREE`) untuk membuat rencana selanjutnya. Jika `TREE` menampilkan daftar file, Anda HARUS menggunakan daftar itu untuk perintah `READ` jika diminta. Jangan meminta pengguna untuk informasi yang sudah tersedia di riwayat.
-- **Satu Perintah per Baris:** Berikan satu perintah per baris dalam rencana Anda.
-- **Komentar:** Anda bisa berbicara dengan pengguna. Untuk berkomentar, tulis saja teks biasa tanpa format perintah.
-- **Perintah WRITE:** Untuk `WRITE`, bagian `deskripsi` HANYA berisi penjelasan singkat, BUKAN kode sebenarnya.
+IMPORTANT RULES AND THOUGHT PROCESS:
+- **Use Previous Command Results:** Pay close attention to the `System Response` part of the history. Use the output from previous commands (like `TREE`) to form your next plan. If `TREE` shows a list of files, you MUST use that list for a `READ` command if requested. Do not ask the user for information that is already available in the history.
+- **One Command Per Line:** Provide one command per line in your plan.
+- **Comments:** You can talk to the user. To comment, just write plain text without the command format.
+- **WRITE Command:** For `WRITE`, the `description` part should ONLY contain a brief explanation, NOT the actual code.
 
---- RIWAYAT SEBELUMNYA ---
+--- PREVIOUS HISTORY ---
 {context_str}
---- AKHIR RIWAYAT ---
+--- END OF HISTORY ---
 
-Permintaan terbaru dari pengguna:
+Latest request from user:
 "{user_input}"
 
-Berdasarkan SELURUH riwayat dan aturan di atas, buat rencana aksi yang paling akurat, cerdas, dan komunikatif. Jangan terjebak dalam lingkaran meminta informasi yang sudah ada.
+Based on the ENTIRE history and the rules above, create the most accurate, intelligent, and communicative action plan. Do not get stuck in a loop asking for information that is already present.
 """
         
         plan = llm.generate_text(prompt)
