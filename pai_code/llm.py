@@ -11,7 +11,7 @@ model = None
 if API_KEY:
     try:
         genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         print(f"Error: Failed to configure the generative AI model: {e}")
 else:
