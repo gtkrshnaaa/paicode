@@ -23,7 +23,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         return Group(Text(msg, style="warning")), msg
 
     all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
-    renderables = [Text("Agent's Plan:", style="bold underline")]
+    renderables = [Text("Agent's Plan or Response:", style="bold underline")]
     log_results = []
     
     # Add the AI's plan to the renderables and log
@@ -153,7 +153,7 @@ def start_interactive_session():
     
     while True:
         try:
-            user_input = Prompt.ask("\n[bold magenta]pai>[/bold magenta]").strip()
+            user_input = Prompt.ask("\n[bold magenta]user>[/bold magenta]").strip()
         except (KeyboardInterrupt, EOFError):
             ui.console.print("\n[warning]Session terminated.[/warning]")
             break
