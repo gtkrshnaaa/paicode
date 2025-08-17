@@ -25,7 +25,7 @@ pai-code/
 ├── requirements.txt
 ├── makefile
 │
-└── pai_code/
+└── src/
     ├── __init__.py
     ├── agent.py     # The agent's core logic and prompt engineering
     ├── cli.py       # The main CLI entry point (using argparse)
