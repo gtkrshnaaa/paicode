@@ -1,3 +1,5 @@
+# paicode/agent.py
+
 import os
 from datetime import datetime
 from rich.prompt import Prompt
@@ -83,7 +85,7 @@ def _execute_plan(plan: str) -> str:
             ui.print_error(msg)
             execution_results.append(msg)
 
-    ui.console.print(Rule(style="cyan"))
+    ui.print_rule("Execution Complete") 
     return "\n".join(execution_results) if execution_results else "Execution finished with no result."
 
 def handle_write(file_path: str, params: str) -> str:
