@@ -1,25 +1,37 @@
-# paicode/agent.py
-
 import os
 from datetime import datetime
 from rich.prompt import Prompt
+from rich.panel import Panel
+from rich.console import Group
+from rich.text import Text
+from rich.syntax import Syntax
+from rich.box import ROUNDED
 from . import llm, fs, ui
 
 HISTORY_DIR = ".pai_history"
 VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "FINISH"]
 
-def _execute_plan(plan: str) -> str:
+def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     """
-    Executes the action plan created by the LLM with rich TUI feedback.
+    Executes the plan and generates a list of Rich renderables for display.
+    Does NOT print directly to the console.
+    Returns a tuple of (Group_of_renderables, log_string).
     """
     if not plan:
-        return "Agent did not produce an action plan."
+        msg = "Agent did not produce an action plan."
+        return Group(Text(msg, style="warning")), msg
 
     all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
-    execution_results = []
+    renderables = [Text("Agent's Plan:", style="bold underline")]
+    log_results = []
     
-    ui.print_rule("Plan Execution Results")
+    # First, add the entire plan to the renderables
+    for line in all_lines:
+        renderables.append(Text(f"  {line}", style="dim cyan"))
+        log_results.append(line)
     
+    renderables.append(Text("\nExecution Results:", style="bold underline"))
+
     for action in all_lines:
         try:
             command_candidate, _, params = action.partition('::')
@@ -27,8 +39,8 @@ def _execute_plan(plan: str) -> str:
             
             if command_candidate in VALID_COMMANDS:
                 result = ""
-                
-                ui.print_action(action)
+                action_text = Text(f"-> {action}", style="action")
+                renderables.append(action_text)
 
                 if command_candidate == "WRITE":
                     file_path, _, _ = params.partition('::')
@@ -38,8 +50,15 @@ def _execute_plan(plan: str) -> str:
                     path_to_read = params
                     content = fs.read_file(path_to_read)
                     if content is not None:
-                        ui.display_panel(content, f"Content of {path_to_read}", language="python")
-                        result = f"Success: Read {path_to_read}"
+                        lang = "python" if path_to_read.endswith(".py") else "text"
+                        syntax_panel = Panel(
+                            Syntax(content, lang, theme="monokai", line_numbers=True),
+                            title=f"Content of {path_to_read}",
+                            border_style="cyan",
+                            expand=False
+                        )
+                        renderables.append(syntax_panel)
+                        result = f"Success: Read and displayed {path_to_read}"
                     else:
                         result = f"Error: Failed to read file: {path_to_read}"
 
@@ -47,15 +66,15 @@ def _execute_plan(plan: str) -> str:
                     path_to_list = params if params else '.'
                     tree_output = fs.tree_directory(path_to_list)
                     if tree_output:
-                        ui.console.print(f"[cyan]{tree_output}[/cyan]")
+                        renderables.append(Text(tree_output, style="cyan"))
                         result = "Success: Displayed directory structure."
                     else:
                         result = "Error: Failed to display directory structure."
                 
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
-                    ui.print_success(f"Agent: {result}")
-                    execution_results.append(result)
+                    log_results.append(result)
+                    renderables.append(Text(f"✓ Agent: {result}", style="success"))
                     break 
 
                 else: # Other commands: MKDIR, TOUCH, RM, MV
@@ -67,26 +86,19 @@ def _execute_plan(plan: str) -> str:
                         result = fs.move_item(source, dest)
                 
                 if result:
-                    if "Success" in result: ui.print_success(result)
-                    elif "Error" in result: ui.print_error(result)
-                    elif "Warning" in result: ui.print_warning(result)
-                    else: ui.print_info(result)
-                
-                if result:
-                    execution_results.append(result)
-
-            else:
-                # This handles comments or explanations from the agent's plan
-                ui.print_info(action)
-                execution_results.append(action)
+                    if "Success" in result: style = "success"; icon = "✓ "
+                    elif "Error" in result: style = "error"; icon = "✗ "
+                    elif "Warning" in result: style = "warning"; icon = "! "
+                    else: style = "info"; icon = "i "
+                    renderables.append(Text(f"{icon}{result}", style=style))
+                    log_results.append(result)
 
         except Exception as e:
             msg = f"An exception occurred while processing '{action}': {e}"
-            ui.print_error(msg)
-            execution_results.append(msg)
+            renderables.append(Text(f"✗ {msg}", style="error"))
+            log_results.append(msg)
 
-    ui.print_rule("Execution Complete") 
-    return "\n".join(execution_results) if execution_results else "Execution finished with no result."
+    return Group(*renderables), "\n".join(log_results)
 
 def handle_write(file_path: str, params: str) -> str:
     """Invokes the LLM to create content and write it to a file."""
@@ -109,12 +121,13 @@ def start_interactive_session():
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
 
     session_context = []
-    ui.print_rule("Interactive Auto Mode")
+    
+    ui.print_panel_title("Interactive Auto Mode")
     ui.print_info("Type 'exit' or 'quit' to leave.")
     
     while True:
         try:
-            user_input = Prompt.ask("[bold magenta]pai>[/bold magenta]").strip()
+            user_input = Prompt.ask("\n[bold magenta]pai>[/bold magenta]").strip()
         except (KeyboardInterrupt, EOFError):
             ui.console.print("\n[warning]Session terminated.[/warning]")
             break
@@ -164,9 +177,20 @@ Based on the user's request and the entire history, create a clear, step-by-step
 """
         
         plan = llm.generate_text(prompt)
-        system_response = _execute_plan(plan)
+        renderable_group, log_string = _generate_execution_renderables(plan)
         
-        interaction_log = f"User: {user_input}\nAI Plan:\n{plan}\nSystem Response:\n{system_response}"
+        # Now, print everything inside a single panel
+        ui.console.print(
+            Panel(
+                renderable_group,
+                title="[bold]Agent Response[/bold]",
+                box=ROUNDED,
+                border_style="cyan",
+                padding=(1, 2)
+            )
+        )
+        
+        interaction_log = f"User: {user_input}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
         session_context.append(interaction_log)
         with open(log_file_path, 'a') as f:
             f.write(interaction_log + "\n-------------------\n")

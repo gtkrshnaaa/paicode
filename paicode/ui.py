@@ -1,9 +1,10 @@
-
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.theme import Theme
 from rich.rule import Rule
+from rich.box import ROUNDED
+from rich.text import Text
 
 # Define a custom theme for consistency
 custom_theme = Theme({
@@ -42,7 +43,7 @@ def display_panel(content: str, title: str, language: str = None):
     """Displays content within a panel, with optional syntax highlighting."""
     if language:
         # Use Syntax for code highlighting
-        display_content = Syntax(content, language, theme="monokai", line_numbers=True)
+        display_content = Syntax(content, language, theme="monkai", line_numbers=True)
     else:
         display_content = content
     
@@ -51,3 +52,14 @@ def display_panel(content: str, title: str, language: str = None):
 def print_rule(title: str):
     """Displays a horizontal rule with a title."""
     console.print(Rule(f"[bold]{title}[/bold]", style="cyan"))
+
+def print_panel_title(title: str):
+    """Displays a styled title inside a rounded panel."""
+    console.print(
+        Panel(
+            Text(title, justify="center", style="bold"),
+            box=ROUNDED,
+            border_style="cyan",
+            expand=False
+        )
+    )
