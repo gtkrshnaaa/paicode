@@ -1,17 +1,19 @@
-# **Pai Code: Agentic AI Coding Companion**
+# **Pai Code: Your Agentic AI Coding Companion**
 
-> **An autonomous, command-line-based AI agent designed to accelerate software development through intelligent, direct file system interaction.**
+> **An autonomous, conversational AI agent designed to accelerate software development through intelligent, stateful interaction directly in your terminal.**
 
-**Pai Code** is a local AI assistant that operates directly from your terminal. It serves as a true developer companion, capable of understanding high-level goals and translating them into concrete project structures, code, and file management tasks. By interacting with the file system, any action Pai takes is instantly reflected in your favorite IDE, creating a seamless and powerful workflow.
+**Pai Code** is a local AI assistant that operates as a true developer companion. It's not a toolkit of separate commands; it is a single, intelligent partner capable of understanding high-level goals, observing its environment, remembering context, and translating your intent into concrete project structures, code, and file management tasks.
+
+-----
 
 ## **1. Core Philosophy**
 
 Pai Code is built on a set of guiding principles that define its purpose and design:
 
-  * **Local-First and Private:** Your code and your interactions are yours alone. Pai operates entirely on your local machine. Nothing is stored or tracked on a remote server beyond the necessary API calls to Gemini.
-  * **CLI-Native Workflow:** We believe in the power and speed of the command line. Pai Code is built for developers who thrive in the terminal, augmenting their workflow without forcing them into a GUI.
-  * **Editor Agnostic:** By operating directly on the file system, Pai is compatible with any text editor or IDE you choose, from VS Code and JetBrains IDEs to Vim or Emacs.
-  * **Focused & Minimalist:** Pai does one thing and does it well: it builds and manages code. There are no complex GUIs or plugins to manage.
+  * **Local-First and Private:** Your code and your interactions are yours alone. Pai operates entirely on your local machine. Nothing is stored on a remote server beyond the necessary API calls to the LLM.
+  * **Conversational Workflow:** We believe in the power of dialog. Pai is built for developers who thrive in the terminal, augmenting their workflow through natural language conversation, not a rigid set of commands.
+  * **Editor Agnostic:** By operating directly on the file system, any action Pai takes is instantly reflected in your favorite IDE, from VS Code and JetBrains to Vim or Emacs.
+  * **Agentic and Stateful:** Pai is designed to be more than a script runner. It maintains context throughout a session, allowing it to learn from the results of its own actions and engage in meaningful, iterative development.
 
 -----
 
@@ -20,14 +22,14 @@ Pai Code is built on a set of guiding principles that define its purpose and des
 The project uses a standard package structure managed by Poetry.
 
 ```
-paicode/            <-- Project Root
-├── paicode/        <-- Python Package
+paicode/          <-- Project Root
+├── paicode/      <-- Python Package
 │   ├── __init__.py
 │   ├── agent.py      # The agent's core logic and prompt engineering
-│   ├── cli.py        # The main CLI entry point
+│   ├── cli.py        # The main conversational CLI entry point
 │   ├── config.py     # Secure API key management
 │   ├── fs.py         # File system gateway and security layer
-│   ├── llm.py        # Bridge to the Gemini Large Language Model
+│   ├── llm.py        # Bridge to the Large Language Model
 │   └── ui.py         # Rich TUI components
 │
 ├── .gitignore
@@ -40,7 +42,7 @@ paicode/            <-- Project Root
 
 ## **3. Installation and Setup**
 
-With Poetry, the setup process is simpler and more integrated.
+The setup process is simple and integrated with Poetry.
 
 ### **Prerequisites**
 
@@ -51,7 +53,6 @@ With Poetry, the setup process is simpler and more integrated.
 ### **Step-by-Step Guide**
 
 1.  **Clone the Repository**
-    First, get the source code from the repository and navigate into the project directory.
 
     ```bash
     # Replace <REPOSITORY_URL> with the actual Git URL
@@ -78,7 +79,6 @@ With Poetry, the setup process is simpler and more integrated.
     This command securely stores your key in `~/.config/pai-code/credentials`.
 
 4.  **Verify the Installation**
-    Confirm that everything is set up correctly.
 
     ```bash
     # Check if the main command is available
@@ -99,110 +99,203 @@ Security is a core design principle of Pai Code.
 
 -----
 
-## **5. Usage and Command Reference**
+## **5. Usage: A Conversational Workflow**
 
-To run all `pai` commands, you can either use `poetry run` or enter the virtual shell with `poetry shell`.
+All development with Pai happens inside a single, interactive session. You don't execute individual file commands; you have a conversation with the agent about what you want to achieve.
 
-  * **Using `poetry run` (for single commands):** `poetry run pai <command>`
-  * **Using `poetry shell` (for interactive sessions):** Run `poetry shell`, then you can call `pai <command>` directly.
+### **Configuration (One-Time Setup)**
 
-### **Configuration: `pai config`**
+Manage your API key with the `config` command.
 
-  * **Description:** Manages the essential API key configuration.
-  * **Sub-commands:**
-      * `--set <API_KEY>`: Sets or replaces the API key.
-      * `--show`: Displays the currently stored key in a masked format.
-      * `--remove`: Deletes the credentials file.
-  * **Usage:**
-    ```bash
-    poetry run pai config --set "YOUR_GEMINI_API_KEY"
-    ```
+  * `poetry run pai config --set <API_KEY>`: Sets or replaces the API key.
+  * `poetry run pai config --show`: Displays the currently stored key (masked).
+  * `poetry run pai config --remove`: Deletes the credentials file.
 
-### **File System Operations**
+### **Starting an Agent Session**
 
-These are the building blocks for development.
+To begin coding, simply run `pai` or `pai auto`. This will drop you into an interactive session.
 
-  * **`poetry run pai touch <filename>`**
+```bash
+# For an interactive session, using 'poetry shell' is more convenient
+poetry shell
 
-      * **Description:** Creates a new, empty file at the specified path.
-      * **Example:** `poetry run pai touch paicode/app/main.py`
+# Start the agent
+(pai-code-py3.12)$ pai
+```
 
-  * **`poetry run pai mkdir <dirname>`**
+### **Interacting with the Agent**
 
-      * **Description:** Creates a new directory.
-      * **Example:** `poetry run pai mkdir tests/unit`
+The workflow is designed to be intuitive and iterative.
 
-  * **`poetry run pai read <filename>`**
+1.  **Give a High-Level Goal:** Start by asking the agent to observe its surroundings or outlining what you want to build.
+2.  **Let it Observe:** The agent will use its internal tools (like `LIST_PATH` or `TREE`) to understand the project structure.
+3.  **Ask Follow-up Questions:** Based on its observations, you can then ask it to perform specific actions, like reading a file, modifying code, or creating a new module. Because the agent is stateful, it will remember the context from previous steps.
 
-      * **Description:** Reads the content of a file and prints it to the console.
-      * **Example:** `poetry run pai read pyproject.toml`
+### **Example Session**
 
-  * **`poetry run pai write <file> "<task>"`**
+This example shows the agent's ability to observe, remember, and act upon context.
 
-      * **Description:** An AI-powered command that generates code based on a task description and writes it to a file.
-      * **Example:** `poetry run pai write paicode/utils.py "Create a utility function to validate email addresses using regex."`
+```bash
+(pai-code-py3.12) user@localhost:~/space/dev/try/testtpai$ pai auto
+╭───────────────────────╮
+│ Interactive Auto Mode │
+╰───────────────────────╯
+i Type 'exit' or 'quit' to leave.
 
-  * **`poetry run pai tree [path]`**
+user>: hii pai, lets make a simple project with python, BMI Calculator
+╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
+│                                                                                                                         │
+│  Agent's Plan or Response:                                                                                              │
+│  MKDIR::bmi_calculator                                                                                                  │
+│  TOUCH::bmi_calculator/main.py                                                                                          │
+│  WRITE::bmi_calculator/main.py::A Python script that calculates Body Mass Index (BMI) based on user input for weight    │
+│  (kg) and height (cm). It should handle potential non-numeric input and provide an interpretation of the BMI result     │
+│  (underweight, normal, overweight, obese).                                                                              │
+│  FINISH::The basic structure for the BMI calculator project has been set up, and the main Python file is ready with a   │
+│  description of its content. Let me know if you want to modify or run it!                                               │
+│                                                                                                                         │
+│  Execution Results:                                                                                                     │
+│  -> MKDIR::bmi_calculator                                                                                               │
+│  ✓ Success: Directory created: bmi_calculator                                                                           │
+│  -> TOUCH::bmi_calculator/main.py                                                                                       │
+│  ✓ Success: File created: bmi_calculator/main.py                                                                        │
+│  -> WRITE::bmi_calculator/main.py::A Python script that calculates Body Mass Index (BMI) based on user input for        │
+│  weight (kg) and height (cm). It should handle potential non-numeric input and provide an interpretation of the BMI     │
+│  result (underweight, normal, overweight, obese).                                                                       │
+│  ✓ Success: Content successfully written to: bmi_calculator/main.py                                                     │
+│  -> FINISH::The basic structure for the BMI calculator project has been set up, and the main Python file is ready with  │
+│  a description of its content. Let me know if you want to modify or run it!                                             │
+│  ✓ Agent: The basic structure for the BMI calculator project has been set up, and the main Python file is ready with a  │
+│  description of its content. Let me know if you want to modify or run it!                                               │
+│                                                                                                                         │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-      * **Description:** Displays a visual, tree-like representation of the directory structure.
-      * **Example:** `poetry run pai tree paicode`
+user>: okay, now show me the list of file using tree 
+╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
+│                                                                                                                         │
+│  Agent's Plan or Response:                                                                                              │
+│  TREE::bmi_calculator                                                                                                   │
+│                                                                                                                         │
+│  Execution Results:                                                                                                     │
+│  -> TREE::bmi_calculator                                                                                                │
+│  bmi_calculator/                                                                                                        │
+│  └── main.py                                                                                                            │
+│  ✓ Success: Displayed directory structure.                                                                              │
+│                                                                                                                         │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-  * **`poetry run pai rm <path>`**
+user>: good, show me the source code
+╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
+│                                                                                                                         │
+│  Agent's Plan or Response:                                                                                              │
+│  READ::bmi_calculator/main.py                                                                                           │
+│                                                                                                                         │
+│  Execution Results:                                                                                                     │
+│  -> READ::bmi_calculator/main.py                                                                                        │
+│  ╭──────────────────────── Content of bmi_calculator/main.py ────────────────────────╮                                  │
+│  │    1 def main():                                                                  │                                  │
+│  │    2     print("BMI Calculator")                                                  │                                  │
+│  │    3     print("----------------")                                                │                                  │
+│  │    4                                                                              │                                  │
+│  │    5     # Get weight input                                                       │                                  │
+│  │    6     while True:                                                              │                                  │
+│  │    7         try:                                                                 │                                  │
+│  │    8             weight_str = input("Enter your weight in kilograms (kg): ")      │                                  │
+│  │    9             weight = float(weight_str)                                       │                                  │
+│  │   10             if weight <= 0:                                                  │                                  │
+│  │   11                 print("Weight must be a positive number. Please try again.") │                                  │
+│  │   12             else:                                                            │                                  │
+│  │   13                 break                                                        │                                  │
+│  │   14         except ValueError:                                                   │                                  │
+│  │   15             print("Invalid input. Please enter a numeric value for weight.") │                                  │
+│  │   16                                                                              │                                  │
+│  │   17     # Get height input                                                       │                                  │
+│  │   18     while True:                                                              │                                  │
+│  │   19         try:                                                                 │                                  │
+│  │   20             height_str = input("Enter your height in centimeters (cm): ")    │                                  │
+│  │   21             height_cm = float(height_str)                                    │                                  │
+│  │   22             if height_cm <= 0:                                               │                                  │
+│  │   23                 print("Height must be a positive number. Please try again.") │                                  │
+│  │   24             else:                                                            │                                  │
+│  │   25                 break                                                        │                                  │
+│  │   26         except ValueError:                                                   │                                  │
+│  │   27             print("Invalid input. Please enter a numeric value for height.") │                                  │
+│  │   28                                                                              │                                  │
+│  │   29     # Convert height from cm to meters                                       │                                  │
+│  │   30     height_m = height_cm / 100                                               │                                  │
+│  │   31                                                                              │                                  │
+│  │   32     # Calculate BMI                                                          │                                  │
+│  │   33     # BMI = weight (kg) / (height (m))^2                                     │                                  │
+│  │   34     if height_m == 0:                                                        │                                  │
+│  │   35         print("Error: Height cannot be zero for BMI calculation.")           │                                  │
+│  │   36         return                                                               │                                  │
+│  │   37                                                                              │                                  │
+│  │   38     bmi = weight / (height_m ** 2)                                           │                                  │
+│  │   39                                                                              │                                  │
+│  │   40     # Interpret BMI                                                          │                                  │
+│  │   41     interpretation = ""                                                      │                                  │
+│  │   42     if bmi < 18.5:                                                           │                                  │
+│  │   43         interpretation = "Underweight"                                       │                                  │
+│  │   44     elif 18.5 <= bmi < 25:                                                   │                                  │
+│  │   45         interpretation = "Normal weight"                                     │                                  │
+│  │   46     elif 25 <= bmi < 30:                                                     │                                  │
+│  │   47         interpretation = "Overweight"                                        │                                  │
+│  │   48     else:  # bmi >= 30                                                       │                                  │
+│  │   49         interpretation = "Obese"                                             │                                  │
+│  │   50                                                                              │                                  │
+│  │   51     # Display results                                                        │                                  │
+│  │   52     print(f"\nYour BMI is: {bmi:.2f}")  # Format to 2 decimal places         │                                  │
+│  │   53     print(f"Interpretation: {interpretation}")                               │                                  │
+│  │   54                                                                              │                                  │
+│  │   55 if __name__ == "__main__":                                                   │                                  │
+│  │   56     main()                                                                   │                                  │
+│  ╰───────────────────────────────────────────────────────────────────────────────────╯                                  │
+│  ✓ Success: Read and displayed bmi_calculator/main.py                                                                   │
+│                                                                                                                         │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-      * **Description:** Deletes a file or an entire directory recursively.
-      * **Example:** `poetry run pai rm old_feature.py`
+user>: okay tquu
+╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
+│                                                                                                                         │
+│  Agent's Plan or Response:                                                                                              │
+│  FINISH::You're welcome! It seems the BMI Calculator project is complete as per your requests. Let me know if you need  │
+│  any further assistance or want to work on a new project!                                                               │
+│                                                                                                                         │
+│  Execution Results:                                                                                                     │
+│  -> FINISH::You're welcome! It seems the BMI Calculator project is complete as per your requests. Let me know if you    │
+│  need any further assistance or want to work on a new project!                                                          │
+│  ✓ Agent: You're welcome! It seems the BMI Calculator project is complete as per your requests. Let me know if you      │
+│  need any further assistance or want to work on a new project!                                                          │
+│                                                                                                                         │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-  * **`poetry run pai mv <source> <destination>`**
+user>: exit
+i Session ended.
+(pai-code-py3.12) user@localhost:~/space/dev/try/testtpai$ 
 
-      * **Description:** Moves or renames a file or directory.
-      * **Example:** `poetry run pai mv paicode/utils.py paicode/helpers.py`
-
-### **Auto Mode: The Autonomous Agent**
-
-The `pai auto` command unlocks the agent's full potential as an autonomous developer.
-
-  * **The Agent's Mind:**
-
-      * **Goal Decomposition:** When given a high-level task, the agent's first step is to decompose the abstract idea into concrete, programmable components.
-      * **Plan Formulation:** This mental model is then translated into a machine-readable, step-by-step plan composed of the file system commands listed above.
-      * **Stateful Interaction:** The agent remembers the conversation history within a session, allowing for iterative development. You can ask it to build a feature, then ask it to modify or add to that same feature.
-
-  * **Example `auto` Session:**
-    This example shows how the agent handles a request to build a simple application from scratch.
-
-    ```bash
-    # For an interactive session, using 'poetry shell' is more convenient
-    poetry shell
-
-    (paicode-py3.12) $ pai auto
-    ──────────────────────────── Interactive Auto Mode ─────────────────────────────
-    i Type 'exit' or 'quit' to leave.
-    pai>: Create a modular Python program to calculate Body Mass Index (BMI)...
-
-    # ... The agent's output remains the same ...
-    ```
-
+```
 -----
 
 ## **6. Technical Details**
 
-### **Architecture and Data Flow**
+### **Architecture and the Feedback Loop**
 
-A typical `auto` mode command follows this internal data flow:
+A typical interaction follows this stateful data flow:
 
-1.  **User Input** (`poetry run pai auto "..."`) is captured by `cli.py`.
-2.  `agent.py` loads session history and constructs a detailed **prompt** for the LLM.
+1.  **User Input** is captured by `cli.py`.
+2.  `agent.py` constructs a detailed **prompt**, including the full conversation history.
 3.  `llm.py` sends this prompt to the **Gemini API**.
 4.  The LLM returns a structured **action plan** (a sequence of commands).
-5.  `agent.py` executes this plan, calling functions in `fs.py` for each step.
-6.  The **results** are printed and added to the session history.
+5.  `agent.py` executes this plan, calling functions in `fs.py`.
+6.  The results (e.g., file contents from `READ`, lists from `LIST_PATH`) are **displayed to the user AND simultaneously recorded in the session log.**
+7.  This enriched log becomes the context for the next turn, creating a **stateful memory loop** that allows the agent to learn from its actions.
 
 ### **Customization and Extensibility**
 
-As a developer, you can easily extend Pai's capabilities:
+As a developer, you can easily extend Pai's internal capabilities:
 
-  * **Add New Commands:** Add a command to `VALID_COMMANDS` in `agent.py`, create a corresponding function in `fs.py`, and add the handling logic in `_execute_plan`.
-  * **Tune the Agent's Persona:** The core personality of the agent lives in the `prompt` variable in `agent.py`. By modifying this prompt, you can change its behavior, specialize it for a specific framework, or change its programming style.
+  * **Add New Agent Commands:** Add a command to `VALID_COMMANDS` in `agent.py`, create a corresponding function in `fs.py`, and add the handling logic in `_generate_execution_renderables`. This gives the agent a new tool to use in its planning.
+  * **Tune the Agent's Persona:** The core personality and reasoning process of the agent lives in the `prompt` variable in `agent.py`. By modifying this prompt, you can change its behavior, specialize it for a specific framework, or alter its programming style.
 
 ### **Technology Stack**
 
