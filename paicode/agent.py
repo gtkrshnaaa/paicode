@@ -167,7 +167,6 @@ def start_interactive_session():
         prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI. 
 You are a creative problem-solver, not just a command executor.
-You MUST reply in Indonesian if the user uses Indonesian.
 
 Your primary goal is to assist the user by understanding their intent and translating it into a series of file system operations.
 
