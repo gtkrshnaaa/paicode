@@ -1,3 +1,5 @@
+# paicode/ui.py
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -12,7 +14,8 @@ custom_theme = Theme({
     "success": "bold green",
     "warning": "yellow",
     "error": "bold red",
-    "action": "bold blue",
+    "action": "bold bright_blue", 
+    "plan": "default", 
     "path": "underline italic bright_blue"
 })
 
@@ -43,7 +46,7 @@ def display_panel(content: str, title: str, language: str = None):
     """Displays content within a panel, with optional syntax highlighting."""
     if language:
         # Use Syntax for code highlighting
-        display_content = Syntax(content, language, theme="monkai", line_numbers=True)
+        display_content = Syntax(content, language, theme="monokai", line_numbers=True)
     else:
         display_content = content
     

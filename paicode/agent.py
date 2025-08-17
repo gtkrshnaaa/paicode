@@ -1,3 +1,5 @@
+# paicode/agent.py
+
 import os
 from datetime import datetime
 from rich.prompt import Prompt
@@ -7,6 +9,9 @@ from rich.text import Text
 from rich.syntax import Syntax
 from rich.box import ROUNDED
 from . import llm, fs, ui
+
+from pygments.lexers import get_lexer_for_filename
+from pygments.util import ClassNotFound
 
 HISTORY_DIR = ".pai_history"
 VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "FINISH"]
@@ -27,7 +32,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     
     # First, add the entire plan to the renderables
     for line in all_lines:
-        renderables.append(Text(f"  {line}", style="dim cyan"))
+        renderables.append(Text(f"{line}", style="plan"))
         log_results.append(line)
     
     renderables.append(Text("\nExecution Results:", style="bold underline"))
@@ -50,7 +55,12 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     path_to_read = params
                     content = fs.read_file(path_to_read)
                     if content is not None:
-                        lang = "python" if path_to_read.endswith(".py") else "text"
+                        try:
+                            lexer = get_lexer_for_filename(path_to_read)
+                            lang = lexer.aliases[0]
+                        except ClassNotFound:
+                            lang = "text"
+                        
                         syntax_panel = Panel(
                             Syntax(content, lang, theme="monokai", line_numbers=True),
                             title=f"Content of {path_to_read}",
@@ -61,6 +71,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         result = f"Success: Read and displayed {path_to_read}"
                     else:
                         result = f"Error: Failed to read file: {path_to_read}"
+
 
                 elif command_candidate == "TREE":
                     path_to_list = params if params else '.'
