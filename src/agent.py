@@ -1,16 +1,14 @@
-# pai_code/agent.py
-
 import os
 from datetime import datetime
-from . import llm
-from . import fs
+from rich.prompt import Prompt
+from . import llm, fs, ui
 
 HISTORY_DIR = ".pai_history"
 VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "FINISH"]
 
 def _execute_plan(plan: str) -> str:
     """
-    Executes the action plan created by the LLM.
+    Executes the action plan created by the LLM with rich TUI feedback.
     """
     if not plan:
         return "Agent did not produce an action plan."
@@ -18,7 +16,7 @@ def _execute_plan(plan: str) -> str:
     all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
     execution_results = []
     
-    print("\n--- Plan Execution Results ---")
+    ui.print_rule("Plan Execution Results")
     
     for action in all_lines:
         try:
@@ -28,37 +26,33 @@ def _execute_plan(plan: str) -> str:
             if command_candidate in VALID_COMMANDS:
                 result = ""
                 
-                if command_candidate not in ["WRITE", "READ", "TREE"]:
-                    print(f"-> Action: {action}")
+                ui.print_action(action)
 
                 if command_candidate == "WRITE":
                     file_path, _, _ = params.partition('::')
-                    print(f"-> Action: Writing content to file '{file_path}'...")
                     result = handle_write(file_path, params)
                 
                 elif command_candidate == "READ":
                     path_to_read = params
-                    print(f"-> Action: Reading file '{path_to_read}'...")
                     content = fs.read_file(path_to_read)
                     if content is not None:
-                        print(f"--- FILE CONTENT: {path_to_read} ---\n{content}\n-----------------------------")
-                        result = f"Success: Read {path_to_read}\n--- FILE CONTENT: {path_to_read} ---\n{content}\n-----------------------------"
+                        ui.display_panel(content, f"Content of {path_to_read}", language="python")
+                        result = f"Success: Read {path_to_read}"
                     else:
                         result = f"Error: Failed to read file: {path_to_read}"
 
                 elif command_candidate == "TREE":
                     path_to_list = params if params else '.'
-                    print(f"-> Action: Displaying directory structure for '{path_to_list}'...")
                     tree_output = fs.tree_directory(path_to_list)
                     if tree_output:
-                        print(tree_output)
-                        result = tree_output
+                        ui.console.print(f"[cyan]{tree_output}[/cyan]")
+                        result = "Success: Displayed directory structure."
                     else:
                         result = "Error: Failed to display directory structure."
                 
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
-                    print(f"Agent: {result}")
+                    ui.print_success(f"Agent: {result}")
                     execution_results.append(result)
                     break 
 
@@ -70,23 +64,26 @@ def _execute_plan(plan: str) -> str:
                         source, _, dest = params.partition('::')
                         result = fs.move_item(source, dest)
                 
-                if result and command_candidate not in ["READ", "TREE"]:
-                      if "Success" in result or "Error" in result or "Warning" in result:
-                            print(result)
-
+                if result:
+                    if "Success" in result: ui.print_success(result)
+                    elif "Error" in result: ui.print_error(result)
+                    elif "Warning" in result: ui.print_warning(result)
+                    else: ui.print_info(result)
+                
                 if result:
                     execution_results.append(result)
 
             else:
-                print(f"{action}")
+                # This handles comments or explanations from the agent's plan
+                ui.print_info(action)
                 execution_results.append(action)
 
         except Exception as e:
-            msg = f"Error: An exception occurred while processing '{action}': {e}"
-            print(msg)
+            msg = f"An exception occurred while processing '{action}': {e}"
+            ui.print_error(msg)
             execution_results.append(msg)
 
-    print("---------------------------------")
+    ui.console.print(Rule(style="cyan"))
     return "\n".join(execution_results) if execution_results else "Execution finished with no result."
 
 def handle_write(file_path: str, params: str) -> str:
@@ -110,15 +107,18 @@ def start_interactive_session():
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
 
     session_context = []
-    print("Entering interactive auto mode. Type 'exit' or 'quit' to leave.")
+    ui.print_rule("Interactive Auto Mode")
+    ui.print_info("Type 'exit' or 'quit' to leave.")
     
     while True:
         try:
-            user_input = input("pai> ").strip()
+            user_input = Prompt.ask("[bold magenta]pai>[/bold magenta]").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\nSession terminated."); break
+            ui.console.print("\n[warning]Session terminated.[/warning]")
+            break
         if user_input.lower() in ['exit', 'quit']:
-            print("Session ended."); break
+            ui.print_info("Session ended.")
+            break
         if not user_input: continue
 
         context_str = "\n".join(session_context)

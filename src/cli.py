@@ -1,9 +1,7 @@
-# pai_code/cli.py
 #!/usr/bin/env python
 
 import argparse
-import sys
-from . import agent, fs, config
+from . import agent, fs, config, ui
 
 def main():
     parser = argparse.ArgumentParser(
@@ -55,26 +53,32 @@ def main():
     args = parser.parse_args()
 
     # Dispatch commands
-    if args.command == 'touch': print(fs.create_file(args.filename))
-    elif args.command == 'mkdir': print(fs.create_directory(args.dirname))
+    result = None
+    if args.command == 'touch': result = fs.create_file(args.filename)
+    elif args.command == 'mkdir': result = fs.create_directory(args.dirname)
     elif args.command == 'read': 
         content = fs.read_file(args.filename)
         if content is not None:
-            print(content)
-    elif args.command == 'write': print(agent.handle_write(args.file, f"::{args.task}"))
-    elif args.command == 'rm': print(fs.delete_item(args.path))
-    elif args.command == 'mv': print(fs.move_item(args.source, args.destination))
+            # Determine language for syntax highlighting, default to text
+            language = "python" if args.filename.endswith(".py") else "text"
+            ui.display_panel(content, f"Content of {args.filename}", language=language)
+    elif args.command == 'write': result = agent.handle_write(args.file, f"::{args.task}")
+    elif args.command == 'rm': result = fs.delete_item(args.path)
+    elif args.command == 'mv': result = fs.move_item(args.source, args.destination)
     elif args.command == 'tree':
         tree_output = fs.tree_directory(args.path)
-        if tree_output: print(tree_output)
+        if tree_output: ui.console.print(f"[cyan]{tree_output}[/cyan]")
     elif args.command == 'auto': agent.start_interactive_session()
     elif args.command == 'config':
-        if args.set:
-            config.save_api_key(args.set)
-        elif args.show:
-            config.show_api_key()
-        elif args.remove:
-            config.remove_api_key()
+        if args.set: config.save_api_key(args.set)
+        elif args.show: config.show_api_key()
+        elif args.remove: config.remove_api_key()
+    
+    if result:
+        if "Success" in result: ui.print_success(result)
+        elif "Error" in result: ui.print_error(result)
+        elif "Warning" in result: ui.print_warning(result)
+        else: ui.print_info(result)
 
 if __name__ == "__main__":
     main()

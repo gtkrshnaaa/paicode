@@ -1,3 +1,4 @@
 # requirements.txt
 google-generativeai
 python-dotenv
+rich

@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 name = "pai-code"
 version = "0.1.0"
 authors = [
-  { name="Nama Anda", email="email@anda.com" },
+  { name="gtkrshnaaa", email="gtkrshnaaa@email.com" },
 ]
 description = "A command-line based agentic AI for software development."
 readme = "README.md"
@@ -21,6 +21,7 @@ classifiers = [
 dependencies = [
     "google-generativeai",
     "python-dotenv",
+    "rich",
 ]
 
 [project.scripts]

@@ -1,7 +1,6 @@
-# pai_code/fs.py
-
 import os
 import shutil
+from . import ui
 
 PROJECT_ROOT = os.path.abspath(os.getcwd())
 
@@ -30,17 +29,17 @@ def _is_path_safe(path: str) -> bool:
         # 2. Check if the path tries to escape the root directory
         full_path = os.path.realpath(os.path.join(PROJECT_ROOT, norm_path))
         if not full_path.startswith(PROJECT_ROOT):
-            print(f"Error: Operation cancelled. Path '{path}' is outside the project directory.")
+            ui.print_error(f"Operation cancelled. Path '{path}' is outside the project directory.")
             return False
 
         # 3. Block access to sensitive files and directories
         path_parts = norm_path.replace('\\', '/').split('/')
         if any(part in SENSITIVE_PATTERNS for part in path_parts):
-            print(f"Error: Access to the sensitive path '{path}' is denied.")
+            ui.print_error(f"Access to the sensitive path '{path}' is denied.")
             return False
 
     except Exception as e:
-        print(f"Error during path validation: {e}")
+        ui.print_error(f"Error during path validation: {e}")
         return False
 
     return True
@@ -54,7 +53,7 @@ def tree_directory(path: str = '.') -> str:
     if not os.path.isdir(full_path):
         return f"Error: '{path}' is not a valid directory."
 
-    tree_lines = [f"Directory structure for: {os.path.abspath(full_path)}", f"{os.path.basename(full_path)}/"]
+    tree_lines = [f"{os.path.basename(full_path)}/"]
 
     def build_tree(directory, prefix=""):
         try:
@@ -132,10 +131,10 @@ def read_file(file_path: str) -> str | None:
         with open(full_path, 'r') as f:
             return f.read()
     except FileNotFoundError:
-        print(f"Error: File not found: {file_path}")
+        # Let the caller (agent/cli) handle printing the error
         return None
     except IOError as e:
-        print(f"Error: Failed to read file: {e}")
+        ui.print_error(f"Failed to read file: {e}")
         return None
 
 def write_to_file(file_path: str, content: str) -> str:
