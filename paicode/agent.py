@@ -1,5 +1,3 @@
-# paicode/agent.py
-
 import os
 from datetime import datetime
 from rich.prompt import Prompt
@@ -18,9 +16,7 @@ VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_P
 
 def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     """
-    Executes the plan and generates a list of Rich renderables for display.
-    Does NOT print directly to the console.
-    Returns a tuple of (Group_of_renderables, log_string).
+    Executes the plan, generates Rich renderables for display, and creates a detailed log string.
     """
     if not plan:
         msg = "Agent did not produce an action plan."
@@ -30,11 +26,13 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     renderables = [Text("Agent's Plan:", style="bold underline")]
     log_results = []
     
-    # First, add the entire plan to the renderables
+    # Add the AI's plan to the renderables and log
+    plan_text_for_log = []
     for line in all_lines:
         renderables.append(Text(f"{line}", style="plan"))
-        log_results.append(line)
+        plan_text_for_log.append(line)
     
+    log_results.append("\n".join(plan_text_for_log))
     renderables.append(Text("\nExecution Results:", style="bold underline"))
 
     for action in all_lines:
@@ -68,19 +66,22 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                             expand=False
                         )
                         renderables.append(syntax_panel)
+                        # FIX: Log the actual content for the AI's memory
+                        log_results.append(f"Content of {path_to_read}:\n---\n{content}\n---")
                         result = f"Success: Read and displayed {path_to_read}"
                     else:
                         result = f"Error: Failed to read file: {path_to_read}"
 
-
                 elif command_candidate == "TREE":
                     path_to_list = params if params else '.'
                     tree_output = fs.tree_directory(path_to_list)
-                    if tree_output:
+                    if tree_output and "Error:" not in tree_output:
                         renderables.append(Text(tree_output, style="cyan"))
+                        # FIX: Log the actual tree output for the AI's memory
+                        log_results.append(tree_output)
                         result = "Success: Displayed directory structure."
                     else:
-                        result = "Error: Failed to display directory structure."
+                        result = tree_output or "Error: Failed to display directory structure."
                 
                 elif command_candidate == "LIST_PATH":
                     path_to_list = params if params else '.'
@@ -88,6 +89,8 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     if list_output and "Error:" not in list_output:
                         if list_output.strip():
                             renderables.append(Text(list_output, style="cyan"))
+                        # FIX: Log the actual list output for the AI's memory
+                        log_results.append(list_output)
                         result = f"Success: Listed paths for '{path_to_list}'."
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
@@ -112,7 +115,9 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     elif "Warning" in result: style = "warning"; icon = "! "
                     else: style = "info"; icon = "i "
                     renderables.append(Text(f"{icon}{result}", style=style))
-                    log_results.append(result)
+                    # Log the simple success/error message for non-data commands
+                    if command_candidate not in ["READ", "TREE", "LIST_PATH"]:
+                        log_results.append(result)
 
         except Exception as e:
             msg = f"An exception occurred while processing '{action}': {e}"
@@ -160,49 +165,47 @@ def start_interactive_session():
         context_str = "\n".join(session_context)
 
         prompt = f"""
-You are Pai, an expert and autonomous software developer AI.
-Your goal is to help the user build and manage software projects.
-You operate by creating a plan of file system commands.
+You are Pai, an expert, proactive, and autonomous software developer AI. 
+You are a creative problem-solver, not just a command executor.
+You MUST reply in Indonesian if the user uses Indonesian.
 
-Your capabilities:
-- You can understand high-level user requests (e.g., "create a BMI calculator program").
-- You MUST break down these requests into a sequence of file system commands.
-- You can write code by using the `WRITE` command.
-- You can and should create entire project structures, write code, and manage files autonomously.
-- You are not just a file operator; you are a DEVELOPER. Your output should be a plan to build software.
+Your primary goal is to assist the user by understanding their intent and translating it into a series of file system operations.
 
-Available commands:
-1. `MKDIR::path` - Create a directory.
-2. `TOUCH::path` - Create an empty file.
-3. `WRITE::path::description` - Write code to a file based on a description. The LLM will generate the code.
-4. `READ::path` - Read a file's content.
-5. `RM::path` - Remove a file or directory.
-6. `MV::source::destination` - Move or rename.
-7. `TREE::path` - List directory structure visually (for humans).
-8. `LIST_PATH::path` - List all file/dir paths recursively. Use this to get a machine-readable list to understand the project structure.
-9. `FINISH::message` - Use this when the user's request is fully completed.
+--- CAPABILITIES (COMMANDS) ---
+1. `MKDIR::path`: Creates a directory.
+2. `TOUCH::path`: Creates an empty file.
+3. `WRITE::path::description`: Writes code to a file based on a high-level description.
+4. `READ::path`: Reads a file's content. The content will appear in the System Response.
+5. `LIST_PATH::path`: Lists all files and directories. The list will appear in the System Response.
+6. `RM::path`: Removes a file or directory.
+7. `MV::source::destination`: Moves or renames a file or directory.
+8. `TREE::path`: Displays a visual directory tree.
+9. `FINISH::message`: Use this ONLY when the user's entire request has been fully completed.
 
-Thought Process:
-1.  **Analyze the Goal:** What does the user want to build or achieve?
-2.  **Explore (if needed):** Use `LIST_PATH` to see the current file structure if you are unsure.
-3.  **Plan the Structure:** What files and folders are needed? (e.g., `src/`, `main.py`, `utils.py`).
-4.  **Create the Plan:** Formulate a step-by-step plan using the available commands. Start with `MKDIR` and `TOUCH`, then use `WRITE` to add code.
-5.  **Communicate:** Use comments (lines without `::`) to explain your plan to the user.
+--- THOUGHT PROCESS & RULES OF ENGAGEMENT ---
+1.  **Analyze the User's Goal:** Understand the user's high-level objective, not just their literal words. What are they trying to build?
 
---- PREVIOUS HISTORY ---
+2.  **Observe and Remember:** The conversation history is your memory. The `System Response` section from the previous turn contains the **output** of your last commands (like a file list from `LIST_PATH` or content from `READ`). **You MUST analyze this output before formulating your next plan.** This is how you "see" the results of your actions.
+
+3.  **Formulate a Proactive Plan:** Based on the user's goal AND your observations from the history, create a new step-by-step plan. Don't just wait for instructions. If the user asks a question you can answer by running a command, run it. If you need to see the project structure first, use `LIST_PATH`. If you need to know what's in a file, use `READ`.
+
+4.  **Think Step-by-Step:** Break down complex tasks into a logical sequence of commands. Explain your reasoning with comments (lines without `::`).
+
+5.  **Self-Correct:** If a command fails, analyze the error message in the `System Response` and create a new plan to fix the problem.
+
+--- CONVERSATION HISTORY and SYSTEM OBSERVATION ---
 {context_str}
 --- END OF HISTORY ---
 
 Latest request from user:
 "{user_input}"
 
-Based on the user's request and the entire history, create a clear, step-by-step action plan to accomplish the software development task. Be proactive and take initiative.
+Based on the user's latest request and the ENTIRE history (especially the last System Response), create your next action plan.
 """
         
         plan = llm.generate_text(prompt)
         renderable_group, log_string = _generate_execution_renderables(plan)
         
-        # Now, print everything inside a single panel
         ui.console.print(
             Panel(
                 renderable_group,
