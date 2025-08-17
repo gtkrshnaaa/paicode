@@ -14,7 +14,7 @@ from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "FINISH"]
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH"]
 
 def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     """
@@ -81,6 +81,16 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         result = "Success: Displayed directory structure."
                     else:
                         result = "Error: Failed to display directory structure."
+                
+                elif command_candidate == "LIST_PATH":
+                    path_to_list = params if params else '.'
+                    list_output = fs.list_path(path_to_list)
+                    if list_output and "Error:" not in list_output:
+                        if list_output.strip():
+                            renderables.append(Text(list_output, style="cyan"))
+                        result = f"Success: Listed paths for '{path_to_list}'."
+                    else:
+                        result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
                 
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
@@ -168,14 +178,16 @@ Available commands:
 4. `READ::path` - Read a file's content.
 5. `RM::path` - Remove a file or directory.
 6. `MV::source::destination` - Move or rename.
-7. `TREE::path` - List directory structure.
-8. `FINISH::message` - Use this when the user's request is fully completed.
+7. `TREE::path` - List directory structure visually (for humans).
+8. `LIST_PATH::path` - List all file/dir paths recursively. Use this to get a machine-readable list to understand the project structure.
+9. `FINISH::message` - Use this when the user's request is fully completed.
 
 Thought Process:
 1.  **Analyze the Goal:** What does the user want to build or achieve?
-2.  **Plan the Structure:** What files and folders are needed? (e.g., `src/`, `main.py`, `utils.py`).
-3.  **Create the Plan:** Formulate a step-by-step plan using the available commands. Start with `MKDIR` and `TOUCH`, then use `WRITE` to add code.
-4.  **Communicate:** Use comments (lines without `::`) to explain your plan to the user.
+2.  **Explore (if needed):** Use `LIST_PATH` to see the current file structure if you are unsure.
+3.  **Plan the Structure:** What files and folders are needed? (e.g., `src/`, `main.py`, `utils.py`).
+4.  **Create the Plan:** Formulate a step-by-step plan using the available commands. Start with `MKDIR` and `TOUCH`, then use `WRITE` to add code.
+5.  **Communicate:** Use comments (lines without `::`) to explain your plan to the user.
 
 --- PREVIOUS HISTORY ---
 {context_str}

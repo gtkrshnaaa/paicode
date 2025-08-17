@@ -73,6 +73,38 @@ def tree_directory(path: str = '.') -> str:
     build_tree(full_path)
     return "\n".join(tree_lines)
 
+def list_path(path: str = '.') -> str | None:
+    """
+    Lists all files and subdirectories recursively for a given path in a simple,
+    machine-readable, newline-separated format.
+    """
+    if not _is_path_safe(path):
+        return f"Error: Cannot access path '{path}'."
+
+    full_path = os.path.join(PROJECT_ROOT, path)
+    if not os.path.isdir(full_path):
+        return f"Error: '{path}' is not a valid directory."
+
+    path_list = []
+    for root, dirs, files in os.walk(full_path, topdown=True):
+        # Filter out sensitive directories from being traversed
+        dirs[:] = [d for d in dirs if d not in SENSITIVE_PATTERNS]
+        
+        # Process files
+        for name in files:
+            if name not in SENSITIVE_PATTERNS:
+                # Get relative path from the initial 'path'
+                rel_dir = os.path.relpath(root, PROJECT_ROOT)
+                path_list.append(os.path.join(rel_dir, name).replace('\\', '/'))
+        
+        # Process directories
+        for name in dirs:
+            rel_dir = os.path.relpath(root, PROJECT_ROOT)
+            path_list.append(os.path.join(rel_dir, name).replace('\\', '/') + '/')
+
+    return "\n".join(sorted(path_list))
+    
+
 def delete_item(path: str) -> str:
     """Deletes a file or directory and returns a status message."""
     if not _is_path_safe(path): return f"Error: Access to path '{path}' is denied or path is not secure."
