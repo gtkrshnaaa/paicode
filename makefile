@@ -1,11 +1,11 @@
 .PHONY: run export-all install
 
 install:
-	python3 -m venv .venv
-	. .venv/bin/activate; pip install -r requirements.txt
+	python3 -m venv venv
+	. venv/bin/activate; pip install -r requirements.txt
 
 run:
-	. .venv/bin/activate; python3 main.py
+	. venv/bin/activate; python3 main.py
 
 export-all:
 	@mkdir -p z_project_list
