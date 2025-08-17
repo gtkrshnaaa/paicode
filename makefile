@@ -20,6 +20,7 @@ export-all:
 		-not -path '*/__pycache__/*' \
 		-not -path '*.egg-info/*' \
 		-not -path './z_project_list/*' \
+		-not -name "poetry.lock" \
 		-not -name ".gitkeep" \
 		| sort); do \
 			echo "=== $$f ===" >> z_project_list/listing.txt; \
