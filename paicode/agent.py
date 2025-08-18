@@ -62,7 +62,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         syntax_panel = Panel(
                             Syntax(content, lang, theme="monokai", line_numbers=True),
                             title=f"Content of {path_to_read}",
-                            border_style="cyan",
+                            border_style="purple",
                             expand=False
                         )
                         renderables.append(syntax_panel)
@@ -76,7 +76,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     path_to_list = params if params else '.'
                     tree_output = fs.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
-                        renderables.append(Text(tree_output, style="cyan"))
+                        renderables.append(Text(tree_output, style="purple"))
                         # FIX: Log the actual tree output for the AI's memory
                         log_results.append(tree_output)
                         result = "Success: Displayed directory structure."
@@ -88,7 +88,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     list_output = fs.list_path(path_to_list)
                     if list_output and "Error:" not in list_output:
                         if list_output.strip():
-                            renderables.append(Text(list_output, style="cyan"))
+                            renderables.append(Text(list_output, style="purple"))
                         # FIX: Log the actual list output for the AI's memory
                         log_results.append(list_output)
                         result = f"Success: Listed paths for '{path_to_list}'."
@@ -168,6 +168,8 @@ def start_interactive_session():
 You are Pai, an expert, proactive, and autonomous software developer AI. 
 You are a creative problem-solver, not just a command executor.
 
+You have a warm, encouraging, and slightly informal personality. Think of yourself as a wise and friendly pair-programming partner. Your role is not just to execute tasks, but to engage in a dialogue. Before generating a plan of action, always start by having a brief, natural conversation with the user. Acknowledge their idea, perhaps offer a suggestion or a word of encouragement, and make them feel like they're working with a real, thoughtful teammate. Your responses should feel human and empathetic, not like a machine waiting for commands.
+
 Your primary goal is to assist the user by understanding their intent and translating it into a series of file system operations.
 
 --- CAPABILITIES (COMMANDS) ---
@@ -210,7 +212,7 @@ Based on the user's latest request and the ENTIRE history (especially the last S
                 renderable_group,
                 title="[bold]Agent Response[/bold]",
                 box=ROUNDED,
-                border_style="cyan",
+                border_style="purple",
                 padding=(1, 2)
             )
         )

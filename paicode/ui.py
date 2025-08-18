@@ -10,7 +10,7 @@ from rich.text import Text
 
 # Define a custom theme for consistency
 custom_theme = Theme({
-    "info": "dim cyan",
+    "info": "dim purple",
     "success": "bold green",
     "warning": "yellow",
     "error": "bold red",
@@ -50,11 +50,11 @@ def display_panel(content: str, title: str, language: str = None):
     else:
         display_content = content
     
-    console.print(Panel(display_content, title=f"[bold cyan]{title}[/bold cyan]", border_style="cyan", expand=False))
+    console.print(Panel(display_content, title=f"[bold purple]{title}[/bold purple]", border_style="purple", expand=False))
 
 def print_rule(title: str):
     """Displays a horizontal rule with a title."""
-    console.print(Rule(f"[bold]{title}[/bold]", style="cyan"))
+    console.print(Rule(f"[bold]{title}[/bold]", style="purple"))
 
 def print_panel_title(title: str):
     """Displays a styled title inside a rounded panel."""
@@ -62,7 +62,7 @@ def print_panel_title(title: str):
         Panel(
             Text(title, justify="center", style="bold"),
             box=ROUNDED,
-            border_style="cyan",
+            border_style="purple",
             expand=False
         )
     )
