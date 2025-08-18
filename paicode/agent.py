@@ -66,7 +66,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                             expand=False
                         )
                         renderables.append(syntax_panel)
-                        # FIX: Log the actual content for the AI's memory
+                        # Log the actual content for the AI's memory
                         log_results.append(f"Content of {path_to_read}:\n---\n{content}\n---")
                         result = f"Success: Read and displayed {path_to_read}"
                     else:
@@ -82,7 +82,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         log_results.append(result)
                         continue
 
-                    modification_prompt = f"""
+                    modification_prompt_1 = f"""
 You are an expert code modifier. Here is the full content of the file `{file_path}`:
 --- START OF FILE ---
 {original_content}
@@ -90,12 +90,35 @@ You are an expert code modifier. Here is the full content of the file `{file_pat
 
 Based on the file content above, apply the following modification: "{description}".
 IMPORTANT: You must only change the relevant parts of the code. Do not refactor, reformat, or alter any other part of the file.
-Provide back the ENTIRE, complete file content with the modification applied.
+Provide back the ENTIRE, complete file content with the modification applied. Provide ONLY the raw code without any explanations or markdown.
 """
-                    new_content = llm.generate_text(modification_prompt)
+                    new_content_1 = llm.generate_text(modification_prompt_1)
 
-                    if new_content:
-                        success, message = fs.apply_modification_with_patch(file_path, original_content, new_content)
+                    if new_content_1:
+                        success, message = fs.apply_modification_with_patch(file_path, original_content, new_content_1)
+                        
+                        if success and "No changes detected" in message:
+                            renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
+                            
+                            modification_prompt_2 = f"""
+My first attempt to modify the file failed because the model returned the code completely unchanged.
+You MUST apply the requested change now. Be very literal and precise.
+
+Original file content to be modified:
+---
+{original_content}
+---
+
+The user's explicit instruction is: "{description}".
+This is a bug-fixing or specific modification task. You must return the complete, corrected code content. 
+Provide ONLY the raw code without any explanations or markdown.
+"""
+                            
+                            new_content_2 = llm.generate_text(modification_prompt_2)
+                            
+                            if new_content_2:
+                                success, message = fs.apply_modification_with_patch(file_path, original_content, new_content_2)
+                        
                         result = message
                         style = "success" if success else "warning"
                         icon = "✓ " if success else "! "
@@ -108,7 +131,7 @@ Provide back the ENTIRE, complete file content with the modification applied.
                     tree_output = fs.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
                         renderables.append(Text(tree_output, style="purple"))
-                        # FIX: Log the actual tree output for the AI's memory
+                        # Log the actual tree output for the AI's memory
                         log_results.append(tree_output)
                         result = "Success: Displayed directory structure."
                     else:
@@ -120,7 +143,7 @@ Provide back the ENTIRE, complete file content with the modification applied.
                     if list_output and "Error:" not in list_output:
                         if list_output.strip():
                             renderables.append(Text(list_output, style="purple"))
-                        # FIX: Log the actual list output for the AI's memory
+                        # Log the actual list output for the AI's memory
                         log_results.append(list_output)
                         result = f"Success: Listed paths for '{path_to_list}'."
                     else:
