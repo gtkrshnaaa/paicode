@@ -55,14 +55,3 @@ def display_panel(content: str, title: str, language: str = None):
 def print_rule(title: str):
     """Displays a horizontal rule with a title."""
     console.print(Rule(f"[bold]{title}[/bold]", style="purple"))
-
-def print_panel_title(title: str):
-    """Displays a styled title inside a rounded panel."""
-    console.print(
-        Panel(
-            Text(title, justify="center", style="bold"),
-            box=ROUNDED,
-            border_style="purple",
-            expand=False
-        )
-    )

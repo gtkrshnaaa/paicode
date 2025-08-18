@@ -202,8 +202,20 @@ def start_interactive_session():
 
     session_context = []
     
-    ui.print_panel_title("Interactive Auto Mode")
-    ui.print_info("Type 'exit' or 'quit' to leave.")
+    welcome_message = (
+        "Welcome! I'm Pai, your agentic AI coding companion. Let's build something amazing together. ✨\n"
+        "[info]Type 'exit' or 'quit' to leave.[/info]"
+    )
+
+    ui.console.print(
+        Panel(
+            Text(welcome_message, justify="center"),
+            title="[bold]Interactive Auto Mode[/bold]",
+            box=ROUNDED,
+            border_style="purple",
+            padding=(1, 2)
+        )
+    )
     
     while True:
         try:
