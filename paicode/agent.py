@@ -60,7 +60,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                             lang = "text"
                         
                         syntax_panel = Panel(
-                            Syntax(content, lang, theme="monokai", line_numbers=True),
+                            Syntax(content, lang, theme="monokai", line_numbers=True, word_wrap=True),
                             title=f"Content of {path_to_read}",
                             border_style="grey50",
                             expand=False
