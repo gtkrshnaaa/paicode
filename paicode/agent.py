@@ -62,7 +62,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         syntax_panel = Panel(
                             Syntax(content, lang, theme="monokai", line_numbers=True),
                             title=f"Content of {path_to_read}",
-                            border_style="purple",
+                            border_style="grey50",
                             expand=False
                         )
                         renderables.append(syntax_panel)
@@ -130,7 +130,7 @@ Provide ONLY the raw code without any explanations or markdown.
                     path_to_list = params if params else '.'
                     tree_output = fs.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
-                        renderables.append(Text(tree_output, style="purple"))
+                        renderables.append(Text(tree_output, style="bright_blue"))
                         # Log the actual tree output for the AI's memory
                         log_results.append(tree_output)
                         result = "Success: Displayed directory structure."
@@ -142,7 +142,7 @@ Provide ONLY the raw code without any explanations or markdown.
                     list_output = fs.list_path(path_to_list)
                     if list_output and "Error:" not in list_output:
                         if list_output.strip():
-                            renderables.append(Text(list_output, style="purple"))
+                            renderables.append(Text(list_output, style="bright_blue"))
                         # Log the actual list output for the AI's memory
                         log_results.append(list_output)
                         result = f"Success: Listed paths for '{path_to_list}'."
@@ -212,14 +212,14 @@ def start_interactive_session():
             Text(welcome_message, justify="center"),
             title="[bold]Interactive Auto Mode[/bold]",
             box=ROUNDED,
-            border_style="purple",
+            border_style="grey50",
             padding=(1, 2)
         )
     )
     
     while True:
         try:
-            user_input = Prompt.ask("\n[bold magenta]user>[/bold magenta]").strip()
+            user_input = Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
         except (KeyboardInterrupt, EOFError):
             ui.console.print("\n[warning]Session terminated.[/warning]")
             break
@@ -287,7 +287,7 @@ Based on the user's latest request and the ENTIRE history (especially the last S
                 renderable_group,
                 title="[bold]Agent Response[/bold]",
                 box=ROUNDED,
-                border_style="purple",
+                border_style="grey50",
                 padding=(1, 2)
             )
         )
