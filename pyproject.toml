@@ -1,23 +1,5 @@
 # pyproject.toml
 
-[tool.poetry]
-name = "pai-code"
-version = "0.1.0"
-description = "A command-line based agentic AI for software development."
-authors = ["gtkrshnaaa <gtkrshnaaa@email.com>"]
-license = "MIT"
-readme = "README.md"
-packages = [{ include = "paicode" }]
-
-[tool.poetry.dependencies]
-python = ">=3.9"
-google-generativeai = "^0.5.4"
-python-dotenv = "^1.0.1"
-rich = "^13.7.1"
-
-[tool.poetry.scripts]
-pai = "paicode.cli:main"
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"

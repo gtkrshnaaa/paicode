@@ -1,3 +1,15 @@
+import os
+
+# Reduce noisy STDERR logs from gRPC/absl before importing Google SDKs.
+# These settings aim to suppress INFO/WARNING/ERROR logs emitted by native libs
+# that happen prior to Python log initialization.
+os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
+os.environ.setdefault("GRPC_LOG_SEVERITY", "ERROR")
+# Abseil logging (used by some Google native deps). 3 ~ FATAL-only
+os.environ.setdefault("ABSL_LOGGING_MIN_LOG_LEVEL", "3")
+# glog compatibility (some builds respect this env var)
+os.environ.setdefault("GLOG_minloglevel", "3")
+
 import google.generativeai as genai
 from . import config, ui
 

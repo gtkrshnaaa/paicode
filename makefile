@@ -1,14 +1,18 @@
-.PHONY: run export-all install
+.PHONY: run export-all install venv-activate setup install-cli uninstall-cli
 
 install:
-	python3 -m venv venv
-	. venv/bin/activate; pip install -r requirements.txt
+	@if [ ! -d .venv ]; then \
+		echo "[install] Creating virtual environment at .venv"; \
+		python3 -m venv .venv; \
+	else \
+		echo "[install] Reusing existing virtual environment at .venv"; \
+	fi
+	. .venv/bin/activate; python -m pip install --upgrade pip setuptools wheel
+	. .venv/bin/activate; pip install -r requirements.txt
+	. .venv/bin/activate; pip install -e .
 
 run:
-	# Note: This target is a placeholder. 
-	# The main entry point is the 'pai' command after installation.
-	@echo "To run the application, install it with 'pip install -e .' and then use the 'pai' command."
-	@echo "Example: 'pai auto'"
+	. .venv/bin/activate; python -m paicode.cli auto
 
 export-all:
 	@mkdir -p z_project_list
@@ -16,11 +20,9 @@ export-all:
 	@rm -f z_project_list/listing.txt
 	@for f in $$(find . -type f \
 		-not -path '*/\.*' \
-		-not -path './venv/*' \
 		-not -path '*/__pycache__/*' \
 		-not -path '*.egg-info/*' \
 		-not -path './z_project_list/*' \
-		-not -name "poetry.lock" \
 		-not -name ".gitkeep" \
 		| sort); do \
 			echo "=== $$f ===" >> z_project_list/listing.txt; \
@@ -28,3 +30,36 @@ export-all:
 			echo "\n" >> z_project_list/listing.txt; \
 	done
 	@echo "Export complete."
+
+venv-activate:
+	@echo "To activate the virtual environment, run:"
+	@echo "  source .venv/bin/activate"
+
+setup: install install-cli
+	@echo "Pai CLI installed. Ensure $$HOME/.local/bin is in your PATH, then run: pai"
+
+install-cli:
+	@mkdir -p $(HOME)/.local/bin
+	@echo "Installing launcher to $(HOME)/.local/bin/pai"
+	@echo '#!/usr/bin/env bash' > $(HOME)/.local/bin/pai
+	@echo '# Suppress noisy gRPC/absl logs' >> $(HOME)/.local/bin/pai
+	@echo 'export GRPC_VERBOSITY="NONE"' >> $(HOME)/.local/bin/pai
+	@echo 'export GRPC_LOG_SEVERITY="ERROR"' >> $(HOME)/.local/bin/pai
+	@echo 'export ABSL_LOGGING_MIN_LOG_LEVEL="3"' >> $(HOME)/.local/bin/pai
+	@echo 'export GLOG_minloglevel="3"' >> $(HOME)/.local/bin/pai
+	@echo 'APPDIR="$(shell pwd)"' >> $(HOME)/.local/bin/pai
+	@echo 'VENVDIR="$$APPDIR/.venv"' >> $(HOME)/.local/bin/pai
+	@echo 'PY="$$VENVDIR/bin/python"' >> $(HOME)/.local/bin/pai
+	@echo 'if [ -x "$$VENVDIR/bin/pai" ]; then' >> $(HOME)/.local/bin/pai
+	@echo '  exec "$$VENVDIR/bin/pai" "$$@"' >> $(HOME)/.local/bin/pai
+	@echo 'elif [ -x "$$PY" ]; then' >> $(HOME)/.local/bin/pai
+	@echo '  exec "$$PY" -m paicode.cli "$$@"' >> $(HOME)/.local/bin/pai
+	@echo 'else' >> $(HOME)/.local/bin/pai
+	@echo '  exec python3 -m paicode.cli "$$@"' >> $(HOME)/.local/bin/pai
+	@echo 'fi' >> $(HOME)/.local/bin/pai
+	@chmod +x $(HOME)/.local/bin/pai
+	@echo "Done. Ensure $(HOME)/.local/bin is in your PATH. Try running: pai --help"
+
+uninstall-cli:
+	@rm -f $(HOME)/.local/bin/pai
+	@echo "Launcher removed: $(HOME)/.local/bin/pai"
