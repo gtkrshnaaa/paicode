@@ -51,6 +51,11 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
             renderables.append(Text(f"{line}", style="plan"))
         log_results.append("\n".join(plan_lines))
 
+    # Enforce single actionable command per inference: execute only the first command line
+    if len(plan_lines) > 1:
+        renderables.append(Text("\nNote: Multiple commands detected in a single step. Only the first will be executed.", style="warning"))
+        plan_lines = plan_lines[:1]
+
     for action in plan_lines:
         try:
             command_candidate, _, params = action.partition('::')
@@ -268,35 +273,102 @@ def start_interactive_session():
         last_system_response = ""
         finished_early = False
 
-        for step_idx in range(1, 7):
-            is_final_summary = (step_idx == 6)
+        #
+        # New 8-step flow per user request:
+        # 1) Agent Response (no commands)
+        # 2) Task Scheduler (high-level plan; no commands)
+        # 3-7) Action steps (exactly one command per step)
+        # 8) Final Summary (no commands; suggestions + confirmation question)
+        #
 
-            if is_final_summary:
-                guidance = (
-                    "You must now produce a concise FINAL SUMMARY of what has been accomplished so far, "
-                    "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking the user "
-                    "whether you should proceed with those suggestions. Do NOT include any actionable commands in this step."
-                )
-            else:
-                guidance = (
-                    "Plan and execute the next SINGLE best action towards the user's goal. "
-                    "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
-                    "You may include 1-2 short natural language lines before the command."
-                )
+        total_steps = 8
 
-            prompt = f"""
+        # Step 1: Agent Response (no commands allowed)
+        response_guidance = (
+            "Provide a brief, warm, and encouraging response acknowledging the user's request. "
+            "Do NOT include any actionable commands or tool calls."
+        )
+        response_prompt = f"""
+You are Pai, an expert, proactive, and autonomous software developer AI.
+{response_guidance}
+
+--- CONVERSATION HISTORY (all previous turns) ---
+{context_str}
+--- END HISTORY ---
+
+--- LATEST USER REQUEST ---
+"{user_effective_request}"
+--- END USER REQUEST ---
+"""
+        response_text = llm.generate_text(response_prompt)
+        response_group, response_log = _generate_execution_renderables(response_text)
+        ui.console.print(
+            Panel(
+                response_group,
+                title=f"[bold]Agent Response[/bold] (step 1/{total_steps})",
+                box=ROUNDED,
+                border_style="grey50",
+                padding=(1, 2)
+            )
+        )
+        interaction_log = f"User: {user_input}\nIteration: 1/{total_steps}\nAI Plan:\n{response_text}\nSystem Response:\n{response_log}"
+        session_context.append(interaction_log)
+        with open(log_file_path, 'a') as f:
+            f.write(interaction_log + "\n-------------------\n")
+        last_system_response = response_log
+
+        # Step 2: Task Scheduler (no commands; outline steps)
+        scheduler_guidance = (
+            "Outline a concise, numbered task plan (2-6 steps) to reach the user's goal. "
+            "Each step should be an action title with a one-line rationale. Do NOT include actionable commands from VALID COMMANDS."
+        )
+        scheduler_prompt = f"""
+You are Pai, an expert planner and developer AI.
+{scheduler_guidance}
+
+--- CONVERSATION HISTORY (all previous turns) ---
+{context_str}
+--- END HISTORY ---
+
+--- LAST SYSTEM RESPONSE ---
+{last_system_response}
+--- END LAST SYSTEM RESPONSE ---
+
+--- LATEST USER REQUEST ---
+"{user_effective_request}"
+--- END USER REQUEST ---
+"""
+        scheduler_plan = llm.generate_text(scheduler_prompt)
+        scheduler_group, scheduler_log = _generate_execution_renderables(scheduler_plan)
+        ui.console.print(
+            Panel(
+                scheduler_group,
+                title=f"[bold]Task Scheduler[/bold] (step 2/{total_steps})",
+                box=ROUNDED,
+                border_style="grey50",
+                padding=(1, 2)
+            )
+        )
+        interaction_log = f"User: {user_input}\nIteration: 2/{total_steps}\nAI Plan:\n{scheduler_plan}\nSystem Response:\n{scheduler_log}"
+        session_context.append(interaction_log)
+        with open(log_file_path, 'a') as f:
+            f.write(interaction_log + "\n-------------------\n")
+        last_system_response = scheduler_log
+        pending_followup_suggestions = scheduler_plan
+
+        # Steps 3-7: Action iterations (exactly one actionable command per step)
+        for action_idx in range(3, 8):
+            guidance = (
+                "Plan and execute the next SINGLE best action towards the user's goal. "
+                "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
+                "You may include 1-2 short natural language lines before the command."
+            )
+
+            action_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
 You are a creative problem-solver, not just a command executor.
 
-You have a warm, encouraging, and slightly informal personality. Before the command, you may respond briefly and naturally.
-
-Your primary goal is to assist the user by understanding their intent and translating it into a series of file system operations.
-
 {guidance}
-
---- BUDGET ---
-You have at most 6 iterations per user request: 5 iterations for actions (one command each), and the 6th for final summary/suggestions.
-This is iteration {step_idx} of 6 for the user's latest request.
 
 --- VALID COMMANDS ---
 1. MKDIR::path
@@ -324,39 +396,37 @@ This is iteration {step_idx} of 6 for the user's latest request.
 
 Reply now.
 """
-
-            plan = llm.generate_text(prompt)
+            plan = llm.generate_text(action_prompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
-
-            title = f"[bold]Agent Response[/bold] (step {step_idx}/6)"
             ui.console.print(
                 Panel(
                     renderable_group,
-                    title=title,
+                    title=f"[bold]Agent Action[/bold] (step {action_idx}/{total_steps})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
                 )
             )
 
-            interaction_log = f"User: {user_input}\nIteration: {step_idx}/6\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
+            interaction_log = f"User: {user_input}\nIteration: {action_idx}/{total_steps}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
             session_context.append(interaction_log)
             with open(log_file_path, 'a') as f:
                 f.write(interaction_log + "\n-------------------\n")
 
             last_system_response = log_string
 
-            # If model indicates finish early, break and go to final summary
-            if not is_final_summary and any(line.strip().upper().startswith("FINISH::") for line in plan.splitlines()):
+            # If model indicates finish early, break action loop and proceed to summary
+            if any(line.strip().upper().startswith("FINISH::") for line in plan.splitlines()):
                 finished_early = True
-                # proceed to final summary iteration immediately
-                # Adjust loop counter to force final summary next
-                # We can't change for-loop index directly; instead, run one extra summary iteration right away
-                summary_guidance = (
-                    "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
-                    "then 2-3 suggestions for next steps, and end with a confirmation question. Do NOT include commands."
-                )
-                summary_prompt = f"""
+                break
+
+        # Step 8: Final Summary
+        summary_guidance = (
+            "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
+            "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking the user "
+            "whether you should proceed with those suggestions. Do NOT include any actionable commands in this step."
+        )
+        summary_prompt = f"""
 You are Pai. {summary_guidance}
 
 --- LATEST USER REQUEST ---
@@ -367,23 +437,21 @@ You are Pai. {summary_guidance}
 {last_system_response}
 --- END SYSTEM RESPONSE ---
 """
-                summary_plan = llm.generate_text(summary_prompt)
-                summary_group, summary_log = _generate_execution_renderables(summary_plan)
-                ui.console.print(
-                    Panel(
-                        summary_group,
-                        title="[bold]Agent Response[/bold] (final summary)",
-                        box=ROUNDED,
-                        border_style="grey50",
-                        padding=(1, 2)
-                    )
-                )
-                session_context.append(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}")
-                with open(log_file_path, 'a') as f:
-                    f.write(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}\n-------------------\n")
-                # Store suggestions to enable auto-continue on next short affirmative
-                pending_followup_suggestions = summary_plan
-                break
+        summary_plan = llm.generate_text(summary_prompt)
+        summary_group, summary_log = _generate_execution_renderables(summary_plan)
+        ui.console.print(
+            Panel(
+                summary_group,
+                title=f"[bold]Agent Response[/bold] (step 8/{total_steps} - final summary)",
+                box=ROUNDED,
+                border_style="grey50",
+                padding=(1, 2)
+            )
+        )
+        session_context.append(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}")
+        with open(log_file_path, 'a') as f:
+            f.write(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}\n-------------------\n")
+        pending_followup_suggestions = summary_plan
 
         # Clear pending follow-up if we just consumed an affirmative input
         if auto_continue:
