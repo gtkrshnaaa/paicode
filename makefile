@@ -58,8 +58,14 @@ install-cli:
 	@echo '  exec python3 -m paicode.cli "$$@"' >> $(HOME)/.local/bin/pai
 	@echo 'fi' >> $(HOME)/.local/bin/pai
 	@chmod +x $(HOME)/.local/bin/pai
+	@# Ensure ~/.local/bin is in PATH (append to ~/.bashrc if missing)
+	@grep -qxF 'export PATH="$$HOME/.local/bin:$$PATH"' $(HOME)/.bashrc || printf '\n# Added by pai install-cli\nexport PATH="$$HOME/.local/bin:$$PATH"\n' >> $(HOME)/.bashrc
+	@echo "Ensured PATH includes $$HOME/.local/bin in $$HOME/.bashrc. Run: 'source $$HOME/.bashrc' or open a new terminal."
 	@echo "Done. Ensure $(HOME)/.local/bin is in your PATH. Try running: pai --help"
 
 uninstall-cli:
 	@rm -f $(HOME)/.local/bin/pai
+	@# Remove PATH line added by install-cli (safe if absent)
+	@sed -i '/^# Added by pai install-cli$/d' $(HOME)/.bashrc || true
+	@sed -i '/^export PATH="\$HOME\/\.local\/bin:\$PATH"$/d' $(HOME)/.bashrc || true
 	@echo "Launcher removed: $(HOME)/.local/bin/pai"
