@@ -221,6 +221,7 @@ def start_interactive_session():
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
 
     session_context = []
+    pending_followup_suggestions = ""
     
     welcome_message = (
         "Welcome! I'm Pai, your agentic AI coding companion. Let's build something amazing together. ✨\n"
@@ -248,71 +249,142 @@ def start_interactive_session():
             break
         if not user_input: continue
 
+        # Detect short affirmative to auto-continue previous suggestions
+        affirmative_tokens = {"y", "ya", "yes", "yup", "lanjut", "continue", "ok", "oke", "go", "go on", "proceed"}
+        auto_continue = False
+        if pending_followup_suggestions and user_input.lower() in affirmative_tokens:
+            auto_continue = True
+            synthesized_followup = (
+                "User confirmed to proceed. Execute your previously suggested next steps in order. "
+                "Start with the first actionable step."
+            )
+            # Treat this as the effective request for the next loop
+            user_effective_request = f"{synthesized_followup}\n\nSuggested steps (for reference):\n{pending_followup_suggestions}"
+        else:
+            user_effective_request = user_input
+
         context_str = "\n".join(session_context)
 
-        prompt = f"""
+        last_system_response = ""
+        finished_early = False
+
+        for step_idx in range(1, 7):
+            is_final_summary = (step_idx == 6)
+
+            if is_final_summary:
+                guidance = (
+                    "You must now produce a concise FINAL SUMMARY of what has been accomplished so far, "
+                    "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking the user "
+                    "whether you should proceed with those suggestions. Do NOT include any actionable commands in this step."
+                )
+            else:
+                guidance = (
+                    "Plan and execute the next SINGLE best action towards the user's goal. "
+                    "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
+                    "You may include 1-2 short natural language lines before the command."
+                )
+
+            prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
 You are a creative problem-solver, not just a command executor.
 
-You have a warm, encouraging, and slightly informal personality. Think of yourself as a wise and friendly pair-programming partner. Your role is not just to execute tasks, but to engage in a dialogue. Before generating a plan of action, always start by having a brief, natural conversation with the user. Acknowledge their idea, perhaps offer a suggestion or a word of encouragement, and make them feel like they're working with a real, thoughtful teammate. Your responses should feel human and empathetic, not like a machine waiting for commands.
+You have a warm, encouraging, and slightly informal personality. Before the command, you may respond briefly and naturally.
 
 Your primary goal is to assist the user by understanding their intent and translating it into a series of file system operations.
 
---- CAPABILITIES (COMMANDS) ---
-1. `MKDIR::path`: Creates a directory.
-2. `TOUCH::path`: Creates an empty file.
-3. `WRITE::path::description`: **For creating NEW files only.** Writes code to a file from scratch based on a description.
-4. `MODIFY::path::description`: **Use this for changing an EXISTING file.** It reads the file, asks the LLM for changes based on the description, and safely applies only those changes. **Prefer this over `WRITE` for all modifications.**
-5. `READ::path`: Reads a file's content. The content will appear in the System Response.
-6. `LIST_PATH::path`: Lists all files and directories. The list will appear in the System Response.
-7. `RM::path`: Removes a file or directory.
-8. `MV::source::destination`: Moves or renames a file or directory.
-9. `TREE::path`: Displays a visual directory tree.
-10. `FINISH::message`: Use this ONLY when the user's entire request has been fully completed.
+{guidance}
 
---- THOUGHT PROCESS & RULES OF ENGAGEMENT ---
-1.  **Analyze the User's Goal:** Understand the user's high-level objective, not just their literal words. What are they trying to build?
+--- BUDGET ---
+You have at most 6 iterations per user request: 5 iterations for actions (one command each), and the 6th for final summary/suggestions.
+This is iteration {step_idx} of 6 for the user's latest request.
 
-2.  **Observe and Remember:** The conversation history is your memory. The `System Response` section from the previous turn contains the **output** of your last commands (like a file list from `LIST_PATH` or content from `READ`). **You MUST analyze this output before formulating your next plan.** This is how you "see" the results of your actions.
+--- VALID COMMANDS ---
+1. MKDIR::path
+2. TOUCH::path
+3. WRITE::path::description
+4. MODIFY::path::description
+5. READ::path
+6. LIST_PATH::path
+7. RM::path
+8. MV::source::destination
+9. TREE::path
+10. FINISH::message
 
-3.  **Formulate a Proactive Plan:** Based on the user's goal AND your observations from the history, create a new step-by-step plan. Don't just wait for instructions.
-
-4.  **Choose the Right Tool (`WRITE` vs. `MODIFY`):** When dealing with files, you MUST choose the correct command.
-    * Use `WRITE` **only** for creating a brand-new file from a description.
-    * Use `MODIFY` for **any and all changes** to an *existing file*. This includes adding, removing, or altering code. This is your primary tool for evolving a codebase.
-
-5.  **Think Step-by-Step:** Break down complex tasks into a logical sequence of commands. Explain your reasoning with comments (lines without `::`).
-
-6.  **Self-Correct:** If a command fails, analyze the error message in the `System Response` and create a new plan to fix the problem.
-
-7.  **Principle of Minimal Change:** This rule is now primarily enforced by the `MODIFY` command's backend logic, but you should still think this way. When you plan a modification, your description for the `MODIFY` command should be surgical and precise.
-
-8.  **Focus on the Latest Interaction:** Your conversational opening MUST directly address the user's most recent message. Use the older history for technical context, but do not bring up old conversational points.
-
---- CONVERSATION HISTORY and SYSTEM OBSERVATION ---
+--- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
---- END OF HISTORY ---
+--- END HISTORY ---
 
-Latest request from user:
-"{user_input}"
+--- LAST SYSTEM RESPONSE (from previous iteration in this turn) ---
+{last_system_response}
+--- END LAST SYSTEM RESPONSE ---
 
-Based on the user's latest request and the ENTIRE history (especially the last System Response), create your next action plan.
+--- LATEST USER REQUEST ---
+"{user_effective_request}"
+--- END USER REQUEST ---
+
+Reply now.
 """
-        
-        plan = llm.generate_text(prompt)
-        renderable_group, log_string = _generate_execution_renderables(plan)
-        
-        ui.console.print(
-            Panel(
-                renderable_group,
-                title="[bold]Agent Response[/bold]",
-                box=ROUNDED,
-                border_style="grey50",
-                padding=(1, 2)
+
+            plan = llm.generate_text(prompt)
+            renderable_group, log_string = _generate_execution_renderables(plan)
+
+            title = f"[bold]Agent Response[/bold] (step {step_idx}/6)"
+            ui.console.print(
+                Panel(
+                    renderable_group,
+                    title=title,
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2)
+                )
             )
-        )
-        
-        interaction_log = f"User: {user_input}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
-        session_context.append(interaction_log)
-        with open(log_file_path, 'a') as f:
-            f.write(interaction_log + "\n-------------------\n")
+
+            interaction_log = f"User: {user_input}\nIteration: {step_idx}/6\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
+            session_context.append(interaction_log)
+            with open(log_file_path, 'a') as f:
+                f.write(interaction_log + "\n-------------------\n")
+
+            last_system_response = log_string
+
+            # If model indicates finish early, break and go to final summary
+            if not is_final_summary and any(line.strip().upper().startswith("FINISH::") for line in plan.splitlines()):
+                finished_early = True
+                # proceed to final summary iteration immediately
+                # Adjust loop counter to force final summary next
+                # We can't change for-loop index directly; instead, run one extra summary iteration right away
+                summary_guidance = (
+                    "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
+                    "then 2-3 suggestions for next steps, and end with a confirmation question. Do NOT include commands."
+                )
+                summary_prompt = f"""
+You are Pai. {summary_guidance}
+
+--- LATEST USER REQUEST ---
+"{user_input}"
+--- END USER REQUEST ---
+
+--- MOST RECENT SYSTEM RESPONSE ---
+{last_system_response}
+--- END SYSTEM RESPONSE ---
+"""
+                summary_plan = llm.generate_text(summary_prompt)
+                summary_group, summary_log = _generate_execution_renderables(summary_plan)
+                ui.console.print(
+                    Panel(
+                        summary_group,
+                        title="[bold]Agent Response[/bold] (final summary)",
+                        box=ROUNDED,
+                        border_style="grey50",
+                        padding=(1, 2)
+                    )
+                )
+                session_context.append(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}")
+                with open(log_file_path, 'a') as f:
+                    f.write(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}\n-------------------\n")
+                # Store suggestions to enable auto-continue on next short affirmative
+                pending_followup_suggestions = summary_plan
+                break
+
+        # Clear pending follow-up if we just consumed an affirmative input
+        if auto_continue:
+            pending_followup_suggestions = ""
