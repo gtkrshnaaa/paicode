@@ -6,7 +6,7 @@ from rich.console import Group
 from rich.text import Text
 from rich.syntax import Syntax
 from rich.box import ROUNDED
-from . import llm, fs, ui
+from . import llm, workspace, ui
 
 from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
@@ -51,7 +51,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                 
                 elif command_candidate == "READ":
                     path_to_read = params
-                    content = fs.read_file(path_to_read)
+                    content = workspace.read_file(path_to_read)
                     if content is not None:
                         try:
                             lexer = get_lexer_for_filename(path_to_read)
@@ -75,7 +75,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                 elif command_candidate == "MODIFY":
                     file_path, _, description = params.partition('::')
                     
-                    original_content = fs.read_file(file_path)
+                    original_content = workspace.read_file(file_path)
                     if original_content is None:
                         result = f"Error: Cannot modify '{file_path}' because it does not exist or cannot be read."
                         renderables.append(Text(f"✗ {result}", style="error"))
@@ -95,7 +95,7 @@ Provide back the ENTIRE, complete file content with the modification applied. Pr
                     new_content_1 = llm.generate_text(modification_prompt_1)
 
                     if new_content_1:
-                        success, message = fs.apply_modification_with_patch(file_path, original_content, new_content_1)
+                        success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_1)
                         
                         if success and "No changes detected" in message:
                             renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
@@ -117,7 +117,7 @@ Provide ONLY the raw code without any explanations or markdown.
                             new_content_2 = llm.generate_text(modification_prompt_2)
                             
                             if new_content_2:
-                                success, message = fs.apply_modification_with_patch(file_path, original_content, new_content_2)
+                                success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_2)
                         
                         result = message
                         style = "success" if success else "warning"
@@ -128,7 +128,7 @@ Provide ONLY the raw code without any explanations or markdown.
 
                 elif command_candidate == "TREE":
                     path_to_list = params if params else '.'
-                    tree_output = fs.tree_directory(path_to_list)
+                    tree_output = workspace.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
                         renderables.append(Text(tree_output, style="bright_blue"))
                         # Log the actual tree output for the AI's memory
@@ -139,7 +139,7 @@ Provide ONLY the raw code without any explanations or markdown.
                 
                 elif command_candidate == "LIST_PATH":
                     path_to_list = params if params else '.'
-                    list_output = fs.list_path(path_to_list)
+                    list_output = workspace.list_path(path_to_list)
                     if list_output and "Error:" not in list_output:
                         if list_output.strip():
                             renderables.append(Text(list_output, style="bright_blue"))
@@ -156,12 +156,12 @@ Provide ONLY the raw code without any explanations or markdown.
                     break 
 
                 else: # Other commands: MKDIR, TOUCH, RM, MV
-                    if command_candidate == "MKDIR": result = fs.create_directory(params)
-                    elif command_candidate == "TOUCH": result = fs.create_file(params)
-                    elif command_candidate == "RM": result = fs.delete_item(params)
+                    if command_candidate == "MKDIR": result = workspace.create_directory(params)
+                    elif command_candidate == "TOUCH": result = workspace.create_file(params)
+                    elif command_candidate == "RM": result = workspace.delete_item(params)
                     elif command_candidate == "MV":
                         source, _, dest = params.partition('::')
-                        result = fs.move_item(source, dest)
+                        result = workspace.move_item(source, dest)
                 
                 if result:
                     if "Success" in result: style = "success"; icon = "✓ "
@@ -189,7 +189,7 @@ def handle_write(file_path: str, params: str) -> str:
     code_content = llm.generate_text(prompt)
     
     if code_content:
-        return fs.write_to_file(file_path, code_content)
+        return workspace.write_to_file(file_path, code_content)
     else:
         return f"Error: Failed to generate content from LLM for file: {file_path}"
 

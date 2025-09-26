@@ -2,7 +2,7 @@
 
 > **An autonomous, conversational AI agent designed to accelerate software development through intelligent, stateful interaction directly in your terminal.**
 
-**Pai Code** is a local AI assistant that operates as a true developer companion. It's not a toolkit of separate commands; it is a single, intelligent partner capable of understanding high-level goals, observing its environment, remembering context, and translating your intent into concrete project structures, code, and file management tasks.
+**Pai Code** is an AI assistant for your terminal that acts as a true developer companion. It's not a toolkit of separate commands; it is a single, intelligent partner capable of understanding high-level goals, observing its environment, remembering context, and translating your intent into concrete project structures, code, and file management tasks.
 
 -----
 
@@ -10,9 +10,9 @@
 
 Pai Code is built on a set of guiding principles that define its purpose and design:
 
-  * **Local-First and Private:** Your code and your interactions are yours alone. Pai operates entirely on your local machine. Nothing is stored on a remote server beyond the necessary API calls to the LLM.
+  * **Local Terminal + LLM via API:** Pai runs in your local terminal and performs application-level operations on your project workspace files. For inference, code/context snippets are sent to an external LLM via API. Privacy therefore depends on the provider's policy; locally we enforce path-security safeguards and diff-based changes.
   * **Conversational Workflow:** We believe in the power of dialog. Pai is built for developers who thrive in the terminal, augmenting their workflow through natural language conversation, not a rigid set of commands.
-  * **Editor Agnostic:** By operating directly on the file system, any action Pai takes is instantly reflected in your favorite IDE, from VS Code and JetBrains to Vim or Emacs.
+  * **Editor Agnostic:** By operating directly on project workspace files, any action Pai takes is instantly reflected in your favorite IDE, from VS Code and JetBrains to Vim or Emacs.
   * **Agentic and Stateful:** Pai is designed to be more than a script runner. It maintains context throughout a session, allowing it to learn from the results of its own actions and engage in meaningful, iterative development.
 
 -----
@@ -28,7 +28,7 @@ paicode/          <-- Project Root
 │   ├── agent.py      # The agent's core logic and prompt engineering
 │   ├── cli.py        # The main conversational CLI entry point
 │   ├── config.py     # Secure API key management
-│   ├── fs.py         # File system gateway and security layer
+│   ├── workspace.py # Workspace operations gateway: application-level file ops, path-security, diff-aware modify
 │   ├── llm.py        # Bridge to the Large Language Model
 │   └── ui.py         # Rich TUI components
 │
@@ -95,7 +95,7 @@ The setup process is simple and integrated with Poetry.
 Security is a core design principle of Pai Code.
 
   * **Secure Key Storage:** Your API key is never stored in the project directory. It is placed in a `.config` folder in your home directory with `600` file permissions, meaning only your user account can access it.
-  * **Sensitive Path Blocking:** The agent is hard-coded to **deny all access** (read, write, or list) to sensitive files and directories like `.env`, `.git`, `venv/`, and IDE-specific folders. This is enforced by a centralized security gateway (`_is_path_safe`) that inspects every file operation.
+  * **Sensitive Path Blocking (Path Security):** The agent enforces a policy to block access to sensitive files and directories like `.env`, `.git`, `venv/`, and IDE-specific folders. This is implemented by a centralized workspace gateway (`workspace.py`) that inspects every application-level file operation in the project workspace.
 
 -----
 
@@ -283,18 +283,18 @@ i Session ended.
 A typical interaction follows this stateful data flow:
 
 1.  **User Input** is captured by `cli.py`.
-2.  `agent.py` constructs a detailed **prompt**, including the full conversation history.
+2.  `agent.py` constructs a detailed **prompt**, including relevant conversation history.
 3.  `llm.py` sends this prompt to the **Gemini API**.
 4.  The LLM returns a structured **action plan** (a sequence of commands).
-5.  `agent.py` executes this plan, calling functions in `fs.py`.
-6.  The results (e.g., file contents from `READ`, lists from `LIST_PATH`) are **displayed to the user AND simultaneously recorded in the session log.**
+5.  `agent.py` executes this plan, calling functions in `workspace.py`.
+6.  The results (e.g., file contents from `READ`, lists from `LIST_PATH`) are **displayed to the user and recorded in the session log.**
 7.  This enriched log becomes the context for the next turn, creating a **stateful memory loop** that allows the agent to learn from its actions.
 
 ### **Customization and Extensibility**
 
 As a developer, you can easily extend Pai's internal capabilities:
 
-  * **Add New Agent Commands:** Add a command to `VALID_COMMANDS` in `agent.py`, create a corresponding function in `fs.py`, and add the handling logic in `_generate_execution_renderables`. This gives the agent a new tool to use in its planning.
+  * **Add New Agent Commands:** Add a command to `VALID_COMMANDS` in `agent.py`, create a corresponding function in `workspace.py`, and add the handling logic in `_generate_execution_renderables`. This gives the agent a new tool to use in its planning.
   * **Tune the Agent's Persona:** The core personality and reasoning process of the agent lives in the `prompt` variable in `agent.py`. By modifying this prompt, you can change its behavior, specialize it for a specific framework, or alter its programming style.
 
 ### **Technology Stack**
@@ -305,3 +305,13 @@ As a developer, you can easily extend Pai's internal capabilities:
   * **Core Libraries:**
       * `google-generativeai`
       * `rich` (for beautiful TUI)
+
+-----
+
+## **7. Scope and Limitations**
+
+To avoid misunderstanding:
+
+* Pai performs application-level file operations within the project workspace. It is not a system-level file manager and does not manage OS file systems.
+* Inference is executed by an external LLM via API. Do not share sensitive secrets in prompts unless you understand your provider's data policy.
+* Path-security rules block access to sensitive paths and restrict changes using diff-based edits to reduce the risk of large, unintended overwrites.
