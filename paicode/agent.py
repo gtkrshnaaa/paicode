@@ -26,17 +26,32 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     renderables = []
     log_results = []
     execution_header_added = False
-    
-    # Add the AI's plan to the renderables and log (only if non-empty)
-    plan_text_for_log = []
-    if all_lines:
-        renderables.append(Text("Agent Response or Plan:", style="bold underline"))
-        for line in all_lines:
-            renderables.append(Text(f"{line}", style="plan"))
-            plan_text_for_log.append(line)
-        log_results.append("\n".join(plan_text_for_log))
 
-    for action in all_lines:
+    # Split lines into conversational response vs actionable plan lines
+    response_lines: list[str] = []
+    plan_lines: list[str] = []
+    for line in all_lines:
+        cmd_candidate, _, _ = line.partition('::')
+        if cmd_candidate.upper().strip() in VALID_COMMANDS:
+            plan_lines.append(line)
+        else:
+            response_lines.append(line)
+
+    # Render Agent Response section (if any)
+    if response_lines:
+        renderables.append(Text("Agent Response:", style="bold underline"))
+        for line in response_lines:
+            renderables.append(Text(f"{line}", style="plan"))
+        log_results.append("\n".join(response_lines))
+
+    # Render Agent Plan section (if any)
+    if plan_lines:
+        renderables.append(Text("Agent Plan:", style="bold underline"))
+        for line in plan_lines:
+            renderables.append(Text(f"{line}", style="plan"))
+        log_results.append("\n".join(plan_lines))
+
+    for action in plan_lines:
         try:
             command_candidate, _, params = action.partition('::')
             command_candidate = command_candidate.upper().strip()
