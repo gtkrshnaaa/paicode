@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -30,11 +31,15 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     # Split lines into conversational response vs actionable plan lines
     response_lines: list[str] = []
     plan_lines: list[str] = []
+    unknown_command_lines: list[str] = []
     for line in all_lines:
         cmd_candidate, _, _ = line.partition('::')
         if cmd_candidate.upper().strip() in VALID_COMMANDS:
             plan_lines.append(line)
         else:
+            # If it looks like a command pattern but is not valid (e.g., RUN::...), collect it
+            if '::' in line and cmd_candidate.upper().strip() not in VALID_COMMANDS:
+                unknown_command_lines.append(line)
             response_lines.append(line)
 
     # Render Agent Response section (if any)
@@ -50,6 +55,15 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         for line in plan_lines:
             renderables.append(Text(f"{line}", style="plan"))
         log_results.append("\n".join(plan_lines))
+
+    # Warn about unknown pseudo-commands (e.g., RUN:: ...)
+    if unknown_command_lines:
+        renderables.append(Text("\nWarning: Ignored unknown commands (only VALID_COMMANDS are allowed in action steps):", style="warning"))
+        for u in unknown_command_lines[:3]:
+            renderables.append(Text(f"- {u}", style="warning"))
+        if len(unknown_command_lines) > 3:
+            renderables.append(Text(f"... and {len(unknown_command_lines) - 3} more", style="warning"))
+        log_results.append("Ignored unknown commands: " + "; ".join(unknown_command_lines))
 
     # Enforce single actionable command per inference: execute only the first command line
     if len(plan_lines) > 1:
@@ -281,7 +295,13 @@ def start_interactive_session():
         # 8) Final Summary (no commands; suggestions + confirmation question)
         #
 
-        total_steps = 8
+        # Allow configuring total steps via environment, default to 8 (minimum 6)
+        try:
+            total_steps = int(os.getenv("PAI_MAX_STEPS", "8"))
+            if total_steps < 6:
+                total_steps = 8
+        except ValueError:
+            total_steps = 8
 
         # Step 1: Agent Response (no commands allowed)
         response_guidance = (
@@ -319,24 +339,14 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
 
         # Step 2: Task Scheduler (no commands; outline steps)
         scheduler_guidance = (
-            "Outline a concise, numbered task plan (2-6 steps) to reach the user's goal. "
-            "Each step should be an action title with a one-line rationale. Do NOT include actionable commands from VALID COMMANDS."
+            "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
+            "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
+            "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS."
         )
         scheduler_prompt = f"""
 You are Pai, an expert planner and developer AI.
 {scheduler_guidance}
 
---- CONVERSATION HISTORY (all previous turns) ---
-{context_str}
---- END HISTORY ---
-
---- LAST SYSTEM RESPONSE ---
-{last_system_response}
---- END LAST SYSTEM RESPONSE ---
-
---- LATEST USER REQUEST ---
-"{user_effective_request}"
---- END USER REQUEST ---
 """
         scheduler_plan = llm.generate_text(scheduler_prompt)
         scheduler_group, scheduler_log = _generate_execution_renderables(scheduler_plan)
@@ -356,19 +366,52 @@ You are Pai, an expert planner and developer AI.
         last_system_response = scheduler_log
         pending_followup_suggestions = scheduler_plan
 
-        # Steps 3-7: Action iterations (exactly one actionable command per step)
-        for action_idx in range(3, 8):
+        # Parse scheduler hints from JSON; fallback to heuristic if JSON parsing fails
+        scheduler_hints: list[str] = []
+        try:
+            parsed = json.loads(scheduler_plan)
+            if isinstance(parsed, dict) and isinstance(parsed.get("steps"), list):
+                for step in parsed["steps"]:
+                    title = str(step.get("title", "")).strip()
+                    hint = str(step.get("hint", "")).strip()
+                    combined = hint or title
+                    if combined:
+                        scheduler_hints.append(combined)
+        except Exception:
+            for raw_line in scheduler_plan.splitlines():
+                stripped = raw_line.strip()
+                if stripped[:2].isdigit() and (stripped[1:2] in {'.', ')'}):
+                    hint = stripped[2:].strip(" -:\t")
+                    if hint:
+                        scheduler_hints.append(hint)
+                elif stripped and (stripped[0].isdigit() and (stripped.split(' ', 1)[0].rstrip('.)').isdigit())):
+                    parts = stripped.split(' ', 1)
+                    if len(parts) == 2:
+                        scheduler_hints.append(parts[1].strip())
+
+        # Steps 3-?: Action iterations (exactly one actionable command per step)
+        # Cap the number of action steps to at most 5 to keep interactions concise
+        action_steps_count = min(5, max(1, total_steps - 3))
+        last_action_step_index = 2 + action_steps_count
+        for action_idx in range(3, last_action_step_index + 1):
             guidance = (
                 "Plan and execute the next SINGLE best action towards the user's goal. "
                 "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
-                "You may include 1-2 short natural language lines before the command."
+                "Do NOT output any other command type (e.g., RUN) or more than one actionable command. "
+                "Output format must be at most 3 short natural language lines followed by exactly one line with the command."
             )
+
+            # Supply a scheduler hint (if available) to make the step focused
+            idx_from3 = action_idx - 3
+            step_hint = scheduler_hints[idx_from3] if idx_from3 < len(scheduler_hints) else ""
 
             action_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
 You are a creative problem-solver, not just a command executor.
 
 {guidance}
+
+Target step hint: {step_hint}
 
 --- VALID COMMANDS ---
 1. MKDIR::path
@@ -420,7 +463,7 @@ Reply now.
                 finished_early = True
                 break
 
-        # Step 8: Final Summary
+        # Final Summary step index depends on how many action steps we ran
         summary_guidance = (
             "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
             "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking the user "
@@ -442,7 +485,7 @@ You are Pai. {summary_guidance}
         ui.console.print(
             Panel(
                 summary_group,
-                title=f"[bold]Agent Response[/bold] (step 8/{total_steps} - final summary)",
+                title=f"[bold]Agent Response[/bold] (step {last_action_step_index + 1}/{total_steps} - final summary)",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
