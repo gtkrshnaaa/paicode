@@ -19,7 +19,7 @@ Pai Code is built on a set of guiding principles that define its purpose and des
 
 ## **2. Project Structure**
 
-The project uses a standard package structure managed by Poetry.
+The project uses a standard Python package structure and is packaged with pip/setuptools.
 
 ```
 paicode/          <-- Project Root
@@ -34,21 +34,22 @@ paicode/          <-- Project Root
 │
 ├── .gitignore
 ├── README.md
-├── poetry.lock     # Poetry's lock file for consistent installs
-└── pyproject.toml  # Project definition and dependencies for Poetry
+├── requirements.txt  # Dependencies for pip
+├── setup.cfg         # Packaging configuration for setuptools
+├── setup.py          # Minimal setup shim (delegates to setup.cfg)
+└── pyproject.toml    # Build-system config (setuptools)
 ```
 
 -----
 
 ## **3. Installation and Setup**
 
-The setup process is simple and integrated with Poetry.
+The setup process uses pip and Make.
 
 ### **Prerequisites**
 
   * **Python 3.9+**
   * **Git**
-  * **Poetry**
 
 ### **Step-by-Step Guide**
 
@@ -60,12 +61,13 @@ The setup process is simple and integrated with Poetry.
     cd paicode
     ```
 
-2.  **Install Dependencies**
-    Poetry will read the `pyproject.toml` file, automatically create a virtual environment, and install all required dependencies.
+2.  **Install CLI (pip, user-site)**
 
     ```bash
-    # Run from the project's root directory
-    poetry install
+    # From the project's root directory
+    make cli-install
+    # or
+    pip install --user .
     ```
 
 3.  **Configure Your API Key**
@@ -73,7 +75,7 @@ The setup process is simple and integrated with Poetry.
 
     ```bash
     # Replace YOUR_API_KEY_HERE with your Gemini API key
-    poetry run pai config --set YOUR_API_KEY_HERE
+    pai config --set YOUR_API_KEY_HERE
     ```
 
     This command securely stores your key in `~/.config/pai-code/credentials`.
@@ -82,10 +84,10 @@ The setup process is simple and integrated with Poetry.
 
     ```bash
     # Check if the main command is available
-    poetry run pai --help
+    pai --help
 
     # Verify that the API key is configured
-    poetry run pai config --show
+    pai config --show
     ```
 
 -----
@@ -107,20 +109,17 @@ All development with Pai happens inside a single, interactive session. You don't
 
 Manage your API key with the `config` command.
 
-  * `poetry run pai config --set <API_KEY>`: Sets or replaces the API key.
-  * `poetry run pai config --show`: Displays the currently stored key (masked).
-  * `poetry run pai config --remove`: Deletes the credentials file.
+  * `pai config --set <API_KEY>`: Sets or replaces the API key.
+  * `pai config --show`: Displays the currently stored key (masked).
+  * `pai config --remove`: Deletes the credentials file.
 
 ### **Starting an Agent Session**
 
 To begin coding, simply run `pai` or `pai auto`. This will drop you into an interactive session.
 
 ```bash
-# For an interactive session, using 'poetry shell' is more convenient
-poetry shell
-
-# Start the agent
-(pai-code-py3.12)$ pai
+# Start the agent directly
+pai
 ```
 
 ### **Interacting with the Agent**
@@ -300,7 +299,7 @@ As a developer, you can easily extend Pai's internal capabilities:
 ### **Technology Stack**
 
   * **Language:** Python 3.9+
-  * **Dependency Management & Packaging:** Poetry
+  * **Dependency Management & Packaging:** pip + setuptools
   * **LLM API:** Google Gemini
   * **Core Libraries:**
       * `google-generativeai`
