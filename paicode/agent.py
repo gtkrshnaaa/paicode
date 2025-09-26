@@ -23,17 +23,18 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         return Group(Text(msg, style="warning")), msg
 
     all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
-    renderables = [Text("Agent's Plan or Response:", style="bold underline")]
+    renderables = []
     log_results = []
+    execution_header_added = False
     
-    # Add the AI's plan to the renderables and log
+    # Add the AI's plan to the renderables and log (only if non-empty)
     plan_text_for_log = []
-    for line in all_lines:
-        renderables.append(Text(f"{line}", style="plan"))
-        plan_text_for_log.append(line)
-    
-    log_results.append("\n".join(plan_text_for_log))
-    renderables.append(Text("\nExecution Results:", style="bold underline"))
+    if all_lines:
+        renderables.append(Text("Agent Response or Plan:", style="bold underline"))
+        for line in all_lines:
+            renderables.append(Text(f"{line}", style="plan"))
+            plan_text_for_log.append(line)
+        log_results.append("\n".join(plan_text_for_log))
 
     for action in all_lines:
         try:
@@ -42,6 +43,10 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
             
             if command_candidate in VALID_COMMANDS:
                 result = ""
+                # Add Execution Results header lazily when first execution item appears
+                if not execution_header_added:
+                    renderables.append(Text("\nExecution Results:", style="bold underline"))
+                    execution_header_added = True
                 action_text = Text(f"-> {action}", style="action")
                 renderables.append(action_text)
 
