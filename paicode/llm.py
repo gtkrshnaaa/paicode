@@ -13,25 +13,44 @@ os.environ.setdefault("GLOG_minloglevel", "3")
 import google.generativeai as genai
 from . import config, ui
 
-# Get the API key from our config module
-API_KEY = config.get_api_key()
+DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-2.5-flash")
+try:
+    DEFAULT_TEMPERATURE = float(os.getenv("PAI_TEMPERATURE", "0.4"))
+except ValueError:
+    DEFAULT_TEMPERATURE = 0.4
 
-# Initialize the model only if the API Key exists
+# Global model holder
 model = None
-if API_KEY:
+
+def set_runtime_model(model_name: str | None = None, temperature: float | None = None):
+    """Configure or reconfigure the GenerativeModel at runtime.
+
+    This reads the API key from config and constructs a new GenerativeModel
+    using the provided (or default) model name and temperature.
+    """
+    global model
+    api_key = config.get_api_key()
+    if not api_key:
+        ui.print_error("Error: API Key is not configured. Please run `pai config --set <YOUR_API_KEY>` to set it up.")
+        model = None
+        return
     try:
-        genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        genai.configure(api_key=api_key)
+        name = (model_name or DEFAULT_MODEL) or "gemini-2.5-flash"
+        temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
+        generation_config = {"temperature": temp}
+        model = genai.GenerativeModel(name, generation_config=generation_config)
     except Exception as e:
         ui.print_error(f"Failed to configure the generative AI model: {e}")
-else:
-    # Do nothing on load; the error will be handled when a function is called
-    pass 
+        model = None
+
+# Initialize once on import with defaults
+set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 
 def generate_text(prompt: str) -> str:
     """Sends a prompt to the Gemini API and returns the text response."""
     if not model:
-        error_message = "Error: API Key is not configured. Please run `pai config --set <YOUR_API_KEY>` to set it up."
+        error_message = "Error: API Key or model is not configured. Please run `pai config --set <YOUR_API_KEY>` and try again."
         ui.print_error(error_message)
         return error_message
 
@@ -43,6 +62,8 @@ def generate_text(prompt: str) -> str:
         cleaned_text = response.text.strip()
         if cleaned_text.startswith("```python"):
             cleaned_text = cleaned_text[len("```python"):].strip()
+        elif cleaned_text.startswith("```json"):
+            cleaned_text = cleaned_text[len("```json"):].strip()
         elif cleaned_text.startswith("```"):
             cleaned_text = cleaned_text[len("```"):].strip()
 

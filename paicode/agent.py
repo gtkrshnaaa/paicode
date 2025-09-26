@@ -219,6 +219,54 @@ Provide ONLY the raw code without any explanations or markdown.
 
     return Group(*renderables), "\n".join(log_results)
 
+def _classify_intent(user_request: str, context: str) -> tuple[str, str, str]:
+    """Classify user's intent into ('chat'|'task', 'simple'|'normal'|'complex', optional_reply_for_chat)."""
+    try:
+        # Quick heuristic first: if request contains a known command pattern, treat as task
+        upper_req = user_request.upper()
+        if any(cmd + "::" in upper_req for cmd in VALID_COMMANDS):
+            return ("task", "simple", "")
+
+        prompt = (
+            "Return ONLY raw JSON with this schema: "
+            "{\"mode\": \"chat\"|\"task\", \"complexity\": \"simple\"|\"normal\"|\"complex\", \"reply\": string|null}. "
+            "If mode is 'chat', set 'reply' to a concise, warm response (no commands). If mode is 'task', set 'reply' to null."
+        )
+        classifier_input = f"""
+{prompt}
+
+Latest message: "{user_request}"
+"""
+        result = llm.generate_text(classifier_input)
+        mode = "task"; complexity = "normal"; reply = ""
+        try:
+            data = json.loads(result)
+            if isinstance(data, dict):
+                if data.get("mode") in {"chat", "task"}:
+                    mode = data["mode"]
+                comp = data.get("complexity")
+                if isinstance(comp, str) and comp.lower() in {"simple", "normal", "complex"}:
+                    complexity = comp.lower()
+                r = data.get("reply")
+                if isinstance(r, str):
+                    reply = r.strip()
+        except Exception:
+            pass
+        return (mode, complexity, reply)
+    except Exception:
+        return ("task", "normal", "")
+
+def _has_valid_command(plan_text: str) -> bool:
+    """Check if plan text contains at least one VALID_COMMANDS line."""
+    try:
+        for line in (plan_text or "").splitlines():
+            cmd_candidate, _, _ = line.partition('::')
+            if cmd_candidate.upper().strip() in VALID_COMMANDS:
+                return True
+        return False
+    except Exception:
+        return False
+
 def handle_write(file_path: str, params: str) -> str:
     """Invokes the LLM to create content and write it to a file."""
     _, _, description = params.partition('::')
@@ -287,6 +335,46 @@ def start_interactive_session():
         last_system_response = ""
         finished_early = False
 
+        # Intent classification: decide chat vs task mode
+        mode, complexity, classifier_reply = _classify_intent(user_effective_request, context_str)
+        if mode == "chat":
+            response_guidance = (
+                "Provide a brief, helpful, and senior-level explanation or follow-up answer to the user's message. "
+                "Do NOT include any actionable commands or tool calls."
+            )
+            # If classifier already provided a reply, use it to avoid extra LLM call
+            if classifier_reply:
+                response_text = classifier_reply
+            else:
+                response_prompt = f"""
+You are an expert senior software engineer. {response_guidance}
+
+--- CONVERSATION HISTORY (all previous turns) ---
+{context_str}
+--- END HISTORY ---
+
+--- LATEST USER MESSAGE ---
+"{user_effective_request}"
+--- END ---
+"""
+                response_text = llm.generate_text(response_prompt)
+            response_group, response_log = _generate_execution_renderables(response_text)
+            ui.console.print(
+                Panel(
+                    response_group,
+                    title=f"[bold]Agent Discussion[/bold]",
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2)
+                )
+            )
+            interaction_log = f"User: {user_input}\nMode: chat\nAI Plan:\n{response_text}\nSystem Response:\n{response_log}"
+            session_context.append(interaction_log)
+            with open(log_file_path, 'a') as f:
+                f.write(interaction_log + "\n-------------------\n")
+            # Go to next user turn (no scheduler, no actions)
+            continue
+
         #
         # New 8-step flow per user request:
         # 1) Agent Response (no commands)
@@ -337,7 +425,110 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
             f.write(interaction_log + "\n-------------------\n")
         last_system_response = response_log
 
-        # Step 2: Task Scheduler (no commands; outline steps)
+        # If task is simple, skip scheduler to minimize API calls and do minimal actions
+        if complexity == "simple":
+            # Configure total steps minimal: 1 response + 1 action + 1 summary = 3
+            try:
+                total_steps = int(os.getenv("PAI_MAX_STEPS", "8"))
+                if total_steps < 3:
+                    total_steps = 3
+            except ValueError:
+                total_steps = 8
+            total_steps = max(3, min(total_steps, 4))
+
+            # Run a single focused action (step 2)
+            guidance = (
+                "Plan and execute the SINGLE best action towards the user's goal. "
+                "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
+                "Do NOT output any other command type (e.g., RUN). "
+                "Keep at most 2 short natural language lines then exactly one line with the command."
+            )
+            action_prompt = f"""
+You are Pai, an expert, proactive, and autonomous software developer AI.
+You are a creative problem-solver, not just a command executor.
+
+{guidance}
+
+--- VALID COMMANDS ---
+1. MKDIR::path
+2. TOUCH::path
+3. WRITE::path::description
+4. MODIFY::path::description
+5. READ::path
+6. LIST_PATH::path
+7. RM::path
+8. MV::source::destination
+9. TREE::path
+10. FINISH::message
+
+--- CONVERSATION HISTORY (all previous turns) ---
+{context_str}
+--- END HISTORY ---
+
+--- LATEST USER REQUEST ---
+"{user_effective_request}"
+--- END USER REQUEST ---
+
+Reply now.
+"""
+            plan = llm.generate_text(action_prompt)
+            if not _has_valid_command(plan):
+                reprompt = "You must output exactly one VALID command line. Repeat succinctly."
+                plan = llm.generate_text(reprompt)
+
+            renderable_group, log_string = _generate_execution_renderables(plan)
+            ui.console.print(
+                Panel(
+                    renderable_group,
+                    title=f"[bold]Agent Action[/bold] (step 2/{total_steps})",
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2)
+                )
+            )
+            interaction_log = f"User: {user_input}\nIteration: 2/{total_steps}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
+            session_context.append(interaction_log)
+            with open(log_file_path, 'a') as f:
+                f.write(interaction_log + "\n-------------------\n")
+            last_system_response = log_string
+
+            # Final summary (step 3)
+            summary_guidance = (
+                "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
+                "followed by 1-2 concrete suggestions for next steps. Ask for confirmation to proceed."
+            )
+            summary_prompt = f"""
+You are Pai. {summary_guidance}
+
+--- LATEST USER REQUEST ---
+"{user_input}"
+--- END USER REQUEST ---
+
+--- MOST RECENT SYSTEM RESPONSE ---
+{last_system_response}
+--- END SYSTEM RESPONSE ---
+"""
+            summary_plan = llm.generate_text(summary_prompt)
+            summary_group, summary_log = _generate_execution_renderables(summary_plan)
+            ui.console.print(
+                Panel(
+                    summary_group,
+                    title=f"[bold]Agent Response[/bold] (step 3/{total_steps} - final summary)",
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2)
+                )
+            )
+            session_context.append(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}")
+            with open(log_file_path, 'a') as f:
+                f.write(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}\n-------------------\n")
+            pending_followup_suggestions = summary_plan
+
+            if auto_continue:
+                pending_followup_suggestions = ""
+            continue
+
+        # Step 2: Task Scheduler (no commands; outline steps) for normal/complex tasks
         scheduler_guidance = (
             "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
@@ -349,6 +540,12 @@ You are Pai, an expert planner and developer AI.
 
 """
         scheduler_plan = llm.generate_text(scheduler_prompt)
+        # Sanitize accidental language tag prefix like 'json' on its own line
+        sp = scheduler_plan.strip()
+        if sp.lower().startswith("json"):
+            parts = sp.split('\n', 1)
+            if len(parts) == 2:
+                scheduler_plan = parts[1]
         scheduler_group, scheduler_log = _generate_execution_renderables(scheduler_plan)
         ui.console.print(
             Panel(
@@ -390,8 +587,10 @@ You are Pai, an expert planner and developer AI.
                         scheduler_hints.append(parts[1].strip())
 
         # Steps 3-?: Action iterations (exactly one actionable command per step)
-        # Cap the number of action steps to at most 5 to keep interactions concise
+        # Cap the number of action steps to at most 5 and also to the number of hints
         action_steps_count = min(5, max(1, total_steps - 3))
+        if scheduler_hints:
+            action_steps_count = min(action_steps_count, len(scheduler_hints))
         last_action_step_index = 2 + action_steps_count
         for action_idx in range(3, last_action_step_index + 1):
             guidance = (
@@ -440,6 +639,28 @@ Target step hint: {step_hint}
 Reply now.
 """
             plan = llm.generate_text(action_prompt)
+
+            # Hard-reprompt once if no valid command is detected
+            if not _has_valid_command(plan):
+                reprompt = f"""
+You did not provide any valid actionable command. You MUST output exactly one line with a command from VALID COMMANDS.
+Repeat with a stricter focus on the target step. Keep it concise and do not include any other command types.
+
+Target step hint: {step_hint}
+
+--- VALID COMMANDS ---
+1. MKDIR::path
+2. TOUCH::path
+3. WRITE::path::description
+4. MODIFY::path::description
+5. READ::path
+6. LIST_PATH::path
+7. RM::path
+8. MV::source::destination
+9. TREE::path
+10. FINISH::message
+"""
+                plan = llm.generate_text(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
             ui.console.print(
                 Panel(

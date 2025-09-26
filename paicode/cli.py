@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from . import agent, config
+from . import agent, config, llm
 
 def main():
     parser = argparse.ArgumentParser(
@@ -10,7 +10,9 @@ def main():
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    subparsers.add_parser('auto', help='Start the interactive AI agent session.')
+    parser_auto = subparsers.add_parser('auto', help='Start the interactive AI agent session.')
+    parser_auto.add_argument('--model', type=str, help='LLM model name (e.g., gemini-2.5-flash)')
+    parser_auto.add_argument('--temperature', type=float, help='LLM sampling temperature (e.g., 0.2)')
 
     parser_config = subparsers.add_parser('config', help='Manage the API key configuration')
     config_group = parser_config.add_mutually_exclusive_group(required=True)
@@ -25,6 +27,11 @@ def main():
         elif args.show: config.show_api_key()
         elif args.remove: config.remove_api_key()
     else:
+        # Configure LLM runtime if flags provided
+        model = getattr(args, 'model', None)
+        temperature = getattr(args, 'temperature', None)
+        if model is not None or temperature is not None:
+            llm.set_runtime_model(model, temperature)
         agent.start_interactive_session()
 
 if __name__ == "__main__":
