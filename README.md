@@ -435,12 +435,12 @@ pai config --remove          # remove legacy single-key file
 
 ```bash
 pai config list
-pai config add --key <API_KEY> [--label <LABEL>]
-pai config edit --id <N> --key <NEW_KEY>
-pai config rename --id <N> --label <NEW_LABEL>
-pai config remove --id <N>
-pai config enable --id <N>
-pai config disable --id <N>
+pai config add --key <API_KEY> --label <LABEL>
+pai config edit --id <ID> --key <NEW_KEY>
+pai config rename --id <ID> --label <NEW_LABEL>
+pai config remove --id <ID>
+pai config enable --id <ID>
+pai config disable --id <ID>
 ```
 
 Notes:
