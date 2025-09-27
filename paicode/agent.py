@@ -15,7 +15,6 @@ from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY"] 
 
 def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     """
@@ -33,15 +32,10 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     # Split lines into conversational response vs actionable plan lines
     response_lines: list[str] = []
     plan_lines: list[str] = []
-    unknown_command_lines: list[str] = []
     for line in all_lines:
-        cmd_candidate, _, _ = line.partition('::')
-        if cmd_candidate.upper().strip() in VALID_COMMANDS:
+        if '::' in line:
             plan_lines.append(line)
         else:
-            # If it looks like a command pattern but is not valid (e.g., RUN::...), collect it
-            if '::' in line and cmd_candidate.upper().strip() not in VALID_COMMANDS:
-                unknown_command_lines.append(line)
             response_lines.append(line)
 
     # Render Agent Response section (if any)
@@ -58,14 +52,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
             renderables.append(Text(f"{line}", style="plan"))
         log_results.append("\n".join(plan_lines))
 
-    # Warn about unknown pseudo-commands (e.g., RUN:: ...)
-    if unknown_command_lines:
-        renderables.append(Text("\nWarning: Ignored unknown commands (only VALID_COMMANDS are allowed in action steps):", style="warning"))
-        for u in unknown_command_lines[:3]:
-            renderables.append(Text(f"- {u}", style="warning"))
-        if len(unknown_command_lines) > 3:
-            renderables.append(Text(f"... and {len(unknown_command_lines) - 3} more", style="warning"))
-        log_results.append("Ignored unknown commands: " + "; ".join(unknown_command_lines))
+    # No warnings about unknown commands; all structured lines with '::' are considered actionable
 
     # Show OS Command Preview translating plan lines to platform-specific shell commands
     if plan_lines:
@@ -92,21 +79,23 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         try:
             command_candidate, _, params = action.partition('::')
             command_candidate = command_candidate.upper().strip()
-            
-            if command_candidate in VALID_COMMANDS:
-                result = ""
-                # Add Execution Results header lazily when first execution item appears
-                if not execution_header_added:
-                    renderables.append(Text("\nExecution Results:", style="bold underline"))
-                    execution_header_added = True
-                action_text = Text(f"-> {action}", style="action")
-                renderables.append(action_text)
 
-                if command_candidate == "WRITE":
+            # Use semantic header directly as internal operation (no aliases)
+            internal_op = command_candidate
+            
+            result = ""
+            # Add Execution Results header lazily when first execution item appears
+            if not execution_header_added:
+                renderables.append(Text("\nExecution Results:", style="bold underline"))
+                execution_header_added = True
+            action_text = Text(f"-> {action}", style="action")
+            renderables.append(action_text)
+
+                if internal_op == "WRITE_FILE":
                     file_path, _, _ = params.partition('::')
                     result = handle_write(file_path, params)
                 
-                elif command_candidate == "READ":
+                elif internal_op == "READ_FILE":
                     path_to_read = params
                     content = workspace.read_file(path_to_read)
                     if content is not None:
@@ -129,7 +118,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     else:
                         result = f"Error: Failed to read file: {path_to_read}"
                 
-                elif command_candidate == "MODIFY":
+                elif internal_op == "MODIFY_FILE":
                     file_path, _, description = params.partition('::')
                     
                     original_content = workspace.read_file(file_path)
@@ -183,7 +172,7 @@ Provide ONLY the raw code without any explanations or markdown.
                         result = f"Error: LLM failed to generate content for modification of '{file_path}'."
                         style = "error"; icon = "✗ "
 
-                elif command_candidate == "TREE":
+                elif internal_op == "SHOW_TREE":
                     path_to_list = params if params else '.'
                     tree_output = workspace.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
@@ -194,7 +183,7 @@ Provide ONLY the raw code without any explanations or markdown.
                     else:
                         result = tree_output or "Error: Failed to display directory structure."
                 
-                elif command_candidate == "LIST_PATH":
+                elif internal_op == "LIST_PATHS":
                     path_to_list = params if params else '.'
                     list_output = workspace.list_path(path_to_list)
                     if list_output and "Error:" not in list_output:
@@ -206,19 +195,28 @@ Provide ONLY the raw code without any explanations or markdown.
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
                 
-                elif command_candidate == "FINISH":
+                elif internal_op == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
                     renderables.append(Text(f"✓ Agent: {result}", style="success"))
                     break 
 
-                else: # Other commands: MKDIR, TOUCH, RM, MV
-                    if command_candidate == "MKDIR": result = workspace.create_directory(params)
-                    elif command_candidate == "TOUCH": result = workspace.create_file(params)
-                    elif command_candidate == "RM": result = workspace.delete_item(params)
-                    elif command_candidate == "MV":
+                else:
+                    # Known application-level ops
+                    if internal_op == "CREATE_DIRECTORY":
+                        result = workspace.create_directory(params)
+                    elif internal_op == "CREATE_FILE":
+                        result = workspace.create_file(params)
+                    elif internal_op == "DELETE_PATH":
+                        result = workspace.delete_item(params)
+                    elif internal_op == "MOVE_PATH":
                         source, _, dest = params.partition('::')
                         result = workspace.move_item(source, dest)
+                    elif internal_op == "EXECUTE":
+                        result = workspace.run_shell(params)
+                    else:
+                        # Fallback: treat as shell command payload
+                        result = workspace.run_shell(params or action)
                 
                 if result:
                     if "Success" in result: style = "success"; icon = "✓ "
@@ -227,7 +225,7 @@ Provide ONLY the raw code without any explanations or markdown.
                     else: style = "info"; icon = "i "
                     renderables.append(Text(f"{icon}{result}", style=style))
                     # Log the simple success/error message for non-data commands
-                    if command_candidate not in ["READ", "TREE", "LIST_PATH"]:
+                    if internal_op not in ["READ_FILE", "SHOW_TREE", "LIST_PATHS"]:
                         log_results.append(result)
 
         except Exception as e:
@@ -275,11 +273,11 @@ Latest message: "{user_request}"
         return ("task", "normal", "")
 
 def _has_valid_command(plan_text: str) -> bool:
-    """Check if plan text contains at least one VALID_COMMANDS line."""
+    """Check if plan text contains at least one actionable line (pattern 'HEADER::...')."""
     try:
         for line in (plan_text or "").splitlines():
-            cmd_candidate, _, _ = line.partition('::')
-            if cmd_candidate.upper().strip() in VALID_COMMANDS:
+            if '::' in line:
+                # At least appears to be an action line
                 return True
         return False
     except Exception:
@@ -397,7 +395,7 @@ You are an expert senior software engineer. {response_guidance}
         # New 8-step flow per user request:
         # 1) Agent Response (no commands)
         # 2) Task Scheduler (high-level plan; no commands)
-        # 3-7) Action steps (exactly one command per step)
+        # 3-7) Action steps (exactly one command per step when appropriate)
         # 8) Final Summary (no commands; suggestions + confirmation question)
         #
 
@@ -456,7 +454,7 @@ Note: You must output only application-level VALID COMMANDS (not shell). The sys
         scheduler_guidance = (
             "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
-            "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
+            "Include 2-6 steps that logically lead to the user's goal. Do NOT include action lines here. "
             "Steps should describe meaningful sub-goals (each may require executing multiple file operations)."
         )
         os_info = detect_os()
@@ -554,9 +552,11 @@ Note: You must output only application-level VALID COMMANDS later in action step
         for action_idx in range(3, last_action_step_index + 1):
             guidance = (
                 "Plan and execute the next actions towards the user's goal. "
-                "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when it is efficient and safe. "
+                "Output 1..N action lines using a UNIVERSAL, semantic header followed by '::' and parameters. "
+                "Examples of headers: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, FINISH. "
+                "You may also use EXECUTE to run a shell command (SHELL fallback) when necessary. "
                 "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
-                "Do NOT output any other command type (e.g., RUN). Keep natural language to max 3 short lines followed by 1..N command lines."
+                "Keep natural language to max 3 short lines followed by 1..N action lines."
             )
 
             # Supply a scheduler hint (if available) to make the step focused
@@ -574,21 +574,9 @@ You are a creative problem-solver, not just a command executor.
 system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
-Note: Output only VALID COMMANDS; the system will render corresponding OS commands.
+Note: Output only UNIVERSAL action lines (HEADER::params). The system will map to OS operations as needed.
 
 Target step hint: {step_hint}
-
---- VALID COMMANDS ---
-1. MKDIR::path
-2. TOUCH::path
-3. WRITE::path::description
-4. MODIFY::path::description
-5. READ::path
-6. LIST_PATH::path
-7. RM::path
-8. MV::source::destination
-9. TREE::path
-10. FINISH::message
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -610,7 +598,7 @@ Reply now.
             if not _has_valid_command(plan):
                 os_info = detect_os()
                 reprompt = f"""
-You did not provide any valid actionable command. You MUST output one or more lines with commands from VALID COMMANDS.
+You did not provide any valid actionable lines. You MUST output one or more UNIVERSAL action lines (HEADER::params).
 Repeat with a stricter focus on the target step. Keep it concise and do not include any other command types.
 
 Target step hint: {step_hint}
@@ -620,17 +608,8 @@ system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
 
---- VALID COMMANDS ---
-1. MKDIR::path
-2. TOUCH::path
-3. WRITE::path::description
-4. MODIFY::path::description
-5. READ::path
-6. LIST_PATH::path
-7. RM::path
-8. MV::source::destination
-9. TREE::path
-10. FINISH::message
+--- EXAMPLE HEADERS ---
+CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, FINISH
 """
                 plan = llm.generate_text_resilient(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)

@@ -2,6 +2,8 @@ import os
 import shutil
 import difflib
 from . import ui
+import subprocess
+import shlex
 from .platforms import detect_os
 
 """
@@ -255,29 +257,32 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
 def _posix_cmd_for(action: str) -> str | None:
     cmd, _, params = action.partition('::')
     cmd = cmd.upper().strip()
-    if cmd == 'MKDIR':
+    # Semantic headers
+    if cmd == 'CREATE_DIRECTORY':
         return f"mkdir -p '{params}'"
-    if cmd == 'TOUCH':
+    if cmd == 'CREATE_FILE':
         return f"touch '{params}'"
-    if cmd == 'RM':
+    if cmd == 'DELETE_PATH':
         return f"rm -rf '{params}'"
-    if cmd == 'MV':
+    if cmd == 'MOVE_PATH':
         src, _, dst = params.partition('::')
         return f"mv '{src}' '{dst}'"
-    if cmd == 'LIST_PATH':
+    if cmd == 'LIST_PATHS':
         path = params or '.'
         return f"ls -la '{path}'"
-    if cmd == 'TREE':
+    if cmd == 'SHOW_TREE':
         path = params or '.'
         return f"(command -v tree >/dev/null 2>&1 && tree '{path}') || find '{path}' \( -name .git -o -name __pycache__ -o -name .env -o -name venv -o -name .vscode -o -name .idea \) -prune -o -print"
-    if cmd == 'READ':
+    if cmd == 'READ_FILE':
         return f"sed -n '1,200p' '{params}'"
-    if cmd == 'WRITE':
+    if cmd == 'WRITE_FILE':
         file_path, _, _desc = params.partition('::')
         return f"# write content to '{file_path}' (omitted in preview)"
-    if cmd == 'MODIFY':
+    if cmd == 'MODIFY_FILE':
         file_path, _, _desc = params.partition('::')
         return f"# modify '{file_path}' (apply diff)"
+    if cmd == 'EXECUTE':
+        return params or ''
     if cmd == 'FINISH':
         return f"# finish: {params}"
     return None
@@ -285,29 +290,32 @@ def _posix_cmd_for(action: str) -> str | None:
 def _pwsh_cmd_for(action: str) -> str | None:
     cmd, _, params = action.partition('::')
     cmd = cmd.upper().strip()
-    if cmd == 'MKDIR':
+    # Semantic headers
+    if cmd == 'CREATE_DIRECTORY':
         return f"New-Item -ItemType Directory -Force -Path '{params}' | Out-Null"
-    if cmd == 'TOUCH':
+    if cmd == 'CREATE_FILE':
         return f"New-Item -ItemType File -Force -Path '{params}' | Out-Null"
-    if cmd == 'RM':
+    if cmd == 'DELETE_PATH':
         return f"Remove-Item -Recurse -Force -Path '{params}'"
-    if cmd == 'MV':
+    if cmd == 'MOVE_PATH':
         src, _, dst = params.partition('::')
         return f"Move-Item -Force -Path '{src}' -Destination '{dst}'"
-    if cmd == 'LIST_PATH':
+    if cmd == 'LIST_PATHS':
         path = params or '.'
         return f"Get-ChildItem -Force -Recurse '{path}'"
-    if cmd == 'TREE':
+    if cmd == 'SHOW_TREE':
         path = params or '.'
         return f"Get-ChildItem -Force -Recurse '{path}' | Format-List FullName"
-    if cmd == 'READ':
+    if cmd == 'READ_FILE':
         return f"Get-Content -TotalCount 200 '{params}'"
-    if cmd == 'WRITE':
+    if cmd == 'WRITE_FILE':
         file_path, _, _desc = params.partition('::')
         return f"# write content to '{file_path}' (omitted in preview)"
-    if cmd == 'MODIFY':
+    if cmd == 'MODIFY_FILE':
         file_path, _, _desc = params.partition('::')
         return f"# modify '{file_path}' (apply diff)"
+    if cmd == 'EXECUTE':
+        return params or ''
     if cmd == 'FINISH':
         return f"# finish: {params}"
     return None
@@ -324,3 +332,46 @@ def os_command_preview(actions: list[str]) -> str:
         if cmdline:
             lines.append(cmdline)
     return "\n".join(lines)
+
+
+def run_shell(command: str) -> str:
+    """Execute a shell command in a cross-platform way (optional, gated by env var).
+
+    Safety:
+    - Runs with cwd restricted to PROJECT_ROOT.
+    - Does not enforce full path-safety on arbitrary shell code (USE WITH CARE).
+    - Enable by setting environment variable PAI_ALLOW_SHELL_EXEC=true
+    """
+    allow = os.getenv('PAI_ALLOW_SHELL_EXEC', 'true').lower() in {'1', 'true', 'yes', 'on'}
+    if not allow:
+        return "Warning: Shell execution is disabled. Set PAI_ALLOW_SHELL_EXEC=true to enable."
+
+    info = detect_os()
+    try:
+        if info.name == 'windows':
+            # Use PowerShell
+            full_cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", command]
+        else:
+            # Use bash/sh
+            full_cmd = ["bash", "-lc", command]
+
+        proc = subprocess.run(
+            full_cmd,
+            cwd=PROJECT_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        out = proc.stdout.strip()
+        err = proc.stderr.strip()
+        code = proc.returncode
+        msg = []
+        msg.append(f"ExitCode: {code}")
+        if out:
+            msg.append("STDOUT:\n" + out)
+        if err:
+            msg.append("STDERR:\n" + err)
+        prefix = "Success" if code == 0 else "Error"
+        return f"{prefix}: Shell command executed.\n" + "\n".join(msg)
+    except Exception as e:
+        return f"Error: Failed to execute shell command: {e}"
