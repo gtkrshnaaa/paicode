@@ -375,7 +375,7 @@ You are an expert senior software engineer. {response_guidance}
 "{user_effective_request}"
 --- END ---
 """
-                response_text = llm.generate_text(response_prompt)
+                response_text = llm.generate_text_resilient(response_prompt)
             response_group, response_log = _generate_execution_renderables(response_text)
             ui.console.print(
                 Panel(
@@ -478,7 +478,7 @@ Note: You must output only application-level VALID COMMANDS later in action step
 "{user_effective_request}"
 --- END USER REQUEST ---
 """
-        scheduler_plan = llm.generate_text(scheduler_prompt)
+        scheduler_plan = llm.generate_text_resilient(scheduler_prompt)
         # Sanitize accidental language tag prefix like 'json' on its own line
         sp = scheduler_plan.strip()
         if sp.lower().startswith("json"):
@@ -604,7 +604,7 @@ Target step hint: {step_hint}
 
 Reply now.
 """
-            plan = llm.generate_text(action_prompt)
+            plan = llm.generate_text_resilient(action_prompt)
 
             # Hard-reprompt once if no valid command is detected
             if not _has_valid_command(plan):
@@ -632,7 +632,7 @@ path_separator: {os_info.path_sep}
 9. TREE::path
 10. FINISH::message
 """
-                plan = llm.generate_text(reprompt)
+                plan = llm.generate_text_resilient(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
             ui.console.print(
                 Panel(
@@ -673,7 +673,7 @@ You are Pai. {summary_guidance}
 {last_system_response}
 --- END SYSTEM RESPONSE ---
 """
-        summary_plan = llm.generate_text(summary_prompt)
+        summary_plan = llm.generate_text_resilient(summary_prompt)
         summary_group, summary_log = _generate_execution_renderables(summary_plan)
         ui.console.print(
             Panel(

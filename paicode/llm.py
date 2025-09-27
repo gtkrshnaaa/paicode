@@ -11,6 +11,7 @@ os.environ.setdefault("ABSL_LOGGING_MIN_LOG_LEVEL", "3")
 os.environ.setdefault("GLOG_minloglevel", "3")
 
 import google.generativeai as genai
+import time
 from . import config, ui
 
 DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-2.5-flash")
@@ -116,4 +117,36 @@ def generate_text(prompt: str) -> str:
                 continue
 
     ui.print_error(f"Error: An issue occurred with the LLM API: {last_error}")
+    return ""
+
+def generate_text_resilient(prompt: str) -> str:
+    """Robust text generation with time-based retries and exponential backoff.
+
+    Behavior:
+    - Calls generate_text() repeatedly until a non-empty response is obtained
+      or the maximum number of retries is reached.
+    - Backoff doubles each attempt, starting from 1s up to 8s.
+    - Max attempts configurable via env PAI_MAX_INFERENCE_RETRIES (default 8).
+    """
+    try:
+        max_attempts = int(os.getenv("PAI_MAX_INFERENCE_RETRIES", "8"))
+    except ValueError:
+        max_attempts = 8
+    max_attempts = max(1, min(max_attempts, 50))
+
+    delay = 1.0
+    for attempt in range(1, max_attempts + 1):
+        text = generate_text(prompt)
+        if isinstance(text, str) and text.strip() and not text.strip().startswith("Error:"):
+            return text
+        if attempt < max_attempts:
+            # brief status to UI and wait
+            ui.print_warning(f"Inference attempt {attempt}/{max_attempts} failed; retrying in {int(delay)}s...")
+            try:
+                time.sleep(delay)
+            except Exception:
+                pass
+            delay = min(delay * 2, 8.0)
+    # Final attempt failed
+    ui.print_error("Exceeded maximum inference retries. Returning empty result.")
     return ""
