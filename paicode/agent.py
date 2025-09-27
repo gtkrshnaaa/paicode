@@ -91,11 +91,11 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
             action_text = Text(f"-> {action}", style="action")
             renderables.append(action_text)
 
-                if internal_op == "WRITE_FILE":
+            if internal_op == "WRITE_FILE":
                     file_path, _, _ = params.partition('::')
                     result = handle_write(file_path, params)
                 
-                elif internal_op == "READ_FILE":
+            elif internal_op == "READ_FILE":
                     path_to_read = params
                     content = workspace.read_file(path_to_read)
                     if content is not None:
@@ -118,7 +118,7 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                     else:
                         result = f"Error: Failed to read file: {path_to_read}"
                 
-                elif internal_op == "MODIFY_FILE":
+            elif internal_op == "MODIFY_FILE":
                     file_path, _, description = params.partition('::')
                     
                     original_content = workspace.read_file(file_path)
@@ -138,7 +138,7 @@ Based on the file content above, apply the following modification: "{description
 IMPORTANT: You must only change the relevant parts of the code. Do not refactor, reformat, or alter any other part of the file.
 Provide back the ENTIRE, complete file content with the modification applied. Provide ONLY the raw code without any explanations or markdown.
 """
-                    new_content_1 = llm.generate_text(modification_prompt_1)
+                    new_content_1 = llm.generate_text_resilient(modification_prompt_1)
 
                     if new_content_1:
                         success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_1)
@@ -160,7 +160,7 @@ This is a bug-fixing or specific modification task. You must return the complete
 Provide ONLY the raw code without any explanations or markdown.
 """
                             
-                            new_content_2 = llm.generate_text(modification_prompt_2)
+                            new_content_2 = llm.generate_text_resilient(modification_prompt_2)
                             
                             if new_content_2:
                                 success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_2)
@@ -172,7 +172,7 @@ Provide ONLY the raw code without any explanations or markdown.
                         result = f"Error: LLM failed to generate content for modification of '{file_path}'."
                         style = "error"; icon = "✗ "
 
-                elif internal_op == "SHOW_TREE":
+            elif internal_op == "SHOW_TREE":
                     path_to_list = params if params else '.'
                     tree_output = workspace.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
@@ -183,7 +183,7 @@ Provide ONLY the raw code without any explanations or markdown.
                     else:
                         result = tree_output or "Error: Failed to display directory structure."
                 
-                elif internal_op == "LIST_PATHS":
+            elif internal_op == "LIST_PATHS":
                     path_to_list = params if params else '.'
                     list_output = workspace.list_path(path_to_list)
                     if list_output and "Error:" not in list_output:
@@ -195,13 +195,13 @@ Provide ONLY the raw code without any explanations or markdown.
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
                 
-                elif internal_op == "FINISH":
+            elif internal_op == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
                     renderables.append(Text(f"✓ Agent: {result}", style="success"))
                     break 
 
-                else:
+            else:
                     # Known application-level ops
                     if internal_op == "CREATE_DIRECTORY":
                         result = workspace.create_directory(params)
@@ -218,7 +218,7 @@ Provide ONLY the raw code without any explanations or markdown.
                         # Fallback: treat as shell command payload
                         result = workspace.run_shell(params or action)
                 
-                if result:
+            if result:
                     if "Success" in result: style = "success"; icon = "✓ "
                     elif "Error" in result: style = "error"; icon = "✗ "
                     elif "Warning" in result: style = "warning"; icon = "! "
@@ -238,9 +238,8 @@ Provide ONLY the raw code without any explanations or markdown.
 def _classify_intent(user_request: str, context: str) -> tuple[str, str, str]:
     """Classify user's intent into ('chat'|'task', 'simple'|'normal'|'complex', optional_reply_for_chat)."""
     try:
-        # Quick heuristic first: if request contains a known command pattern, treat as task
-        upper_req = user_request.upper()
-        if any(cmd + "::" in upper_req for cmd in VALID_COMMANDS):
+        # Quick heuristic first: if request contains an action-like pattern 'HEADER::', treat as task
+        if '::' in user_request:
             return ("task", "simple", "")
 
         prompt = (
@@ -306,8 +305,10 @@ def start_interactive_session():
     session_context = []
     pending_followup_suggestions = ""
     
+    os_info = detect_os()
     welcome_message = (
         "Welcome! I'm Pai, your agentic AI coding companion. Let's build something amazing together. ✨\n"
+        f"[info]OS: {os_info.name} | Shell: {os_info.shell} | PathSep: {os_info.path_sep}[/info]\n"
         "[info]Type 'exit' or 'quit' to leave.[/info]"
     )
 
@@ -421,7 +422,7 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
 system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
-Note: You must output only application-level VALID COMMANDS (not shell). The system will translate them to OS commands.
+Note: Do NOT output any action lines here; this step is just a short natural language response.
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -431,7 +432,7 @@ Note: You must output only application-level VALID COMMANDS (not shell). The sys
 "{user_effective_request}"
 --- END USER REQUEST ---
 """
-        response_text = llm.generate_text(response_prompt)
+        response_text = llm.generate_text_resilient(response_prompt)
         response_group, response_log = _generate_execution_renderables(response_text)
         ui.console.print(
             Panel(
@@ -466,7 +467,7 @@ You are Pai, an expert planner and developer AI.
 system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
-Note: You must output only application-level VALID COMMANDS later in action steps; here produce only JSON steps.
+Note: Do NOT output any action lines here; only the JSON step plan.
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}

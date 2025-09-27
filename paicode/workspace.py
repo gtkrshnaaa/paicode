@@ -3,7 +3,6 @@ import shutil
 import difflib
 from . import ui
 import subprocess
-import shlex
 from .platforms import detect_os
 
 """
