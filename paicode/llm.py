@@ -25,6 +25,23 @@ model = None
 _current_model_name = None
 _current_temperature = None
 _current_api_key_fingerprint = None
+_last_error: Exception | None = None
+_last_error_rate_limited: bool = False
+
+def _is_rate_limit_error(err: Exception) -> bool:
+    """Best-effort detection of rate limit / quota errors from the provider.
+
+    We avoid tight coupling to SDK exception types and rely on message patterns.
+    """
+    try:
+        s = str(err).lower()
+    except Exception:
+        s = ""
+    keywords = [
+        "rate limit", "quota", "429", "resource has been exhausted",
+        "exceeded", "quota_exceeded", "too many requests"
+    ]
+    return any(k in s for k in keywords)
 
 def _configure_with_key(api_key: str, model_name: str, temperature: float):
     global model, _current_model_name, _current_temperature, _current_api_key_fingerprint
@@ -75,6 +92,9 @@ set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 def generate_text(prompt: str) -> str:
     """Sends a prompt to the Gemini API and returns the text response, with round-robin retries across API keys."""
     # Ensure model is configured
+    global _last_error, _last_error_rate_limited
+    _last_error = None
+    _last_error_rate_limited = False
     if not model:
         set_runtime_model(_current_model_name or DEFAULT_MODEL, _current_temperature or DEFAULT_TEMPERATURE)
         if not model:
@@ -106,6 +126,11 @@ def generate_text(prompt: str) -> str:
             return cleaned_text
         except Exception as e:
             last_error = e
+            _last_error = e
+            # If looks like rate limit, inform the user and try next key/backoff in resilient wrapper
+            if _is_rate_limit_error(e):
+                _last_error_rate_limited = True
+                ui.print_warning("LLM API is rate-limited or quota exceeded; attempting fallback key/next retry...")
             # Try rotate to next key and reconfigure
             next_key = _get_next_enabled_key()
             if not next_key:
@@ -116,6 +141,9 @@ def generate_text(prompt: str) -> str:
                 last_error = cfg_err
                 continue
 
+    if last_error and _is_rate_limit_error(last_error):
+        _last_error_rate_limited = True
+        ui.print_warning("LLM API appears to be rate-limited or quota-exceeded. Please wait a moment or add more API keys (pai config add).")
     ui.print_error(f"Error: An issue occurred with the LLM API: {last_error}")
     return ""
 
@@ -139,9 +167,12 @@ def generate_text_resilient(prompt: str) -> str:
         text = generate_text(prompt)
         if isinstance(text, str) and text.strip() and not text.strip().startswith("Error:"):
             return text
+        # Decide message based on last error flags
         if attempt < max_attempts:
-            # brief status to UI and wait
-            ui.print_warning(f"Inference attempt {attempt}/{max_attempts} failed; retrying in {int(delay)}s...")
+            if _last_error_rate_limited:
+                ui.print_warning(f"Rate limit/quota detected (attempt {attempt}/{max_attempts}); retrying in {int(delay)}s...")
+            else:
+                ui.print_warning(f"Inference attempt {attempt}/{max_attempts} failed; retrying in {int(delay)}s...")
             try:
                 time.sleep(delay)
             except Exception:

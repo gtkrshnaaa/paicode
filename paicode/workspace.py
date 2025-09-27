@@ -304,7 +304,8 @@ def _posix_cmd_for(action: str) -> str | None:
         file_path, _, _desc = params.partition('::')
         return f"# modify '{file_path}' (apply diff)"
     if cmd == 'EXECUTE':
-        return params or ''
+        exe = params.split('::', 1)[0].strip()
+        return exe
     if cmd == 'FINISH':
         return f"# finish: {params}"
     return None
@@ -345,7 +346,8 @@ def _pwsh_cmd_for(action: str) -> str | None:
         file_path, _, _desc = params.partition('::')
         return f"# modify '{file_path}' (apply diff)"
     if cmd == 'EXECUTE':
-        return params or ''
+        exe = params.split('::', 1)[0].strip()
+        return exe
     if cmd == 'FINISH':
         return f"# finish: {params}"
     return None

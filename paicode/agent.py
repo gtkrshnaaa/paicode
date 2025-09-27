@@ -263,7 +263,9 @@ Provide ONLY the raw code without any explanations or markdown.
                         result = workspace.move_item(source, dest)
                     elif internal_op == "EXECUTE":
                         # Guard: avoid executing empty scripts (common with CREATE_FILE without WRITE_FILE)
-                        cmd = params.strip()
+                        # Some models append a natural-language description after '::'.
+                        # Only execute the first segment before '::'.
+                        cmd = params.split('::', 1)[0].strip()
                         try:
                             parts = shlex.split(cmd)
                         except Exception:
@@ -281,12 +283,12 @@ Provide ONLY the raw code without any explanations or markdown.
                                 if size == 0:
                                     result = f"Error: The script '{script_path}' is empty. Use WRITE_FILE::{script_path}::<description> before EXECUTE."
                                 else:
-                                    result = workspace.run_shell(params)
+                                    result = workspace.run_shell(cmd)
                             else:
                                 # Let shell handle 'file not found'
-                                result = workspace.run_shell(params)
+                                result = workspace.run_shell(cmd)
                         else:
-                            result = workspace.run_shell(params)
+                            result = workspace.run_shell(cmd)
                     else:
                         # Fallback: treat as shell command payload
                         result = workspace.run_shell(params or action)
