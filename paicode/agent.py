@@ -10,6 +10,7 @@ from rich.syntax import Syntax
 from rich.box import ROUNDED
 from rich.table import Table
 import shlex
+import shutil
 from . import llm, workspace, ui
 from .platforms import detect_os
 
@@ -17,6 +18,36 @@ from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
 
 HISTORY_DIR = ".pai_history"
+_python_interpreter_checked = False
+
+def _summarize_exec_result(text: str, max_lines_per_section: int = 40) -> str:
+    """Trim very long STDOUT/STDERR sections for summary display (streaming already shows full)."""
+    try:
+        lines = text.splitlines()
+        def _trim_section(start_idx: int) -> None:
+            # Trim lines after header line
+            count = 0
+            i = start_idx + 1
+            while i < len(lines) and not lines[i].startswith("STDERR:") and not lines[i].startswith("STDOUT:"):
+                count += 1
+                i += 1
+            if count > max_lines_per_section:
+                # Keep header + first N lines and add ellipsis
+                kept = lines[start_idx + 1:start_idx + 1 + max_lines_per_section]
+                del lines[start_idx + 1:start_idx + 1 + count]
+                lines[start_idx + 1:start_idx + 1] = kept + ["... (truncated) ..."]
+
+        # Find sections and trim
+        idx = 0
+        while idx < len(lines):
+            if lines[idx].startswith("STDOUT:"):
+                _trim_section(idx)
+            elif lines[idx].startswith("STDERR:"):
+                _trim_section(idx)
+            idx += 1
+        return "\n".join(lines)
+    except Exception:
+        return text
 
 def _generate_execution_renderables(plan: str, omit_long_response: bool = True) -> tuple[Group, str]:
     """
@@ -128,6 +159,13 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
                 execution_header_added = True
             action_text = Text(f"-> {action}", style="action")
             renderables.append(action_text)
+            # Show OS Command Preview for transparency
+            try:
+                preview = workspace.os_command_preview([action])
+                if preview and preview.strip():
+                    renderables.append(Text(preview, style="dim"))
+            except Exception:
+                pass
 
             if internal_op == "WRITE_FILE":
                     file_path, _, desc = params.partition('::')
@@ -275,6 +313,22 @@ Provide ONLY the raw code without any explanations or markdown.
                         if not cmd:
                             result = "Error: EXECUTE requires a non-empty command before '::'."
                         else:
+                            # Health-check/fallback for Python interpreter
+                            try:
+                                parts = shlex.split(cmd)
+                            except Exception:
+                                parts = []
+                            if parts:
+                                prog = parts[0]
+                                if prog == "python" and shutil.which("python") is None and shutil.which("python3") is not None:
+                                    parts[0] = "python3"
+                                    cmd = " ".join(shlex.quote(p) for p in parts)
+                                # Print interpreter version once
+                                global _python_interpreter_checked
+                                if not _python_interpreter_checked and parts[0].startswith("python"):
+                                    ver_out = workspace.run_shell(f"{parts[0]} --version")
+                                    ui.console.print(ver_out)
+                                    _python_interpreter_checked = True
                             result = workspace.run_shell(cmd)
                     elif internal_op == "EXECUTE_INPUT":
                         # Pattern: EXECUTE_INPUT::<command>::<stdin_payload>
@@ -293,7 +347,8 @@ Provide ONLY the raw code without any explanations or markdown.
                     elif "Error" in result: style = "error"; icon = "✗ "
                     elif "Warning" in result: style = "warning"; icon = "! "
                     else: style = "info"; icon = "i "
-                    renderables.append(Text(f"{icon}{result}", style=style))
+                    # Append a concise execution summary block (with trimming)
+                    renderables.append(Text(f"{icon}{_summarize_exec_result(result)}", style=style))
                     # Log the simple success/error message for non-data commands
                     if internal_op not in ["READ_FILE", "SHOW_TREE", "LIST_PATHS"]:
                         log_results.append(result)

@@ -38,6 +38,124 @@ SENSITIVE_PATTERNS = {
     '.vscode'
 }
 
+# ---------------- Interactive Shell Sessions (stateful) ----------------
+_SESSIONS: dict[str, dict] = {}
+_SESSION_COUNTER = 0
+
+def _new_session_id() -> str:
+    global _SESSION_COUNTER
+    _SESSION_COUNTER += 1
+    return f"sh-{int(time.time())}-{_SESSION_COUNTER}"
+
+def run_shell_session_start(command: str) -> str:
+    """Start a persistent shell process for interactive programs and return a session id.
+
+    Use run_shell_session_input() to feed stdin and see output live. End with run_shell_session_end().
+    """
+    info = detect_os()
+    if info.name == 'windows':
+        full_cmd = ["powershell", "-NoProfile", "-Command", command]
+    else:
+        full_cmd = ["bash", "-lc", command]
+
+    # Start process
+    try:
+        proc = subprocess.Popen(
+            full_cmd,
+            cwd=PROJECT_ROOT,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+        )
+    except Exception as e:
+        return f"Error: Failed to start session: {e}"
+
+    # Readers
+    def _reader(pipe, style):
+        try:
+            for line in iter(pipe.readline, ''):
+                try:
+                    ui.console.print(line.rstrip(), style=style)
+                except Exception:
+                    pass
+        finally:
+            try:
+                pipe.close()
+            except Exception:
+                pass
+
+    t_out = threading.Thread(target=_reader, args=(proc.stdout, "info"), daemon=True)
+    t_err = threading.Thread(target=_reader, args=(proc.stderr, "warning"), daemon=True)
+    t_out.start(); t_err.start()
+
+    sid = _new_session_id()
+    _SESSIONS[sid] = {"proc": proc, "t_out": t_out, "t_err": t_err}
+    # Audit
+    try:
+        os.makedirs(AUDIT_DIR, exist_ok=True)
+        with open(os.path.join(AUDIT_DIR, "shell.log"), 'a') as lf:
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            lf.write(f"[{ts}] START_SESSION: {sid} CMD: {command}\n")
+    except Exception:
+        pass
+    return f"Success: Started session {sid}. Use EXECUTE_FEED::{sid}::<input> and EXECUTE_END::{sid}."
+
+def run_shell_session_input(session_id: str, input_text: str) -> str:
+    """Feed input to an existing shell session (stdin)."""
+    sess = _SESSIONS.get(session_id)
+    if not sess:
+        return f"Error: Session not found: {session_id}"
+    proc: subprocess.Popen = sess.get("proc")
+    if not proc or proc.poll() is not None:
+        return f"Error: Session {session_id} has already exited."
+    try:
+        if proc.stdin:
+            proc.stdin.write(input_text)
+            proc.stdin.flush()
+        # Audit
+        try:
+            os.makedirs(AUDIT_DIR, exist_ok=True)
+            with open(os.path.join(AUDIT_DIR, "shell.log"), 'a') as lf:
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                preview = input_text if len(input_text) < 120 else input_text[:120] + '...'
+                lf.write(f"[{ts}] FEED_SESSION: {session_id} INPUT: {preview}\n")
+        except Exception:
+            pass
+        return f"Success: Fed input to session {session_id}."
+    except Exception as e:
+        return f"Error: Failed to write to session {session_id}: {e}"
+
+def run_shell_session_end(session_id: str) -> str:
+    """Terminate a running session and clean up."""
+    sess = _SESSIONS.pop(session_id, None)
+    if not sess:
+        return f"Warning: Session not found or already closed: {session_id}"
+    proc: subprocess.Popen = sess.get("proc")
+    try:
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    # Audit
+    try:
+        os.makedirs(AUDIT_DIR, exist_ok=True)
+        with open(os.path.join(AUDIT_DIR, "shell.log"), 'a') as lf:
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            lf.write(f"[{ts}] END_SESSION: {session_id}\n")
+    except Exception:
+        pass
+    return f"Success: Ended session {session_id}."
+
 def _is_path_safe(path: str) -> bool:
     """
     Ensures the target path is within the project directory and not sensitive.
@@ -586,8 +704,10 @@ def run_shell_with_input(command: str, input_text: str) -> str:
             full_cmd = ["bash", "-lc", command]
 
         stream = os.getenv('PAI_STREAM', 'true').lower() in {'1','true','yes','on'}
+        # Ensure final newline so the last input() receives an Enter
+        payload = input_text if (input_text.endswith("\n") or input_text.endswith("\r\n")) else (input_text + "\n")
         if stream:
-            code, out, err, timed_out = _stream_process(full_cmd, input_text=input_text, timeout_sec=timeout_sec)
+            code, out, err, timed_out = _stream_process(full_cmd, input_text=payload, timeout_sec=timeout_sec)
             if timed_out:
                 return (
                     "Warning: Shell command timed out while providing stdin. It may expect more input.\n"
@@ -600,7 +720,7 @@ def run_shell_with_input(command: str, input_text: str) -> str:
                 proc = subprocess.run(
                     full_cmd,
                     cwd=PROJECT_ROOT,
-                    input=input_text,
+                    input=payload,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
