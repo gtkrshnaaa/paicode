@@ -477,3 +477,39 @@ make uninstall-cli # remove launcher
 ```
 
 If `pai` is not found after `make install-cli`, ensure `~/.local/bin` is on your PATH or open a new terminal.
+
+-----
+
+## **10. Runtime Settings**
+
+Tune the runtime behavior via environment variables:
+
+- PAI_STREAM (default: true)
+  - Stream STDOUT/STDERR live to the terminal for shell commands.
+- PAI_VERBOSE (default: true)
+  - Echo the command being executed as `$ <command>`.
+- PAI_SHELL_TIMEOUT (default: 20)
+  - Timeout in seconds for shell commands. Shows a clear warning on timeout.
+- PAI_ASYNC (default: true)
+  - Use asyncio-backed inference to avoid blocking during LLM calls.
+- PAI_ALLOW_SHELL_EXEC (default: true)
+  - Enable shell execution primitives.
+- PAI_ALLOW_NET (default: false)
+  - Allow commands with obvious network access (curl, wget, pip install, git clone, etc.).
+
+Examples:
+
+```bash
+export PAI_STREAM=true
+export PAI_VERBOSE=true
+export PAI_SHELL_TIMEOUT=15
+export PAI_ASYNC=true
+```
+
+### Testing interactive CLI: EXECUTE_INPUT vs pipe
+
+```text
+# Provide stdin directly with EXECUTE_INPUT
+EXECUTE_INPUT::python3 demo_cli.py::Alice\n42\n
+# Alternative: shell pipe (identical effect)
+EXECUTE::bash -lc "printf 'Alice\n42\n' | python3 demo_cli.py"
