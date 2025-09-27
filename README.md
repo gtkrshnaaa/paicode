@@ -22,6 +22,25 @@ Pai Code is built on a set of guiding principles that define its purpose and des
 The project uses a standard Python package structure and is packaged with pip/setuptools.
 
 ```
+
+### Running interactive CLI via EXECUTE_INPUT
+
+When a script waits for user input, the agent can provide stdin directly using `EXECUTE_INPUT::<command>::<stdin_payload>`.
+
+Examples:
+
+```text
+# Provide five answers (each "1") to a math game script
+EXECUTE_INPUT::python3 math_game.py::1\n1\n1\n1\n1\n
+# Provide a name and a number to a demo CLI program
+EXECUTE_INPUT::python3 demo_cli.py::Alice\n42\n
+# Shell-style alternative without EXECUTE_INPUT
+EXECUTE::bash -lc "printf 'y\n42\n' | python3 demo_cli.py"
+```
+
+Notes:
+- Shell execution has a timeout (default 20s, set `PAI_SHELL_TIMEOUT`). If you need longer input sessions, prefer `EXECUTE_INPUT` with the full payload.
+- The agent prints the command it runs (verbose) and returns a clear timeout warning if the program still waits for input.
 paicode/          <-- Project Root
 ├── paicode/      <-- Python Package
 │   ├── __init__.py
