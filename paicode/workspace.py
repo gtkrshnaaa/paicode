@@ -26,6 +26,8 @@ runtime (workspace scope), ensuring controlled manipulation of project files.
 
 PROJECT_ROOT = os.path.abspath(os.getcwd())
 AUDIT_DIR = os.path.join(PROJECT_ROOT, ".pai_history")
+# One-time notices to avoid spamming logs
+_timeout_notice_shown = False
 
 # List of sensitive files and directories to be blocked
 SENSITIVE_PATTERNS = {
@@ -53,6 +55,35 @@ def run_shell_session_start(command: str) -> str:
     Use run_shell_session_input() to feed stdin and see output live. End with run_shell_session_end().
     """
     info = detect_os()
+    # Verbose
+    verbose = os.getenv('PAI_VERBOSE', 'true').lower() in {'1','true','yes','on'}
+    if verbose:
+        try:
+            preview = command if len(command) <= 200 else command[:200] + '...'
+            ui.print_action(f"$ {preview}")
+        except Exception:
+            pass
+    # Timeout (with one-time info when default is used)
+    global _timeout_notice_shown
+    timeout_env = os.getenv('PAI_SHELL_TIMEOUT')
+    try:
+        timeout_sec = int(timeout_env) if timeout_env is not None else 20
+        if timeout_sec < 1:
+            timeout_sec = 20
+            if not _timeout_notice_shown:
+                try:
+                    ui.console.print("Info: Using default shell timeout 20s (PAI_SHELL_TIMEOUT not set or invalid).", style="dim")
+                except Exception:
+                    pass
+                _timeout_notice_shown = True
+    except ValueError:
+        timeout_sec = 20
+        if not _timeout_notice_shown:
+            try:
+                ui.console.print("Info: Using default shell timeout 20s (PAI_SHELL_TIMEOUT invalid).", style="dim")
+            except Exception:
+                pass
+            _timeout_notice_shown = True
     if info.name == 'windows':
         full_cmd = ["powershell", "-NoProfile", "-Command", command]
     else:
@@ -281,7 +312,9 @@ def create_file(file_path: str) -> str:
         full_path = os.path.join(PROJECT_ROOT, file_path)
         dir_name = os.path.dirname(full_path)
         if dir_name: os.makedirs(dir_name, exist_ok=True)
-        with open(full_path, 'w') as f: pass
+        if os.path.exists(full_path):
+            return f"Warning: File already exists, left untouched: {file_path}"
+        with open(full_path, 'x') as f: pass
         return f"Success: File created: {file_path}"
     except IOError as e:
         return f"Error: Failed to create file: {e}"
@@ -317,6 +350,15 @@ def write_to_file(file_path: str, content: str) -> str:
         full_path = os.path.join(PROJECT_ROOT, file_path)
         dir_name = os.path.dirname(full_path)
         if dir_name: os.makedirs(dir_name, exist_ok=True)
+        # If exists and identical, skip write for idempotency
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, 'r') as rf:
+                    existing = rf.read()
+                if existing == content:
+                    return f"Warning: No changes detected for {file_path}. File left untouched."
+            except Exception:
+                pass
         with open(full_path, 'w') as f:
             f.write(content)
         return f"Success: Content successfully written to: {file_path}"
@@ -593,6 +635,28 @@ def run_shell(command: str) -> str:
         )
 
     info = detect_os()
+    # Timeout (with one-time info when default is used)
+    global _timeout_notice_shown
+    timeout_env = os.getenv('PAI_SHELL_TIMEOUT')
+    try:
+        timeout_sec = int(timeout_env) if timeout_env is not None else 20
+        if timeout_sec < 1:
+            timeout_sec = 20
+            if not _timeout_notice_shown:
+                try:
+                    ui.console.print("Info: Using default shell timeout 20s (PAI_SHELL_TIMEOUT not set or invalid).", style="dim")
+                except Exception:
+                    pass
+                _timeout_notice_shown = True
+    except ValueError:
+        timeout_sec = 20
+        if not _timeout_notice_shown:
+            try:
+                ui.console.print("Info: Using default shell timeout 20s (PAI_SHELL_TIMEOUT invalid).", style="dim")
+            except Exception:
+                pass
+            _timeout_notice_shown = True
+
     try:
         if info.name == 'windows':
             # Use PowerShell
@@ -689,13 +753,27 @@ def run_shell_with_input(command: str, input_text: str) -> str:
         except Exception:
             pass
 
-    # Timeout
+    # Timeout (with one-time info when default is used)
+    global _timeout_notice_shown
+    timeout_env = os.getenv('PAI_SHELL_TIMEOUT')
     try:
-        timeout_sec = int(os.getenv('PAI_SHELL_TIMEOUT', '20'))
+        timeout_sec = int(timeout_env) if timeout_env is not None else 20
         if timeout_sec < 1:
             timeout_sec = 20
+            if not _timeout_notice_shown:
+                try:
+                    ui.console.print("Info: Using default shell timeout 20s (PAI_SHELL_TIMEOUT not set or invalid).", style="dim")
+                except Exception:
+                    pass
+                _timeout_notice_shown = True
     except ValueError:
         timeout_sec = 20
+        if not _timeout_notice_shown:
+            try:
+                ui.console.print("Info: Using default shell timeout 20s (PAI_SHELL_TIMEOUT invalid).", style="dim")
+            except Exception:
+                pass
+            _timeout_notice_shown = True
 
     try:
         if info.name == 'windows':

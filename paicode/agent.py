@@ -65,11 +65,23 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
     # Split lines into conversational response vs actionable plan lines
     response_lines: list[str] = []
     plan_lines: list[str] = []
+    # Senior-like awareness state (horizontal optimizations)
+    executed_signatures: set[str] = set()
+    created_paths: set[str] = set()
+    wrote_nochange_paths: set[str] = set()
+    try:
+        early_noop_threshold = int(os.getenv("PAI_EARLY_FINISH_NOOP", "3"))
+    except ValueError:
+        early_noop_threshold = 3
+    early_noop_threshold = max(1, min(early_noop_threshold, 10))
+    noop_streak = 0
+
     for line in all_lines:
-        if '::' in line:
-            plan_lines.append(line)
-        else:
+        if '::' not in line:
             response_lines.append(line)
+            continue
+        else:
+            plan_lines.append(line)
 
     # Helper to detect probable code/content blocks in Agent Response
     def _looks_like_code(s: str) -> bool:
@@ -157,6 +169,21 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
             if not execution_header_added:
                 renderables.append(Text("\nExecution Results:", style="bold underline"))
                 execution_header_added = True
+            # Duplicate action signature guard (skip exact same action repeated)
+            signature = action.strip()
+            if signature in executed_signatures:
+                skip_msg = f"Warning: Skipping duplicate action already executed: {signature}"
+                renderables.append(Text(skip_msg, style="warning"))
+                log_results.append(skip_msg)
+                noop_streak += 1
+                if noop_streak >= early_noop_threshold:
+                    finish_msg = "Task appears complete (repeated no-ops). Finishing early."
+                    renderables.append(Text(f"✓ Agent: {finish_msg}", style="success"))
+                    log_results.append(finish_msg)
+                    break
+                continue
+            executed_signatures.add(signature)
+
             action_text = Text(f"-> {action}", style="action")
             renderables.append(action_text)
             # Show OS Command Preview for transparency
@@ -169,6 +196,18 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
 
             if internal_op == "WRITE_FILE":
                     file_path, _, desc = params.partition('::')
+                    
+                    # STRICT RULE: Check if file exists - if so, force MODIFY_FILE instead
+                    existing_content = workspace.read_file(file_path)
+                    if existing_content is not None:
+                        error_msg = (
+                            f"Error: WRITE_FILE rejected for existing file '{file_path}'. "
+                            f"Use MODIFY_FILE for existing files. WRITE_FILE is only for new files."
+                        )
+                        renderables.append(Text(f"✗ {error_msg}", style="error"))
+                        log_results.append(error_msg)
+                        continue
+                    
                     fallback_used = False
                     if not desc.strip():
                         # Provide a sensible fallback description to avoid blocking the flow
@@ -178,7 +217,19 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
                             "Implement it fully based on the user's latest instructions and the current project context."
                         )
                         renderables.append(Text(f"Warning: Missing description for WRITE_FILE::{file_path}. Using fallback description.", style="warning"))
-                    
+                    # If we previously detected no-change writes for this path, skip redundant WRITE_FILE for now
+                    if file_path in wrote_nochange_paths:
+                        skip_msg = f"Warning: Skipping WRITE_FILE for '{file_path}' (no changes in prior attempt)."
+                        renderables.append(Text(skip_msg, style="warning"))
+                        log_results.append(skip_msg)
+                        noop_streak += 1
+                        if noop_streak >= early_noop_threshold:
+                            finish_msg = "Task appears complete (repeated no-ops). Finishing early."
+                            renderables.append(Text(f"✓ Agent: {finish_msg}", style="success"))
+                            log_results.append(finish_msg)
+                            break
+                        continue
+
                     result = handle_write(file_path, params)
                 
             elif internal_op == "READ_FILE":
@@ -207,10 +258,17 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
             elif internal_op == "MODIFY_FILE":
                     file_path, _, description = params.partition('::')
                     if not description.strip():
-                        result = f"Error: MODIFY_FILE for '{file_path}' requires a non-empty description after '::'."
-                        renderables.append(Text(f"✗ {result}", style="error"))
-                        log_results.append(result)
-                        continue
+                        # Use a safe fallback description to proceed without blocking the flow
+                        description = (
+                            "Apply the minimal, necessary modification to the file to fulfill the user's latest request "
+                            "and the current project context. If the intent is unclear, prioritize improving robustness "
+                            "(e.g., input handling for CLI, avoiding EOF on stdin, idempotent behavior) without changing "
+                            "public behavior. Do not reformat unrelated code. Return the full updated file content only."
+                        )
+                        renderables.append(Text(
+                            f"Warning: Missing description for MODIFY_FILE::{file_path}. Using fallback description.",
+                            style="warning"
+                        ))
                     
                     original_content = workspace.read_file(file_path)
                     if original_content is None:
@@ -300,6 +358,30 @@ Provide ONLY the raw code without any explanations or markdown.
                         result = workspace.create_directory(path_only)
                     elif internal_op == "CREATE_FILE":
                         path_only, _, _ = params.partition('::')
+                        
+                        # STRICT RULE: Check if file exists - if so, reject CREATE_FILE
+                        existing_content = workspace.read_file(path_only)
+                        if existing_content is not None:
+                            error_msg = (
+                                f"Error: CREATE_FILE rejected for existing file '{path_only}'. "
+                                f"File already exists. Use MODIFY_FILE to edit existing files."
+                            )
+                            renderables.append(Text(f"✗ {error_msg}", style="error"))
+                            log_results.append(error_msg)
+                            continue
+                        
+                        # If we already created/checked this path, skip redundant create
+                        if path_only in created_paths:
+                            skip_msg = f"Warning: Skipping CREATE_FILE for '{path_only}' (already handled)."
+                            renderables.append(Text(skip_msg, style="warning"))
+                            log_results.append(skip_msg)
+                            noop_streak += 1
+                            if noop_streak >= early_noop_threshold:
+                                finish_msg = "Task appears complete (repeated no-ops). Finishing early."
+                                renderables.append(Text(f"✓ Agent: {finish_msg}", style="success"))
+                                log_results.append(finish_msg)
+                                break
+                            continue
                         result = workspace.create_file(path_only)
                     elif internal_op == "DELETE_PATH":
                         path_only, _, _ = params.partition('::')
@@ -347,11 +429,43 @@ Provide ONLY the raw code without any explanations or markdown.
                     elif "Error" in result: style = "error"; icon = "✗ "
                     elif "Warning" in result: style = "warning"; icon = "! "
                     else: style = "info"; icon = "i "
+                    # If the error comes from shell execution infrastructure, annotate clearly
+                    infra_hint = None
+                    low = result.lower()
+                    if "failed to execute shell command" in low or "failed to execute shell command with input" in low:
+                        infra_hint = (
+                            "Note: This error is from Pai's executor (workspace.run_shell), not your project code. "
+                            "Adjust executor settings (e.g., PAI_SHELL_TIMEOUT, PAI_STREAM) or retry with EXECUTE_INPUT."
+                        )
+                    if infra_hint:
+                        renderables.append(Text(infra_hint, style="dim"))
                     # Append a concise execution summary block (with trimming)
                     renderables.append(Text(f"{icon}{_summarize_exec_result(result)}", style=style))
                     # Log the simple success/error message for non-data commands
                     if internal_op not in ["READ_FILE", "SHOW_TREE", "LIST_PATHS"]:
                         log_results.append(result)
+
+                    # Update awareness state and early-finish heuristic
+                    lowered = result.lower()
+                    if "warning: no changes detected" in lowered or "already exists" in lowered or "skipping" in lowered:
+                        noop_streak += 1
+                    else:
+                        noop_streak = 0
+
+                    # Track paths for future skips
+                    if internal_op == "CREATE_FILE":
+                        path_only, _, _ = params.partition('::')
+                        created_paths.add(path_only)
+                    elif internal_op == "WRITE_FILE":
+                        if "warning: no changes detected" in lowered:
+                            file_path, _, _ = params.partition('::')
+                            wrote_nochange_paths.add(file_path)
+
+                    if noop_streak >= early_noop_threshold:
+                        finish_msg = "Task appears complete (repeated no-ops). Finishing early."
+                        renderables.append(Text(f"✓ Agent: {finish_msg}", style="success"))
+                        log_results.append(finish_msg)
+                        break
 
         except Exception as e:
             msg = f"An exception occurred while processing '{action}': {e}"
@@ -417,21 +531,66 @@ def handle_write(file_path: str, params: str) -> str:
             "Implement it fully based on the user's latest instructions and the current project context."
         )
     
-    prompt = (
+    # If file already exists, prefer a minimal MODIFY (diff-aware) instead of overwriting
+    existing = workspace.read_file(file_path)
+    if existing is not None:
+        modification_prompt = f"""
+You are an expert code modifier. Here is the full content of the file `{file_path}`:
+--- START OF FILE ---
+{existing}
+--- END OF FILE ---
+
+Apply the following change: "{description}".
+IMPORTANT:
+- Make only the minimal necessary edits to satisfy the instruction.
+- Do NOT reformat or refactor unrelated code.
+- Return the ENTIRE updated file content only (no markdown, no explanations).
+"""
+        use_async = os.getenv("PAI_ASYNC", "true").lower() in {"1","true","yes","on"}
+        if use_async:
+            try:
+                new_content = asyncio.run(llm.async_generate_text_resilient(modification_prompt))
+            except RuntimeError:
+                new_content = llm.generate_text_resilient(modification_prompt)
+        else:
+            new_content = llm.generate_text_resilient(modification_prompt)
+
+        if new_content:
+            success, message = workspace.apply_modification_with_patch(file_path, existing, new_content)
+            if success and "No changes detected" in message:
+                # Retry with stricter wording
+                retry_prompt = f"""
+My previous attempt made no effective changes. You MUST apply the requested modification now.
+
+Original file:
+---
+{existing}
+---
+
+Instruction: "{description}"
+Return ONLY the full updated file content.
+"""
+                retry_content = llm.generate_text_resilient(retry_prompt)
+                if retry_content:
+                    success, message = workspace.apply_modification_with_patch(file_path, existing, retry_content)
+            return message
+        else:
+            return f"Error: Failed to generate modified content for file: {file_path}"
+
+    # File does not exist yet: create it fully
+    creation_prompt = (
         f"You are an expert programming assistant. Write the complete code for the file '{file_path}' "
         f"based on the following description: \"{description}\". Provide ONLY the raw code without any explanations or markdown."
     )
-    
     use_async = os.getenv("PAI_ASYNC", "true").lower() in {"1","true","yes","on"}
     if use_async:
         try:
-            code_content = asyncio.run(llm.async_generate_text_resilient(prompt))
+            code_content = asyncio.run(llm.async_generate_text_resilient(creation_prompt))
         except RuntimeError:
-            # If already in an event loop (rare in our CLI), fallback to sync
-            code_content = llm.generate_text_resilient(prompt)
+            code_content = llm.generate_text_resilient(creation_prompt)
     else:
-        code_content = llm.generate_text_resilient(prompt)
-    
+        code_content = llm.generate_text_resilient(creation_prompt)
+
     if code_content:
         return workspace.write_to_file(file_path, code_content)
     else:
@@ -704,6 +863,7 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
                 "Plan and execute the next actions towards the user's goal. "
                 "Output 1..N action lines using a UNIVERSAL, semantic header followed by '::' and parameters. "
                 "Examples of headers: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH. "
+                "IMPORTANT: Use WRITE_FILE only for NEW files. Use MODIFY_FILE for existing files. Use CREATE_FILE only for empty files that don't exist yet. "
                 "You may use EXECUTE to run a shell command, and EXECUTE_INPUT::<command>::<stdin_payload> when a program prompts for input (so you can pipe answers). "
                 "Note: Shell runs have a timeout (env PAI_SHELL_TIMEOUT); prefer non-interactive runs or provide stdin via EXECUTE_INPUT. "
                 "If you create or intend to run a script/binary, ALWAYS include a WRITE_FILE::<path>::<description> before EXECUTE/EXECUTE_INPUT to ensure the file has content. "
@@ -765,6 +925,7 @@ path_separator: {os_info.path_sep}
 
 --- EXAMPLE HEADERS ---
 CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, FINISH
+CRITICAL: Use WRITE_FILE only for NEW files. Use MODIFY_FILE for existing files. Use CREATE_FILE only for empty files that don't exist yet.
 """
                 plan = llm.generate_text_resilient(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
