@@ -44,51 +44,120 @@ paicode/          <-- Project Root
 
 ## **3. Installation and Setup**
 
-The setup process uses pip and Make.
+You can install Pai Code with Make (recommended for Linux/macOS) or manually (Linux/macOS/Windows). Choose the path that fits your environment.
 
 ### **Prerequisites**
 
-  * **Python 3.9+**
-  * **Git**
+  * Python 3.9+
+  * Git
 
-### **Step-by-Step Guide**
+### A) Install using Make (Linux/macOS)
 
-1.  **Clone the Repository**
+1.  Clone the repository
 
     ```bash
-    # Replace <REPOSITORY_URL> with the actual Git URL
     git clone <REPOSITORY_URL> paicode
     cd paicode
     ```
 
-2.  **Install CLI (pip, user-site)**
+2.  Create virtualenv, install dependencies, and install CLI launcher
 
     ```bash
-    # From the project's root directory
-    make cli-install
-    # or
-    pip install --user .
+    make setup      # = make install + make install-cli
+    # or step-by-step
+    make install    # creates .venv and installs deps (editable install)
+    make install-cli
     ```
 
-3.  **Configure Your API Key**
-    Pai Code uses a secure, built-in configuration manager. You only need to set your key once.
+    Notes:
+    - The launcher script is installed to `~/.local/bin/pai` and your shell `PATH` is updated in `~/.bashrc`.
+    - Open a new terminal or run `source ~/.bashrc` to make sure `pai` is on PATH.
+
+3.  Configure your API key
 
     ```bash
-    # Replace YOUR_API_KEY_HERE with your Gemini API key
     pai config --set YOUR_API_KEY_HERE
     ```
 
-    This command securely stores your key in `~/.config/pai-code/credentials`.
-
-4.  **Verify the Installation**
+4.  Verify
 
     ```bash
-    # Check if the main command is available
     pai --help
-
-    # Verify that the API key is configured
     pai config --show
     ```
+
+### B) Manual installation (Linux/macOS)
+
+1.  Clone repo and create a virtual environment
+
+    ```bash
+    git clone <REPOSITORY_URL> paicode
+    cd paicode
+    python3 -m venv .venv
+    source .venv/bin/activate
+    ```
+
+2.  Install dependencies and package
+
+    ```bash
+    python -m pip install --upgrade pip setuptools wheel
+    pip install -r requirements.txt
+    pip install -e .    # editable install, exposes 'pai' entry point inside venv
+    ```
+
+3.  Run
+
+    ```bash
+    pai --help
+    pai config --set YOUR_API_KEY_HERE
+    pai
+    ```
+
+Optional without virtualenv (user-site):
+
+```bash
+pip install --user .
+# ensure ~/.local/bin is on PATH
+export PATH="$HOME/.local/bin:$PATH"
+pai --help
+```
+
+### C) Manual installation (Windows)
+
+1.  Clone and create virtual environment (PowerShell)
+
+    ```powershell
+    git clone <REPOSITORY_URL> paicode
+    cd paicode
+    py -3 -m venv .venv
+    .venv\Scripts\Activate.ps1
+    ```
+
+2.  Install dependencies and package
+
+    ```powershell
+    python -m pip install --upgrade pip setuptools wheel
+    pip install -r requirements.txt
+    pip install -e .   # exposes 'pai' entry point in venv
+    ```
+
+3.  Run and configure key
+
+    ```powershell
+    pai --help
+    pai config --set YOUR_API_KEY_HERE
+    pai
+    ```
+
+If you prefer a global-like launcher on Linux/macOS without activating venv every time, use `make install-cli` as shown above. On Windows, use the virtualenv activation before running `pai`.
+
+### Uninstall the launcher (Linux/macOS)
+
+```bash
+make uninstall-cli
+```
+
+This removes `~/.local/bin/pai` and cleans up the PATH line added by the installer.
 
 -----
 
@@ -314,3 +383,78 @@ To avoid misunderstanding:
 * Pai performs application-level file operations within the project workspace. It is not a system-level file manager and does not manage OS file systems.
 * Inference is executed by an external LLM via API. Do not share sensitive secrets in prompts unless you understand your provider's data policy.
 * Path-security rules block access to sensitive paths and restrict changes using diff-based edits to reduce the risk of large, unintended overwrites.
+
+-----
+
+## **8. Installation and Setup**
+
+### **Linux/macOS**
+
+1.  Clone the repository: `git clone https://github.com/your-username/pai.git`
+2.  Navigate to the cloned directory: `cd pai`
+3.  Create a virtual environment: `python3 -m venv .venv`
+4.  Activate the virtual environment: `source .venv/bin/activate` (Linux/macOS)
+5.  Install dependencies: `pip install -r requirements.txt`
+6.  Install the `pai` launcher: `make install-cli`
+7.  Verify installation: `pai --version`
+
+### **Windows**
+
+1.  Clone the repository: `git clone https://github.com/your-username/pai.git`
+2.  Navigate to the cloned directory: `cd pai`
+3.  Create a virtual environment: `python -m venv .venv`
+4.  Activate the virtual environment: `.venv\Scripts\activate` (Windows)
+5.  Install dependencies: `pip install -r requirements.txt`
+6.  Install the `pai` launcher: `make install-cli`
+7.  Verify installation: `pai --version`
+
+-----
+
+## **9. CLI Command Reference**
+
+Below are the primary commands exposed by the entry point `pai`:
+
+### `pai` / `pai auto`
+Starts the interactive agent session.
+
+```bash
+pai                # default interactive session
+pai auto           # explicit alias
+pai auto --model gemini-2.5-flash --temperature 0.2
+```
+
+### `pai config` (single-key compatibility)
+
+```bash
+pai config --set <API_KEY>   # save/replace default key
+pai config --show            # show masked key
+pai config --remove          # remove legacy single-key file
+```
+
+### `pai config` (multi-key management)
+
+```bash
+pai config list
+pai config add --key <API_KEY> [--label <LABEL>]
+pai config edit --id <N> --key <NEW_KEY>
+pai config rename --id <N> --label <NEW_LABEL>
+pai config remove --id <N>
+pai config enable --id <N>
+pai config disable --id <N>
+```
+
+Notes:
+- Keys are stored at `~/.config/pai-code/credentials.json` with secure permissions.
+- The agent can round-robin across enabled keys to reduce rate-limit impact.
+
+### Make targets (Linux/macOS)
+
+```bash
+make install       # create .venv and install deps
+make run           # run agent inside .venv
+make install-cli   # install launcher to ~/.local/bin/pai
+make setup         # install + launcher
+make uninstall-cli # remove launcher
+```
+
+If `pai` is not found after `make install-cli`, ensure `~/.local/bin` is on your PATH or open a new terminal.
