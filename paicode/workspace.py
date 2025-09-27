@@ -4,6 +4,7 @@ import difflib
 from . import ui
 import subprocess
 from .platforms import detect_os
+from datetime import datetime
 
 """
 workspace.py
@@ -22,6 +23,7 @@ runtime (workspace scope), ensuring controlled manipulation of project files.
 """
 
 PROJECT_ROOT = os.path.abspath(os.getcwd())
+AUDIT_DIR = os.path.join(PROJECT_ROOT, ".pai_history")
 
 # List of sensitive files and directories to be blocked
 SENSITIVE_PATTERNS = {
@@ -228,12 +230,25 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
     original_lines = original_content.splitlines(keepends=True)
     new_lines = new_content.splitlines(keepends=True)
 
-    diff = list(difflib.unified_diff(original_lines, new_lines, fromfile=f"a/{file_path}", tofile=f"b/{file_path}"))
-    
-    changed_lines_count = sum(1 for line in diff if line.startswith('+') or line.startswith('-'))
+    diff = list(difflib.unified_diff(
+        original_lines,
+        new_lines,
+        fromfile=f"a/{file_path}",
+        tofile=f"b/{file_path}"
+    ))
+
+    # Count only real content changes, exclude diff headers like '+++', '---'
+    def _is_content_change(line: str) -> bool:
+        if not line:
+            return False
+        if line.startswith('+++') or line.startswith('---'):
+            return False
+        return line.startswith('+') or line.startswith('-')
+
+    changed_lines_count = sum(1 for line in diff if _is_content_change(line))
     
     if not diff:
-        return True, f"Success: No changes detected for {file_path}. File left untouched."
+        return False, f"Warning: No changes detected for {file_path}. File left untouched."
 
     if changed_lines_count > threshold:
         diff_preview = "\n".join(diff[:20]) 
@@ -256,24 +271,32 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
 def _posix_cmd_for(action: str) -> str | None:
     cmd, _, params = action.partition('::')
     cmd = cmd.upper().strip()
+    # Normalize single-path parameters: only use the first segment before '::'
+    def _path_only(p: str) -> str:
+        head, _, _ = p.partition('::')
+        return head or '.'
     # Semantic headers
     if cmd == 'CREATE_DIRECTORY':
-        return f"mkdir -p '{params}'"
+        p = _path_only(params)
+        return f"mkdir -p '{p}'"
     if cmd == 'CREATE_FILE':
-        return f"touch '{params}'"
+        p = _path_only(params)
+        return f"touch '{p}'"
     if cmd == 'DELETE_PATH':
-        return f"rm -rf '{params}'"
+        p = _path_only(params)
+        return f"rm -rf '{p}'"
     if cmd == 'MOVE_PATH':
         src, _, dst = params.partition('::')
         return f"mv '{src}' '{dst}'"
     if cmd == 'LIST_PATHS':
-        path = params or '.'
+        path = _path_only(params)
         return f"ls -la '{path}'"
     if cmd == 'SHOW_TREE':
-        path = params or '.'
-        return f"(command -v tree >/dev/null 2>&1 && tree '{path}') || find '{path}' \( -name .git -o -name __pycache__ -o -name .env -o -name venv -o -name .vscode -o -name .idea \) -prune -o -print"
+        path = _path_only(params)
+        return fr"(command -v tree >/dev/null 2>&1 && tree '{path}') || find '{path}' \( -name .git -o -name __pycache__ -o -name .env -o -name venv -o -name .vscode -o -name .idea \) -prune -o -print"
     if cmd == 'READ_FILE':
-        return f"sed -n '1,200p' '{params}'"
+        p = _path_only(params)
+        return f"sed -n '1,200p' '{p}'"
     if cmd == 'WRITE_FILE':
         file_path, _, _desc = params.partition('::')
         return f"# write content to '{file_path}' (omitted in preview)"
@@ -289,24 +312,32 @@ def _posix_cmd_for(action: str) -> str | None:
 def _pwsh_cmd_for(action: str) -> str | None:
     cmd, _, params = action.partition('::')
     cmd = cmd.upper().strip()
+    # Normalize single-path parameters: only use the first segment before '::'
+    def _path_only(p: str) -> str:
+        head, _, _ = p.partition('::')
+        return head or '.'
     # Semantic headers
     if cmd == 'CREATE_DIRECTORY':
-        return f"New-Item -ItemType Directory -Force -Path '{params}' | Out-Null"
+        p = _path_only(params)
+        return f"New-Item -ItemType Directory -Force -Path '{p}' | Out-Null"
     if cmd == 'CREATE_FILE':
-        return f"New-Item -ItemType File -Force -Path '{params}' | Out-Null"
+        p = _path_only(params)
+        return f"New-Item -ItemType File -Force -Path '{p}' | Out-Null"
     if cmd == 'DELETE_PATH':
-        return f"Remove-Item -Recurse -Force -Path '{params}'"
+        p = _path_only(params)
+        return f"Remove-Item -Recurse -Force -Path '{p}'"
     if cmd == 'MOVE_PATH':
         src, _, dst = params.partition('::')
         return f"Move-Item -Force -Path '{src}' -Destination '{dst}'"
     if cmd == 'LIST_PATHS':
-        path = params or '.'
+        path = _path_only(params)
         return f"Get-ChildItem -Force -Recurse '{path}'"
     if cmd == 'SHOW_TREE':
-        path = params or '.'
+        path = _path_only(params)
         return f"Get-ChildItem -Force -Recurse '{path}' | Format-List FullName"
     if cmd == 'READ_FILE':
-        return f"Get-Content -TotalCount 200 '{params}'"
+        p = _path_only(params)
+        return f"Get-Content -TotalCount 200 '{p}'"
     if cmd == 'WRITE_FILE':
         file_path, _, _desc = params.partition('::')
         return f"# write content to '{file_path}' (omitted in preview)"
@@ -345,6 +376,20 @@ def run_shell(command: str) -> str:
     if not allow:
         return "Warning: Shell execution is disabled. Set PAI_ALLOW_SHELL_EXEC=true to enable."
 
+    # Optional network guard: block obvious network operations unless explicitly allowed
+    allow_net = os.getenv('PAI_ALLOW_NET', 'false').lower() in {'1', 'true', 'yes', 'on'}
+    net_indicators = [
+        'curl ', ' wget ', ' http://', ' https://', ' git clone', ' pip install', ' apt ', ' apt-get ',
+        ' npm ', ' pnpm ', ' yarn ', ' brew ', ' ssh ', ' scp '
+    ]
+    # pad with spaces to reduce false positives at start
+    padded_cmd = f" {command} "
+    if not allow_net and any(tok in padded_cmd for tok in net_indicators):
+        return (
+            "Warning: Network operations are disabled. Set PAI_ALLOW_NET=true to enable.\n"
+            "Blocked command due to potential network access."
+        )
+
     info = detect_os()
     try:
         if info.name == 'windows':
@@ -371,6 +416,15 @@ def run_shell(command: str) -> str:
         if err:
             msg.append("STDERR:\n" + err)
         prefix = "Success" if code == 0 else "Error"
+        # Audit log
+        try:
+            os.makedirs(AUDIT_DIR, exist_ok=True)
+            log_path = os.path.join(AUDIT_DIR, "shell.log")
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(log_path, 'a') as lf:
+                lf.write(f"[{ts}] CMD: {command}\nEXIT: {code}\n\n")
+        except Exception:
+            pass
         return f"{prefix}: Shell command executed.\n" + "\n".join(msg)
     except Exception as e:
         return f"Error: Failed to execute shell command: {e}"

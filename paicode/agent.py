@@ -8,6 +8,7 @@ from rich.text import Text
 from rich.syntax import Syntax
 from rich.box import ROUNDED
 from rich.table import Table
+import shlex
 from . import llm, workspace, ui
 from .platforms import detect_os
 
@@ -16,7 +17,7 @@ from pygments.util import ClassNotFound
 
 HISTORY_DIR = ".pai_history"
 
-def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
+def _generate_execution_renderables(plan: str, omit_long_response: bool = True) -> tuple[Group, str]:
     """
     Executes the plan, generates Rich renderables for display, and creates a detailed log string.
     """
@@ -38,12 +39,48 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         else:
             response_lines.append(line)
 
-    # Render Agent Response section (if any)
+    # Helper to detect probable code/content blocks in Agent Response
+    def _looks_like_code(s: str) -> bool:
+        if not s:
+            return False
+        # Heuristics: code fences, HTML/JS/JSON/XML-ish lines, very long lines
+        if s.startswith("```"):
+            return True
+        if s.lstrip().startswith(("<!DOCTYPE", "<html", "<head", "<body", "</", "function ", "const ", "let ", "var ", "class ", "def ", "{", "[", "{")):
+            return True
+        if s.count("<") + s.count(">") >= 4:
+            return True
+        if len(s) > 200:
+            return True
+        return False
+
+    # Render Agent Response section (if any), but avoid dumping large code
     if response_lines:
         renderables.append(Text("Agent Response:", style="bold underline"))
-        for line in response_lines:
-            renderables.append(Text(f"{line}", style="plan"))
-        log_results.append("\n".join(response_lines))
+        if omit_long_response:
+            max_resp_lines = 12
+            shown = 0
+            filtered_log: list[str] = []
+            code_omitted = False
+            for line in response_lines:
+                if shown >= max_resp_lines:
+                    code_omitted = True
+                    break
+                if _looks_like_code(line):
+                    code_omitted = True
+                    break
+                renderables.append(Text(f"{line}", style="plan"))
+                filtered_log.append(line)
+                shown += 1
+            if code_omitted:
+                renderables.append(Text("… (omitted content). Use READ_FILE::<path> to view file contents.", style="dim"))
+            if filtered_log:
+                log_results.append("\n".join(filtered_log))
+        else:
+            # Show full response text (used for final summary)
+            for line in response_lines:
+                renderables.append(Text(f"{line}", style="plan"))
+            log_results.append("\n".join(response_lines))
 
     # Render Agent Plan section (if any)
     if plan_lines:
@@ -92,11 +129,14 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
             renderables.append(action_text)
 
             if internal_op == "WRITE_FILE":
-                    file_path, _, _ = params.partition('::')
-                    result = handle_write(file_path, params)
+                    file_path, _, desc = params.partition('::')
+                    if not desc.strip():
+                        result = f"Error: WRITE_FILE for '{file_path}' requires a non-empty description after '::'."
+                    else:
+                        result = handle_write(file_path, params)
                 
             elif internal_op == "READ_FILE":
-                    path_to_read = params
+                    path_to_read, _, _ = params.partition('::')
                     content = workspace.read_file(path_to_read)
                     if content is not None:
                         try:
@@ -120,6 +160,11 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                 
             elif internal_op == "MODIFY_FILE":
                     file_path, _, description = params.partition('::')
+                    if not description.strip():
+                        result = f"Error: MODIFY_FILE for '{file_path}' requires a non-empty description after '::'."
+                        renderables.append(Text(f"✗ {result}", style="error"))
+                        log_results.append(result)
+                        continue
                     
                     original_content = workspace.read_file(file_path)
                     if original_content is None:
@@ -173,7 +218,8 @@ Provide ONLY the raw code without any explanations or markdown.
                         style = "error"; icon = "✗ "
 
             elif internal_op == "SHOW_TREE":
-                    path_to_list = params if params else '.'
+                    path_to_list, _, _ = params.partition('::')
+                    path_to_list = path_to_list or '.'
                     tree_output = workspace.tree_directory(path_to_list)
                     if tree_output and "Error:" not in tree_output:
                         renderables.append(Text(tree_output, style="bright_blue"))
@@ -182,19 +228,19 @@ Provide ONLY the raw code without any explanations or markdown.
                         result = "Success: Displayed directory structure."
                     else:
                         result = tree_output or "Error: Failed to display directory structure."
-                
             elif internal_op == "LIST_PATHS":
-                    path_to_list = params if params else '.'
+                    path_to_list, _, _ = params.partition('::')
+                    path_to_list = path_to_list or '.'
                     list_output = workspace.list_path(path_to_list)
-                    if list_output and "Error:" not in list_output:
+                    if list_output is not None and "Error:" not in list_output:
                         if list_output.strip():
                             renderables.append(Text(list_output, style="bright_blue"))
-                        # Log the actual list output for the AI's memory
+                        # Log the actual list output for the AI's memory (including empty list case)
                         log_results.append(list_output)
                         result = f"Success: Listed paths for '{path_to_list}'."
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
-                
+
             elif internal_op == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
@@ -204,16 +250,43 @@ Provide ONLY the raw code without any explanations or markdown.
             else:
                     # Known application-level ops
                     if internal_op == "CREATE_DIRECTORY":
-                        result = workspace.create_directory(params)
+                        path_only, _, _ = params.partition('::')
+                        result = workspace.create_directory(path_only)
                     elif internal_op == "CREATE_FILE":
-                        result = workspace.create_file(params)
+                        path_only, _, _ = params.partition('::')
+                        result = workspace.create_file(path_only)
                     elif internal_op == "DELETE_PATH":
-                        result = workspace.delete_item(params)
+                        path_only, _, _ = params.partition('::')
+                        result = workspace.delete_item(path_only)
                     elif internal_op == "MOVE_PATH":
                         source, _, dest = params.partition('::')
                         result = workspace.move_item(source, dest)
                     elif internal_op == "EXECUTE":
-                        result = workspace.run_shell(params)
+                        # Guard: avoid executing empty scripts (common with CREATE_FILE without WRITE_FILE)
+                        cmd = params.strip()
+                        try:
+                            parts = shlex.split(cmd)
+                        except Exception:
+                            parts = []
+                        # Detect python invocations
+                        if parts and parts[0] in {"python", "python3", "python3.12", "python3.11", "python3.10"} and len(parts) >= 2:
+                            script_path = parts[1]
+                            # Normalize and check within workspace
+                            script_full = os.path.join(workspace.PROJECT_ROOT, script_path)
+                            if os.path.isfile(script_full):
+                                try:
+                                    size = os.path.getsize(script_full)
+                                except OSError:
+                                    size = -1
+                                if size == 0:
+                                    result = f"Error: The script '{script_path}' is empty. Use WRITE_FILE::{script_path}::<description> before EXECUTE."
+                                else:
+                                    result = workspace.run_shell(params)
+                            else:
+                                # Let shell handle 'file not found'
+                                result = workspace.run_shell(params)
+                        else:
+                            result = workspace.run_shell(params)
                     else:
                         # Fallback: treat as shell command payload
                         result = workspace.run_shell(params or action)
@@ -307,9 +380,9 @@ def start_interactive_session():
     
     os_info = detect_os()
     welcome_message = (
-        "Welcome! I'm Pai, your agentic AI coding companion. Let's build something amazing together. ✨\n"
-        f"[info]OS: {os_info.name} | Shell: {os_info.shell} | PathSep: {os_info.path_sep}[/info]\n"
-        "[info]Type 'exit' or 'quit' to leave.[/info]"
+        "Hi! I'm Pai, your AI coding companion. Ready when you are. ✨\n"
+        f"OS: {os_info.name} • Shell: {os_info.shell} • PathSep: {os_info.path_sep}\n"
+        "Type 'exit' or 'quit' to leave."
     )
 
     ui.console.print(
@@ -468,6 +541,7 @@ system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
 Note: Do NOT output any action lines here; only the JSON step plan.
+Policy: Prefer analyzing existing local files in the workspace. Do NOT plan steps that require external network access or scraping unless the user explicitly asked for it AND PAI_ALLOW_NET=true. Avoid creating large, unrelated files.
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -545,10 +619,8 @@ Note: Do NOT output any action lines here; only the JSON step plan.
                         scheduler_hints.append(parts[1].strip())
 
         # Steps 3-?: Action iterations (one or more actionable commands per step when appropriate)
-        # Cap the number of action steps to at most 20 and also to the number of hints
+        # Run up to configured maximum (no cap by hints); break early only on FINISH
         action_steps_count = min(20, max(1, total_steps - 3))
-        if scheduler_hints:
-            action_steps_count = min(action_steps_count, len(scheduler_hints))
         last_action_step_index = 2 + action_steps_count
         for action_idx in range(3, last_action_step_index + 1):
             guidance = (
@@ -556,6 +628,8 @@ Note: Do NOT output any action lines here; only the JSON step plan.
                 "Output 1..N action lines using a UNIVERSAL, semantic header followed by '::' and parameters. "
                 "Examples of headers: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, FINISH. "
                 "You may also use EXECUTE to run a shell command (SHELL fallback) when necessary. "
+                "If you create or intend to run a script/binary, ALWAYS include a WRITE_FILE::<path>::<description> before EXECUTE to ensure the file has content. "
+                "Do NOT perform web scraping or network access unless the user explicitly asks for it AND PAI_ALLOW_NET=true; prefer working with local files (READ_FILE, LIST_PATHS, SHOW_TREE). "
                 "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
                 "Keep natural language to max 3 short lines followed by 1..N action lines."
             )
@@ -654,7 +728,7 @@ You are Pai. {summary_guidance}
 --- END SYSTEM RESPONSE ---
 """
         summary_plan = llm.generate_text_resilient(summary_prompt)
-        summary_group, summary_log = _generate_execution_renderables(summary_plan)
+        summary_group, summary_log = _generate_execution_renderables(summary_plan, omit_long_response=False)
         ui.console.print(
             Panel(
                 summary_group,
