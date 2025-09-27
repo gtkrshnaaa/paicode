@@ -2,6 +2,7 @@ import os
 import shutil
 import difflib
 from . import ui
+from .platforms import detect_os
 
 """
 workspace.py
@@ -248,3 +249,78 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
         return True, f"Success: Applied modification to {file_path} ({changed_lines_count} lines changed)."
     except IOError as e:
         return False, f"Error: Failed to write modification to file: {e}"
+
+
+# ---------------- OS Command Preview (Display Only) ----------------
+def _posix_cmd_for(action: str) -> str | None:
+    cmd, _, params = action.partition('::')
+    cmd = cmd.upper().strip()
+    if cmd == 'MKDIR':
+        return f"mkdir -p '{params}'"
+    if cmd == 'TOUCH':
+        return f"touch '{params}'"
+    if cmd == 'RM':
+        return f"rm -rf '{params}'"
+    if cmd == 'MV':
+        src, _, dst = params.partition('::')
+        return f"mv '{src}' '{dst}'"
+    if cmd == 'LIST_PATH':
+        path = params or '.'
+        return f"ls -la '{path}'"
+    if cmd == 'TREE':
+        path = params or '.'
+        return f"(command -v tree >/dev/null 2>&1 && tree '{path}') || find '{path}' \( -name .git -o -name __pycache__ -o -name .env -o -name venv -o -name .vscode -o -name .idea \) -prune -o -print"
+    if cmd == 'READ':
+        return f"sed -n '1,200p' '{params}'"
+    if cmd == 'WRITE':
+        file_path, _, _desc = params.partition('::')
+        return f"# write content to '{file_path}' (omitted in preview)"
+    if cmd == 'MODIFY':
+        file_path, _, _desc = params.partition('::')
+        return f"# modify '{file_path}' (apply diff)"
+    if cmd == 'FINISH':
+        return f"# finish: {params}"
+    return None
+
+def _pwsh_cmd_for(action: str) -> str | None:
+    cmd, _, params = action.partition('::')
+    cmd = cmd.upper().strip()
+    if cmd == 'MKDIR':
+        return f"New-Item -ItemType Directory -Force -Path '{params}' | Out-Null"
+    if cmd == 'TOUCH':
+        return f"New-Item -ItemType File -Force -Path '{params}' | Out-Null"
+    if cmd == 'RM':
+        return f"Remove-Item -Recurse -Force -Path '{params}'"
+    if cmd == 'MV':
+        src, _, dst = params.partition('::')
+        return f"Move-Item -Force -Path '{src}' -Destination '{dst}'"
+    if cmd == 'LIST_PATH':
+        path = params or '.'
+        return f"Get-ChildItem -Force -Recurse '{path}'"
+    if cmd == 'TREE':
+        path = params or '.'
+        return f"Get-ChildItem -Force -Recurse '{path}' | Format-List FullName"
+    if cmd == 'READ':
+        return f"Get-Content -TotalCount 200 '{params}'"
+    if cmd == 'WRITE':
+        file_path, _, _desc = params.partition('::')
+        return f"# write content to '{file_path}' (omitted in preview)"
+    if cmd == 'MODIFY':
+        file_path, _, _desc = params.partition('::')
+        return f"# modify '{file_path}' (apply diff)"
+    if cmd == 'FINISH':
+        return f"# finish: {params}"
+    return None
+
+def os_command_preview(actions: list[str]) -> str:
+    """Return a multi-line string of OS-specific command previews for the given action lines."""
+    info = detect_os()
+    lines: list[str] = []
+    header = f"# OS: {info.name} | Shell: {info.shell} | PathSep: {info.path_sep}"
+    lines.append(header)
+    mapper = _pwsh_cmd_for if info.name == 'windows' else _posix_cmd_for
+    for a in actions:
+        cmdline = mapper(a)
+        if cmdline:
+            lines.append(cmdline)
+    return "\n".join(lines)

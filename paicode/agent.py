@@ -9,6 +9,7 @@ from rich.syntax import Syntax
 from rich.box import ROUNDED
 from rich.table import Table
 from . import llm, workspace, ui
+from .platforms import detect_os
 
 from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
@@ -65,6 +66,14 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         if len(unknown_command_lines) > 3:
             renderables.append(Text(f"... and {len(unknown_command_lines) - 3} more", style="warning"))
         log_results.append("Ignored unknown commands: " + "; ".join(unknown_command_lines))
+
+    # Show OS Command Preview translating plan lines to platform-specific shell commands
+    if plan_lines:
+        try:
+            preview = workspace.os_command_preview(plan_lines)
+            renderables.append(Panel(Text(preview), title="OS Command Preview", border_style="grey50"))
+        except Exception as _:
+            pass
 
     # If there are many commands in a single step, cap execution to a safe maximum
     try:
@@ -405,9 +414,16 @@ You are an expert senior software engineer. {response_guidance}
             "Provide a brief, warm, and encouraging response acknowledging the user's request. "
             "Do NOT include any actionable commands or tool calls."
         )
+        os_info = detect_os()
         response_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
 {response_guidance}
+
+--- OS CONTEXT ---
+system_os: {os_info.name}
+shell: {os_info.shell}
+path_separator: {os_info.path_sep}
+Note: You must output only application-level VALID COMMANDS (not shell). The system will translate them to OS commands.
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -443,9 +459,16 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
             "Steps should describe meaningful sub-goals (each may require executing multiple file operations)."
         )
+        os_info = detect_os()
         scheduler_prompt = f"""
 You are Pai, an expert planner and developer AI.
 {scheduler_guidance}
+
+--- OS CONTEXT ---
+system_os: {os_info.name}
+shell: {os_info.shell}
+path_separator: {os_info.path_sep}
+Note: You must output only application-level VALID COMMANDS later in action steps; here produce only JSON steps.
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -540,11 +563,18 @@ You are Pai, an expert planner and developer AI.
             idx_from3 = action_idx - 3
             step_hint = scheduler_hints[idx_from3] if idx_from3 < len(scheduler_hints) else ""
 
+            os_info = detect_os()
             action_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
 You are a creative problem-solver, not just a command executor.
 
 {guidance}
+
+--- OS CONTEXT ---
+system_os: {os_info.name}
+shell: {os_info.shell}
+path_separator: {os_info.path_sep}
+Note: Output only VALID COMMANDS; the system will render corresponding OS commands.
 
 Target step hint: {step_hint}
 
@@ -578,11 +608,17 @@ Reply now.
 
             # Hard-reprompt once if no valid command is detected
             if not _has_valid_command(plan):
+                os_info = detect_os()
                 reprompt = f"""
 You did not provide any valid actionable command. You MUST output one or more lines with commands from VALID COMMANDS.
 Repeat with a stricter focus on the target step. Keep it concise and do not include any other command types.
 
 Target step hint: {step_hint}
+
+--- OS CONTEXT ---
+system_os: {os_info.name}
+shell: {os_info.shell}
+path_separator: {os_info.path_sep}
 
 --- VALID COMMANDS ---
 1. MKDIR::path
