@@ -13,6 +13,8 @@ os.environ.setdefault("GLOG_minloglevel", "3")
 import google.generativeai as genai
 import time
 from . import config, ui
+import asyncio
+from functools import partial
 
 DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-2.5-flash")
 try:
@@ -179,5 +181,85 @@ def generate_text_resilient(prompt: str) -> str:
                 pass
             delay = min(delay * 2, 8.0)
     # Final attempt failed
+    ui.print_error("Exceeded maximum inference retries. Returning empty result.")
+    return ""
+
+# ---------------- Async variants ----------------
+async def async_generate_text(prompt: str) -> str:
+    """Async version of generate_text using run_in_executor for the blocking SDK call."""
+    global _last_error, _last_error_rate_limited
+    _last_error = None
+    _last_error_rate_limited = False
+    if not model:
+        set_runtime_model(_current_model_name or DEFAULT_MODEL, _current_temperature or DEFAULT_TEMPERATURE)
+        if not model:
+            error_message = "Error: API Key or model is not configured. Please run `pai config --set <YOUR_API_KEY>` and try again."
+            ui.print_error(error_message)
+            return error_message
+
+    enabled = config.get_enabled_keys()
+    max_attempts = max(1, len(enabled))
+
+    loop = asyncio.get_running_loop()
+    last_error = None
+    for attempt in range(max_attempts):
+        try:
+            with ui.console.status("[bold yellow]Agent is thinking...", spinner="dots"):
+                # Wrap the blocking call in a thread to avoid blocking the event loop
+                response = await loop.run_in_executor(None, partial(model.generate_content, prompt))
+            cleaned_text = response.text.strip()
+            if cleaned_text.startswith("```python"):
+                cleaned_text = cleaned_text[len("```python"):].strip()
+            elif cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[len("```json"):].strip()
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[len("```"):].strip()
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-len("```")].strip()
+            return cleaned_text
+        except Exception as e:
+            last_error = e
+            _last_error = e
+            if _is_rate_limit_error(e):
+                _last_error_rate_limited = True
+                ui.print_warning("LLM API is rate-limited or quota exceeded; attempting fallback key/next retry...")
+            next_key = _get_next_enabled_key()
+            if not next_key:
+                break
+            try:
+                _configure_with_key(next_key, _current_model_name or DEFAULT_MODEL, _current_temperature or DEFAULT_TEMPERATURE)
+            except Exception as cfg_err:
+                last_error = cfg_err
+                continue
+
+    if last_error and _is_rate_limit_error(last_error):
+        _last_error_rate_limited = True
+        ui.print_warning("LLM API appears to be rate-limited or quota-exceeded. Please wait a moment or add more API keys (pai config add).")
+    ui.print_error(f"Error: An issue occurred with the LLM API: {last_error}")
+    return ""
+
+async def async_generate_text_resilient(prompt: str) -> str:
+    """Async resilient generation using async_generate_text and asyncio.sleep for backoff."""
+    try:
+        max_attempts = int(os.getenv("PAI_MAX_INFERENCE_RETRIES", "8"))
+    except ValueError:
+        max_attempts = 8
+    max_attempts = max(1, min(max_attempts, 50))
+
+    delay = 1.0
+    for attempt in range(1, max_attempts + 1):
+        text = await async_generate_text(prompt)
+        if isinstance(text, str) and text.strip() and not text.strip().startswith("Error:"):
+            return text
+        if attempt < max_attempts:
+            if _last_error_rate_limited:
+                ui.print_warning(f"Rate limit/quota detected (attempt {attempt}/{max_attempts}); retrying in {int(delay)}s...")
+            else:
+                ui.print_warning(f"Inference attempt {attempt}/{max_attempts} failed; retrying in {int(delay)}s...")
+            try:
+                await asyncio.sleep(delay)
+            except Exception:
+                pass
+            delay = min(delay * 2, 8.0)
     ui.print_error("Exceeded maximum inference retries. Returning empty result.")
     return ""

@@ -1,4 +1,5 @@
 import os
+import asyncio
 import json
 from datetime import datetime
 from rich.prompt import Prompt
@@ -354,10 +355,27 @@ def _has_valid_command(plan_text: str) -> bool:
 def handle_write(file_path: str, params: str) -> str:
     """Invokes the LLM to create content and write it to a file."""
     _, _, description = params.partition('::')
+    description = description.strip()
+    if not description:
+        description = (
+            f"Create the complete and runnable content for '{file_path}'. "
+            "Implement it fully based on the user's latest instructions and the current project context."
+        )
     
-    prompt = f"You are an expert programming assistant. Write the complete code for the file '{file_path}' based on the following description: \"{description}\". Provide ONLY the raw code without any explanations or markdown."
+    prompt = (
+        f"You are an expert programming assistant. Write the complete code for the file '{file_path}' "
+        f"based on the following description: \"{description}\". Provide ONLY the raw code without any explanations or markdown."
+    )
     
-    code_content = llm.generate_text(prompt)
+    use_async = os.getenv("PAI_ASYNC", "true").lower() in {"1","true","yes","on"}
+    if use_async:
+        try:
+            code_content = asyncio.run(llm.async_generate_text_resilient(prompt))
+        except RuntimeError:
+            # If already in an event loop (rare in our CLI), fallback to sync
+            code_content = llm.generate_text_resilient(prompt)
+    else:
+        code_content = llm.generate_text_resilient(prompt)
     
     if code_content:
         return workspace.write_to_file(file_path, code_content)
