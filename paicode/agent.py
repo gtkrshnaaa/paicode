@@ -7,6 +7,7 @@ from rich.console import Group
 from rich.text import Text
 from rich.syntax import Syntax
 from rich.box import ROUNDED
+from rich.table import Table
 from . import llm, workspace, ui
 
 from pygments.lexers import get_lexer_for_filename
@@ -66,7 +67,14 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         log_results.append("Ignored unknown commands: " + "; ".join(unknown_command_lines))
 
     # If there are many commands in a single step, cap execution to a safe maximum
-    MAX_COMMANDS_PER_STEP = 15
+    try:
+        MAX_COMMANDS_PER_STEP = int(os.getenv("PAI_MAX_CMDS_PER_STEP", "15"))
+        if MAX_COMMANDS_PER_STEP < 1:
+            MAX_COMMANDS_PER_STEP = 1
+        if MAX_COMMANDS_PER_STEP > 50:
+            MAX_COMMANDS_PER_STEP = 50
+    except ValueError:
+        MAX_COMMANDS_PER_STEP = 15
     if len(plan_lines) > MAX_COMMANDS_PER_STEP:
         renderables.append(Text(f"\nWarning: Too many commands in a single step (>{MAX_COMMANDS_PER_STEP}). Only the first {MAX_COMMANDS_PER_STEP} will be executed.", style="warning"))
         plan_lines = plan_lines[:MAX_COMMANDS_PER_STEP]
@@ -454,7 +462,28 @@ You are Pai, an expert planner and developer AI.
             parts = sp.split('\n', 1)
             if len(parts) == 2:
                 scheduler_plan = parts[1]
-        scheduler_group, scheduler_log = _generate_execution_renderables(scheduler_plan)
+        # Try to render scheduler JSON as a nice table
+        parsed_scheduler = None
+        try:
+            parsed_scheduler = json.loads(scheduler_plan)
+        except Exception:
+            parsed_scheduler = None
+
+        if isinstance(parsed_scheduler, dict) and isinstance(parsed_scheduler.get("steps"), list):
+            steps = parsed_scheduler.get("steps", [])
+            table = Table(show_header=True, header_style="bold", box=ROUNDED)
+            table.add_column("#", justify="right", width=3)
+            table.add_column("Title", overflow="fold")
+            table.add_column("Hint", overflow="fold")
+            for idx, step in enumerate(steps, start=1):
+                title = str(step.get("title", "")).strip()
+                hint = str(step.get("hint", "")).strip()
+                table.add_row(str(idx), title, hint)
+            scheduler_group = Group(Text("Task Plan", style="bold underline"), table)
+            scheduler_log = json.dumps(parsed_scheduler, indent=2)
+        else:
+            scheduler_group, scheduler_log = _generate_execution_renderables(scheduler_plan)
+
         ui.console.print(
             Panel(
                 scheduler_group,
@@ -473,16 +502,15 @@ You are Pai, an expert planner and developer AI.
 
         # Parse scheduler hints from JSON; fallback to heuristic if JSON parsing fails
         scheduler_hints: list[str] = []
-        try:
-            parsed = json.loads(scheduler_plan)
-            if isinstance(parsed, dict) and isinstance(parsed.get("steps"), list):
-                for step in parsed["steps"]:
-                    title = str(step.get("title", "")).strip()
-                    hint = str(step.get("hint", "")).strip()
-                    combined = hint or title
-                    if combined:
-                        scheduler_hints.append(combined)
-        except Exception:
+        parsed = parsed_scheduler
+        if isinstance(parsed, dict) and isinstance(parsed.get("steps"), list):
+            for step in parsed["steps"]:
+                title = str(step.get("title", "")).strip()
+                hint = str(step.get("hint", "")).strip()
+                combined = hint or title
+                if combined:
+                    scheduler_hints.append(combined)
+        else:
             for raw_line in scheduler_plan.splitlines():
                 stripped = raw_line.strip()
                 if stripped[:2].isdigit() and (stripped[1:2] in {'.', ')'}):
