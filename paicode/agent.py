@@ -392,9 +392,9 @@ You are an expert senior software engineer. {response_guidance}
         # 8) Final Summary (no commands; suggestions + confirmation question)
         #
 
-        # Allow configuring total steps via environment, default to 8 (minimum 6)
+        # Allow configuring total steps via environment, default to 25 (minimum 6)
         try:
-            total_steps = int(os.getenv("PAI_MAX_STEPS", "8"))
+            total_steps = int(os.getenv("PAI_MAX_STEPS", "25"))
             if total_steps < 6:
                 total_steps = 8
         except ValueError:
@@ -523,8 +523,8 @@ You are Pai, an expert planner and developer AI.
                         scheduler_hints.append(parts[1].strip())
 
         # Steps 3-?: Action iterations (one or more actionable commands per step when appropriate)
-        # Cap the number of action steps to at most 5 and also to the number of hints
-        action_steps_count = min(5, max(1, total_steps - 3))
+        # Cap the number of action steps to at most 20 and also to the number of hints
+        action_steps_count = min(20, max(1, total_steps - 3))
         if scheduler_hints:
             action_steps_count = min(action_steps_count, len(scheduler_hints))
         last_action_step_index = 2 + action_steps_count
