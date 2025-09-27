@@ -65,10 +65,11 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
             renderables.append(Text(f"... and {len(unknown_command_lines) - 3} more", style="warning"))
         log_results.append("Ignored unknown commands: " + "; ".join(unknown_command_lines))
 
-    # Enforce single actionable command per inference: execute only the first command line
-    if len(plan_lines) > 1:
-        renderables.append(Text("\nNote: Multiple commands detected in a single step. Only the first will be executed.", style="warning"))
-        plan_lines = plan_lines[:1]
+    # If there are many commands in a single step, cap execution to a safe maximum
+    MAX_COMMANDS_PER_STEP = 15
+    if len(plan_lines) > MAX_COMMANDS_PER_STEP:
+        renderables.append(Text(f"\nWarning: Too many commands in a single step (>{MAX_COMMANDS_PER_STEP}). Only the first {MAX_COMMANDS_PER_STEP} will be executed.", style="warning"))
+        plan_lines = plan_lines[:MAX_COMMANDS_PER_STEP]
 
     for action in plan_lines:
         try:
@@ -425,41 +426,18 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
             f.write(interaction_log + "\n-------------------\n")
         last_system_response = response_log
 
-        # If task is simple, skip scheduler to minimize API calls and do minimal actions
-        if complexity == "simple":
-            # Configure total steps minimal: 1 response + 1 action + 1 summary = 3
-            try:
-                total_steps = int(os.getenv("PAI_MAX_STEPS", "8"))
-                if total_steps < 3:
-                    total_steps = 3
-            except ValueError:
-                total_steps = 8
-            total_steps = max(3, min(total_steps, 4))
+        # Always use the Task Scheduler for 'task' mode to outline steps first
 
-            # Run a single focused action (step 2)
-            guidance = (
-                "Plan and execute the SINGLE best action towards the user's goal. "
-                "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
-                "Do NOT output any other command type (e.g., RUN). "
-                "Keep at most 2 short natural language lines then exactly one line with the command."
-            )
-            action_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI.
-You are a creative problem-solver, not just a command executor.
-
-{guidance}
-
---- VALID COMMANDS ---
-1. MKDIR::path
-2. TOUCH::path
-3. WRITE::path::description
-4. MODIFY::path::description
-5. READ::path
-6. LIST_PATH::path
-7. RM::path
-8. MV::source::destination
-9. TREE::path
-10. FINISH::message
+        # Step 2: Task Scheduler (no commands; outline steps) for normal/complex tasks
+        scheduler_guidance = (
+            "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
+            "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
+            "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
+            "Steps should describe meaningful sub-goals (each may require executing multiple file operations)."
+        )
+        scheduler_prompt = f"""
+You are Pai, an expert planner and developer AI.
+{scheduler_guidance}
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -468,76 +446,6 @@ You are a creative problem-solver, not just a command executor.
 --- LATEST USER REQUEST ---
 "{user_effective_request}"
 --- END USER REQUEST ---
-
-Reply now.
-"""
-            plan = llm.generate_text(action_prompt)
-            if not _has_valid_command(plan):
-                reprompt = "You must output exactly one VALID command line. Repeat succinctly."
-                plan = llm.generate_text(reprompt)
-
-            renderable_group, log_string = _generate_execution_renderables(plan)
-            ui.console.print(
-                Panel(
-                    renderable_group,
-                    title=f"[bold]Agent Action[/bold] (step 2/{total_steps})",
-                    box=ROUNDED,
-                    border_style="grey50",
-                    padding=(1, 2)
-                )
-            )
-            interaction_log = f"User: {user_input}\nIteration: 2/{total_steps}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
-            session_context.append(interaction_log)
-            with open(log_file_path, 'a') as f:
-                f.write(interaction_log + "\n-------------------\n")
-            last_system_response = log_string
-
-            # Final summary (step 3)
-            summary_guidance = (
-                "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
-                "followed by 1-2 concrete suggestions for next steps. Ask for confirmation to proceed."
-            )
-            summary_prompt = f"""
-You are Pai. {summary_guidance}
-
---- LATEST USER REQUEST ---
-"{user_input}"
---- END USER REQUEST ---
-
---- MOST RECENT SYSTEM RESPONSE ---
-{last_system_response}
---- END SYSTEM RESPONSE ---
-"""
-            summary_plan = llm.generate_text(summary_prompt)
-            summary_group, summary_log = _generate_execution_renderables(summary_plan)
-            ui.console.print(
-                Panel(
-                    summary_group,
-                    title=f"[bold]Agent Response[/bold] (step 3/{total_steps} - final summary)",
-                    box=ROUNDED,
-                    border_style="grey50",
-                    padding=(1, 2)
-                )
-            )
-            session_context.append(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}")
-            with open(log_file_path, 'a') as f:
-                f.write(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}\n-------------------\n")
-            pending_followup_suggestions = summary_plan
-
-            if auto_continue:
-                pending_followup_suggestions = ""
-            continue
-
-        # Step 2: Task Scheduler (no commands; outline steps) for normal/complex tasks
-        scheduler_guidance = (
-            "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
-            "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
-            "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS."
-        )
-        scheduler_prompt = f"""
-You are Pai, an expert planner and developer AI.
-{scheduler_guidance}
-
 """
         scheduler_plan = llm.generate_text(scheduler_prompt)
         # Sanitize accidental language tag prefix like 'json' on its own line
@@ -586,7 +494,7 @@ You are Pai, an expert planner and developer AI.
                     if len(parts) == 2:
                         scheduler_hints.append(parts[1].strip())
 
-        # Steps 3-?: Action iterations (exactly one actionable command per step)
+        # Steps 3-?: Action iterations (one or more actionable commands per step when appropriate)
         # Cap the number of action steps to at most 5 and also to the number of hints
         action_steps_count = min(5, max(1, total_steps - 3))
         if scheduler_hints:
@@ -594,10 +502,10 @@ You are Pai, an expert planner and developer AI.
         last_action_step_index = 2 + action_steps_count
         for action_idx in range(3, last_action_step_index + 1):
             guidance = (
-                "Plan and execute the next SINGLE best action towards the user's goal. "
-                "You MUST output EXACTLY ONE actionable command from VALID COMMANDS below (or FINISH::message if done). "
-                "Do NOT output any other command type (e.g., RUN) or more than one actionable command. "
-                "Output format must be at most 3 short natural language lines followed by exactly one line with the command."
+                "Plan and execute the next actions towards the user's goal. "
+                "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when it is efficient and safe. "
+                "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
+                "Do NOT output any other command type (e.g., RUN). Keep natural language to max 3 short lines followed by 1..N command lines."
             )
 
             # Supply a scheduler hint (if available) to make the step focused
@@ -643,7 +551,7 @@ Reply now.
             # Hard-reprompt once if no valid command is detected
             if not _has_valid_command(plan):
                 reprompt = f"""
-You did not provide any valid actionable command. You MUST output exactly one line with a command from VALID COMMANDS.
+You did not provide any valid actionable command. You MUST output one or more lines with commands from VALID COMMANDS.
 Repeat with a stricter focus on the target step. Keep it concise and do not include any other command types.
 
 Target step hint: {step_hint}
