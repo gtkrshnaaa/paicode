@@ -130,10 +130,17 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
 
             if internal_op == "WRITE_FILE":
                     file_path, _, desc = params.partition('::')
+                    fallback_used = False
                     if not desc.strip():
-                        result = f"Error: WRITE_FILE for '{file_path}' requires a non-empty description after '::'."
-                    else:
-                        result = handle_write(file_path, params)
+                        # Provide a sensible fallback description to avoid blocking the flow
+                        fallback_used = True
+                        desc = (
+                            f"Create the complete and runnable content for '{file_path}'. "
+                            "Implement it fully based on the user's latest instructions and the current project context."
+                        )
+                        renderables.append(Text(f"Warning: Missing description for WRITE_FILE::{file_path}. Using fallback description.", style="warning"))
+                    
+                    result = handle_write(file_path, params)
                 
             elif internal_op == "READ_FILE":
                     path_to_read, _, _ = params.partition('::')
@@ -262,33 +269,20 @@ Provide ONLY the raw code without any explanations or markdown.
                         source, _, dest = params.partition('::')
                         result = workspace.move_item(source, dest)
                     elif internal_op == "EXECUTE":
-                        # Guard: avoid executing empty scripts (common with CREATE_FILE without WRITE_FILE)
-                        # Some models append a natural-language description after '::'.
-                        # Only execute the first segment before '::'.
+                        # Execute a shell command (only first segment before '::')
                         cmd = params.split('::', 1)[0].strip()
-                        try:
-                            parts = shlex.split(cmd)
-                        except Exception:
-                            parts = []
-                        # Detect python invocations
-                        if parts and parts[0] in {"python", "python3", "python3.12", "python3.11", "python3.10"} and len(parts) >= 2:
-                            script_path = parts[1]
-                            # Normalize and check within workspace
-                            script_full = os.path.join(workspace.PROJECT_ROOT, script_path)
-                            if os.path.isfile(script_full):
-                                try:
-                                    size = os.path.getsize(script_full)
-                                except OSError:
-                                    size = -1
-                                if size == 0:
-                                    result = f"Error: The script '{script_path}' is empty. Use WRITE_FILE::{script_path}::<description> before EXECUTE."
-                                else:
-                                    result = workspace.run_shell(cmd)
-                            else:
-                                # Let shell handle 'file not found'
-                                result = workspace.run_shell(cmd)
+                        if not cmd:
+                            result = "Error: EXECUTE requires a non-empty command before '::'."
                         else:
                             result = workspace.run_shell(cmd)
+                    elif internal_op == "EXECUTE_INPUT":
+                        # Pattern: EXECUTE_INPUT::<command>::<stdin_payload>
+                        cmd, _, stdin_payload = params.partition('::')
+                        cmd = (cmd or '').strip()
+                        if not cmd:
+                            result = "Error: EXECUTE_INPUT requires a command before the second '::'."
+                        else:
+                            result = workspace.run_shell_with_input(cmd, stdin_payload or "")
                     else:
                         # Fallback: treat as shell command payload
                         result = workspace.run_shell(params or action)
@@ -374,6 +368,14 @@ def start_interactive_session():
     """Starts an interactive session with the agent."""
     if not os.path.exists(HISTORY_DIR):
         os.makedirs(HISTORY_DIR)
+        # Ensure the history directory is not committed to VCS
+        try:
+            gi_path = os.path.join(HISTORY_DIR, ".gitignore")
+            if not os.path.exists(gi_path):
+                with open(gi_path, 'w') as f:
+                    f.write("# Ignore all session logs in this directory\n*\n!.gitignore\n")
+        except Exception:
+            pass
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
 
@@ -628,10 +630,13 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
             guidance = (
                 "Plan and execute the next actions towards the user's goal. "
                 "Output 1..N action lines using a UNIVERSAL, semantic header followed by '::' and parameters. "
-                "Examples of headers: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, FINISH. "
-                "You may also use EXECUTE to run a shell command (SHELL fallback) when necessary. "
-                "If you create or intend to run a script/binary, ALWAYS include a WRITE_FILE::<path>::<description> before EXECUTE to ensure the file has content. "
-                "Do NOT perform web scraping or network access unless the user explicitly asks for it AND PAI_ALLOW_NET=true; prefer working with local files (READ_FILE, LIST_PATHS, SHOW_TREE). "
+                "Examples of headers: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH. "
+                "You may use EXECUTE to run a shell command, and EXECUTE_INPUT::<command>::<stdin_payload> when a program prompts for input (so you can pipe answers). "
+                "Note: Shell runs have a timeout (env PAI_SHELL_TIMEOUT); prefer non-interactive runs or provide stdin via EXECUTE_INPUT. "
+                "If you create or intend to run a script/binary, ALWAYS include a WRITE_FILE::<path>::<description> before EXECUTE/EXECUTE_INPUT to ensure the file has content. "
+                "Do NOT perform network access unless the user explicitly asks for it AND PAI_ALLOW_NET=true; prefer local ops (READ_FILE, LIST_PATHS, SHOW_TREE). "
+                "OS Command Preview is shown for each plan so you can validate commands before execution. "
+                "Path-security is enforced; sensitive paths are blocked and all modifications should be small—use MODIFY_FILE with concise diffs; large overwrites may be rejected. "
                 "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
                 "Keep natural language to max 3 short lines followed by 1..N action lines."
             )

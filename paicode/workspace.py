@@ -5,6 +5,8 @@ from . import ui
 import subprocess
 from .platforms import detect_os
 from datetime import datetime
+import threading
+import time
 
 """
 workspace.py
@@ -306,6 +308,10 @@ def _posix_cmd_for(action: str) -> str | None:
     if cmd == 'EXECUTE':
         exe = params.split('::', 1)[0].strip()
         return exe
+    if cmd == 'EXECUTE_INPUT':
+        # Preview only; do not show the full input payload
+        exe, _, _payload = params.partition('::')
+        return f"# with stdin -> {exe.strip()}"
     if cmd == 'FINISH':
         return f"# finish: {params}"
     return None
@@ -355,6 +361,13 @@ def _pwsh_cmd_for(action: str) -> str | None:
 def os_command_preview(actions: list[str]) -> str:
     """Return a multi-line string of OS-specific command previews for the given action lines."""
     info = detect_os()
+    # Timeout guard to avoid indefinite hangs on interactive commands
+    try:
+        timeout_sec = int(os.getenv('PAI_SHELL_TIMEOUT', '20'))
+        if timeout_sec < 1:
+            timeout_sec = 20
+    except ValueError:
+        timeout_sec = 20
     lines: list[str] = []
     header = f"# OS: {info.name} | Shell: {info.shell} | PathSep: {info.path_sep}"
     lines.append(header)
@@ -364,6 +377,75 @@ def os_command_preview(actions: list[str]) -> str:
         if cmdline:
             lines.append(cmdline)
     return "\n".join(lines)
+
+
+def _stream_process(full_cmd: list[str], *, input_text: str | None, timeout_sec: int) -> tuple[int, str, str, bool]:
+    """Run a subprocess with live streaming of stdout/stderr.
+
+    Returns (exit_code, captured_stdout, captured_stderr, timed_out).
+    """
+    proc = subprocess.Popen(
+        full_cmd,
+        cwd=PROJECT_ROOT,
+        stdin=subprocess.PIPE if input_text is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        universal_newlines=True,
+    )
+
+    captured_out: list[str] = []
+    captured_err: list[str] = []
+    timed_out = False
+
+    def _reader(pipe, sink_list, style):
+        try:
+            for line in iter(pipe.readline, ''):
+                sink_list.append(line)
+                try:
+                    ui.console.print(line.rstrip(), style=style)
+                except Exception:
+                    pass
+        finally:
+            try:
+                pipe.close()
+            except Exception:
+                pass
+
+    t_out = threading.Thread(target=_reader, args=(proc.stdout, captured_out, "info"), daemon=True)
+    t_err = threading.Thread(target=_reader, args=(proc.stderr, captured_err, "warning"), daemon=True)
+    t_out.start(); t_err.start()
+
+    # Provide stdin then close
+    if input_text is not None and proc.stdin:
+        try:
+            proc.stdin.write(input_text)
+            proc.stdin.flush()
+            proc.stdin.close()
+        except Exception:
+            pass
+
+    start = time.time()
+    while True:
+        try:
+            ret = proc.wait(timeout=0.2)
+            break
+        except subprocess.TimeoutExpired:
+            if time.time() - start > timeout_sec:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                timed_out = True
+                break
+            continue
+
+    # Ensure threads exit
+    t_out.join(timeout=1.0)
+    t_err.join(timeout=1.0)
+    exit_code = proc.returncode if proc.returncode is not None else -1
+    return exit_code, ''.join(captured_out), ''.join(captured_err), timed_out
 
 
 def run_shell(command: str) -> str:
@@ -401,16 +483,35 @@ def run_shell(command: str) -> str:
             # Use bash/sh
             full_cmd = ["bash", "-lc", command]
 
-        proc = subprocess.run(
-            full_cmd,
-            cwd=PROJECT_ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        out = proc.stdout.strip()
-        err = proc.stderr.strip()
-        code = proc.returncode
+        stream = os.getenv('PAI_STREAM', 'true').lower() in {'1','true','yes','on'}
+        if stream:
+            code, out, err, timed_out = _stream_process(full_cmd, input_text=None, timeout_sec=timeout_sec)
+            if timed_out:
+                return (
+                    "Warning: Shell command timed out. It may be waiting for interactive input.\n"
+                    f"Command: {command}\n"
+                    f"Timeout: {timeout_sec}s (configurable via PAI_SHELL_TIMEOUT).\n"
+                    "Tip: Use EXECUTE_INPUT to provide stdin or use a non-interactive strategy."
+                )
+            out = out.strip(); err = err.strip()
+        else:
+            try:
+                proc = subprocess.run(
+                    full_cmd,
+                    cwd=PROJECT_ROOT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=timeout_sec,
+                )
+            except subprocess.TimeoutExpired:
+                return (
+                    "Warning: Shell command timed out. It may be waiting for interactive input.\n"
+                    f"Command: {command}\n"
+                    f"Timeout: {timeout_sec}s (configurable via PAI_SHELL_TIMEOUT).\n"
+                    "Tip: Use EXECUTE_INPUT to provide stdin or use a non-interactive strategy."
+                )
+            out = proc.stdout.strip(); err = proc.stderr.strip(); code = proc.returncode
         msg = []
         msg.append(f"ExitCode: {code}")
         if out:
@@ -421,6 +522,14 @@ def run_shell(command: str) -> str:
         # Audit log
         try:
             os.makedirs(AUDIT_DIR, exist_ok=True)
+            # Ensure .gitignore exists to avoid committing audit logs
+            try:
+                gi_path = os.path.join(AUDIT_DIR, ".gitignore")
+                if not os.path.exists(gi_path):
+                    with open(gi_path, 'w') as gf:
+                        gf.write("# Ignore all audit/session logs in this directory\n*\n!.gitignore\n")
+            except Exception:
+                pass
             log_path = os.path.join(AUDIT_DIR, "shell.log")
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with open(log_path, 'a') as lf:
@@ -430,3 +539,105 @@ def run_shell(command: str) -> str:
         return f"{prefix}: Shell command executed.\n" + "\n".join(msg)
     except Exception as e:
         return f"Error: Failed to execute shell command: {e}"
+
+def run_shell_with_input(command: str, input_text: str) -> str:
+    """Execute a shell command and provide input_text to its STDIN.
+
+    Mirrors run_shell() semantics, adds stdin piping, timeout, verbose, and auditing.
+    """
+    allow = os.getenv('PAI_ALLOW_SHELL_EXEC', 'true').lower() in {'1', 'true', 'yes', 'on'}
+    if not allow:
+        return "Warning: Shell execution is disabled. Set PAI_ALLOW_SHELL_EXEC=true to enable."
+
+    allow_net = os.getenv('PAI_ALLOW_NET', 'false').lower() in {'1', 'true', 'yes', 'on'}
+    net_indicators = [
+        'curl ', ' wget ', ' http://', ' https://', ' git clone', ' pip install', ' apt ', ' apt-get ',
+        ' npm ', ' pnpm ', ' yarn ', ' brew ', ' ssh ', ' scp '
+    ]
+    padded_cmd = f" {command} "
+    if not allow_net and any(tok in padded_cmd for tok in net_indicators):
+        return (
+            "Warning: Network operations are disabled. Set PAI_ALLOW_NET=true to enable.\n"
+            "Blocked command due to potential network access."
+        )
+
+    info = detect_os()
+    # Verbose
+    verbose = os.getenv('PAI_VERBOSE', 'true').lower() in {'1','true','yes','on'}
+    if verbose:
+        try:
+            preview = command if len(command) <= 200 else command[:200] + '...'
+            ui.print_action(f"$ {preview}  <<stdin {len(input_text)} bytes>")
+        except Exception:
+            pass
+
+    # Timeout
+    try:
+        timeout_sec = int(os.getenv('PAI_SHELL_TIMEOUT', '20'))
+        if timeout_sec < 1:
+            timeout_sec = 20
+    except ValueError:
+        timeout_sec = 20
+
+    try:
+        if info.name == 'windows':
+            full_cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", command]
+        else:
+            full_cmd = ["bash", "-lc", command]
+
+        stream = os.getenv('PAI_STREAM', 'true').lower() in {'1','true','yes','on'}
+        if stream:
+            code, out, err, timed_out = _stream_process(full_cmd, input_text=input_text, timeout_sec=timeout_sec)
+            if timed_out:
+                return (
+                    "Warning: Shell command timed out while providing stdin. It may expect more input.\n"
+                    f"Command: {command}\n"
+                    f"Timeout: {timeout_sec}s (configurable via PAI_SHELL_TIMEOUT)."
+                )
+            out = out.strip(); err = err.strip()
+        else:
+            try:
+                proc = subprocess.run(
+                    full_cmd,
+                    cwd=PROJECT_ROOT,
+                    input=input_text,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=timeout_sec,
+                )
+            except subprocess.TimeoutExpired:
+                return (
+                    "Warning: Shell command timed out while providing stdin. It may expect more input.\n"
+                    f"Command: {command}\n"
+                    f"Timeout: {timeout_sec}s (configurable via PAI_SHELL_TIMEOUT)."
+                )
+            out = proc.stdout.strip(); err = proc.stderr.strip(); code = proc.returncode
+        msg = []
+        msg.append(f"ExitCode: {code}")
+        if out:
+            msg.append("STDOUT:\n" + out)
+        if err:
+            msg.append("STDERR:\n" + err)
+        prefix = "Success" if code == 0 else "Error"
+
+        # Audit
+        try:
+            os.makedirs(AUDIT_DIR, exist_ok=True)
+            try:
+                gi_path = os.path.join(AUDIT_DIR, ".gitignore")
+                if not os.path.exists(gi_path):
+                    with open(gi_path, 'w') as gf:
+                        gf.write("# Ignore all audit/session logs in this directory\n*\n!.gitignore\n")
+            except Exception:
+                pass
+            log_path = os.path.join(AUDIT_DIR, "shell.log")
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(log_path, 'a') as lf:
+                lf.write(f"[{ts}] CMD: {command} <with-stdin>\nEXIT: {code}\n\n")
+        except Exception:
+            pass
+
+        return f"{prefix}: Shell command executed.\n" + "\n".join(msg)
+    except Exception as e:
+        return f"Error: Failed to execute shell command with input: {e}"
