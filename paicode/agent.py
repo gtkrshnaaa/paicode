@@ -156,6 +156,12 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
         renderables.append(Text(f"\nWarning: Too many commands in a single step (>{MAX_COMMANDS_PER_STEP}). Only the first {MAX_COMMANDS_PER_STEP} will be executed.", style="warning"))
         plan_lines = plan_lines[:MAX_COMMANDS_PER_STEP]
 
+    # Hard-enforce exactly one actionable command per step (as per Cascade-like flow)
+    if len(plan_lines) > 1:
+        renderables.append(Text("Warning: Exactly one action is allowed per step. Executing only the first action.", style="warning"))
+        log_results.append("Policy: Single-command-per-step enforced; extra actions ignored.")
+        plan_lines = plan_lines[:1]
+
     for action in plan_lines:
         try:
             command_candidate, _, params = action.partition('::')
@@ -421,8 +427,11 @@ Provide ONLY the raw code without any explanations or markdown.
                         else:
                             result = workspace.run_shell_with_input(cmd, stdin_payload or "")
                     else:
-                        # Fallback: treat as shell command payload
-                        result = workspace.run_shell(params or action)
+                        # Unknown header: ignore instead of falling back to shell
+                        warn_msg = f"Warning: Unknown or unsupported command header ignored: {internal_op}"
+                        renderables.append(Text(warn_msg, style="warning"))
+                        log_results.append(warn_msg)
+                        continue
                 
             if result:
                     if "Success" in result: style = "success"; icon = "✓ "

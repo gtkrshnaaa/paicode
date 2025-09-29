@@ -389,8 +389,9 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
     if not _is_path_safe(file_path):
         return False, f"Error: Access to path '{file_path}' is denied or path is not secure."
 
-    original_lines = original_content.splitlines(keepends=True)
-    new_lines = new_content.splitlines(keepends=True)
+    # Normalize line endings to avoid false negatives
+    original_lines = original_content.replace('\r\n', '\n').replace('\r', '\n').splitlines(keepends=True)
+    new_lines = new_content.replace('\r\n', '\n').replace('\r', '\n').splitlines(keepends=True)
 
     diff = list(difflib.unified_diff(
         original_lines,
@@ -412,15 +413,7 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
     if not diff:
         return False, f"Warning: No changes detected for {file_path}. File left untouched."
 
-    if changed_lines_count > threshold:
-        diff_preview = "\n".join(diff[:20]) 
-        message = (
-            f"Warning: Modification for '{file_path}' rejected. "
-            f"The change was too large ({changed_lines_count} lines), exceeding the threshold of {threshold} lines. "
-            f"This is a safeguard to prevent accidental overwrites.\n"
-            f"Diff Preview:\n{diff_preview}"
-        )
-        return False, message
+    # No size-based rejection: apply any non-empty diff (user prefers iterative focus without hard limits)
 
     try:
         write_to_file(file_path, new_content)
