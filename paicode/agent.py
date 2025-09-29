@@ -702,25 +702,20 @@ You are an expert senior software engineer. {response_guidance}
             continue
 
         #
-        # New 8-step flow per user request:
+        # Cascade-like configurable flow (default 25 steps):
         # 1) Agent Response (no commands)
         # 2) Task Scheduler (high-level plan; no commands)
-        # 3-7) Action steps (exactly one command per step when appropriate)
-        # 8) Final Summary (no commands; suggestions + confirmation question)
+        # 3..N-1) Action steps (exactly one command per step)
+        # N) Final Summary (no commands; suggestions + confirmation question)
         #
 
-        # Allow configuring total steps via environment, default to 25 (minimum 6)
-        try:
-            total_steps = int(os.getenv("PAI_MAX_STEPS", "25"))
-            if total_steps < 6:
-                total_steps = 8
-        except ValueError:
-            total_steps = 8
+        # Fixed total steps per request: 25
+        total_steps = 25
 
         # Step 1: Agent Response (no commands allowed)
         response_guidance = (
-            "Provide a brief, warm, and encouraging response acknowledging the user's request. "
-            "Do NOT include any actionable commands or tool calls."
+            "Provide a brief (max 2 sentences), warm, and clear acknowledgement of the user's request. "
+            "Match the user's language. Do not include any action commands, tool calls, or code/markdown blocks."
         )
         os_info = detect_os()
         response_prompt = f"""
@@ -762,10 +757,10 @@ Note: Do NOT output any action lines here; this step is just a short natural lan
 
         # Step 2: Task Scheduler (no commands; outline steps) for normal/complex tasks
         scheduler_guidance = (
-            "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
+            "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without extra text and without backticks. "
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include action lines here. "
-            "Steps should describe meaningful sub-goals (each may require executing multiple file operations)."
+            "Write \"title\" and \"hint\" in the user's language, concise and specific."
         )
         os_info = detect_os()
         scheduler_prompt = f"""
@@ -854,24 +849,26 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
                     if len(parts) == 2:
                         scheduler_hints.append(parts[1].strip())
 
-        # Steps 3-?: Action iterations (one or more actionable commands per step when appropriate)
-        # Run up to configured maximum (no cap by hints); break early only on FINISH
-        action_steps_count = min(20, max(1, total_steps - 3))
+        # Steps 3-?: Action iterations (exactly one actionable command per step by prompt design)
+        # Run until the configured total so that the Final Summary lands on step `total_steps`.
+        action_steps_count = max(1, total_steps - 3)
         last_action_step_index = 2 + action_steps_count
         for action_idx in range(3, last_action_step_index + 1):
             guidance = (
-                "Plan and execute the next actions towards the user's goal. "
-                "Output 1..N action lines using a UNIVERSAL, semantic header followed by '::' and parameters. "
-                "Examples of headers: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH. "
-                "IMPORTANT: Use WRITE_FILE only for NEW files. Use MODIFY_FILE for existing files. Use CREATE_FILE only for empty files that don't exist yet. "
-                "You may use EXECUTE to run a shell command, and EXECUTE_INPUT::<command>::<stdin_payload> when a program prompts for input (so you can pipe answers). "
+                "Plan and execute the next action towards the user's goal. "
+                "Output EXACTLY ONE action line using a UNIVERSAL, semantic header followed by '::' and parameters. "
+                "Allowed headers ONLY: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH. "
+                "CRITICAL FILE POLICY: Use WRITE_FILE only for brand NEW files that do not exist. If a target file already exists, you MUST use MODIFY_FILE instead. CREATE_FILE is only for empty files that don't exist yet. "
+                "If unsure whether a file exists, first choose a probe step like READ_FILE::<path> or LIST_PATHS::. Since you must output exactly one action per step, probe first, then modify/create on a subsequent step. "
+                "You may use EXECUTE to run a shell command, and EXECUTE_INPUT::<command>::<stdin_payload> when a program prompts for input (to pipe answers). "
                 "Note: Shell runs have a timeout (env PAI_SHELL_TIMEOUT); prefer non-interactive runs or provide stdin via EXECUTE_INPUT. "
                 "If you create or intend to run a script/binary, ALWAYS include a WRITE_FILE::<path>::<description> before EXECUTE/EXECUTE_INPUT to ensure the file has content. "
                 "Do NOT perform network access unless the user explicitly asks for it AND PAI_ALLOW_NET=true; prefer local ops (READ_FILE, LIST_PATHS, SHOW_TREE). "
                 "OS Command Preview is shown for each plan so you can validate commands before execution. "
-                "Path-security is enforced; sensitive paths are blocked and all modifications should be small—use MODIFY_FILE with concise diffs; large overwrites may be rejected. "
-                "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
-                "Keep natural language to max 3 short lines followed by 1..N action lines."
+                "Path-security is enforced; sensitive paths are blocked and large overwrites may be rejected—use MODIFY_FILE with concise diffs. "
+                "IMPORTANT: Any unknown/unsupported command headers (e.g., RUN, SHELL) will be IGNORED by the system. "
+                "Always use relative, safe paths within the workspace (avoid absolute/system paths). "
+                "Keep any natural language to max 3 short lines, then output exactly one plain-text action line (no markdown, no backticks, no JSON)."
             )
 
             # Supply a scheduler hint (if available) to make the step focused
@@ -889,7 +886,7 @@ You are a creative problem-solver, not just a command executor.
 system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
-Note: Output only UNIVERSAL action lines (HEADER::params). The system will map to OS operations as needed.
+Note: Output only ONE UNIVERSAL action line (HEADER::params) as plain text (no markdown/backticks/JSON). The system will map to OS operations as needed.
 
 Target step hint: {step_hint}
 
@@ -913,8 +910,8 @@ Reply now.
             if not _has_valid_command(plan):
                 os_info = detect_os()
                 reprompt = f"""
-You did not provide any valid actionable lines. You MUST output one or more UNIVERSAL action lines (HEADER::params).
-Repeat with a stricter focus on the target step. Keep it concise and do not include any other command types.
+You did not provide a valid actionable line. You MUST output EXACTLY ONE UNIVERSAL action line (HEADER::params) as plain text.
+Repeat with a stricter focus on the target step. Do not include any additional text, markdown/backticks, or JSON.
 
 Target step hint: {step_hint}
 
@@ -923,9 +920,11 @@ system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
 
---- EXAMPLE HEADERS ---
-CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, FINISH
-CRITICAL: Use WRITE_FILE only for NEW files. Use MODIFY_FILE for existing files. Use CREATE_FILE only for empty files that don't exist yet.
+--- ALLOWED HEADERS ---
+CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH
+
+CRITICAL FILE POLICY: Use WRITE_FILE only for files that do NOT exist yet. If the file exists, you MUST use MODIFY_FILE. CREATE_FILE is only for empty files that don't exist yet.
+Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Use probe steps (READ_FILE/LIST_PATHS) when unsure.
 """
                 plan = llm.generate_text_resilient(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
@@ -953,9 +952,9 @@ CRITICAL: Use WRITE_FILE only for NEW files. Use MODIFY_FILE for existing files.
 
         # Final Summary step index depends on how many action steps we ran
         summary_guidance = (
-            "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
-            "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking the user "
-            "whether you should proceed with those suggestions. Do NOT include any actionable commands in this step."
+            "Provide a concise FINAL SUMMARY (3-5 sentences) of what has been accomplished so far, "
+            "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking whether to proceed. "
+            "Match the user's language and do NOT include any action commands in this step."
         )
         summary_prompt = f"""
 You are Pai. {summary_guidance}
