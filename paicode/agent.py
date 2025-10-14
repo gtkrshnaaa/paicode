@@ -791,7 +791,7 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
 "{user_effective_request}"
 --- END USER REQUEST ---
 """
-        scheduler_plan = llm.generate_text_resilient(scheduler_prompt)
+        scheduler_plan = llm.generate_text_resilient(scheduler_prompt, user_effective_request)
         # Sanitize accidental language tag prefix like 'json' on its own line
         sp = scheduler_plan.strip()
         if sp.lower().startswith("json"):
@@ -913,7 +913,7 @@ Target step hint: {step_hint}
 
 Reply now.
 """
-            plan = llm.generate_text_resilient(action_prompt)
+            plan = llm.generate_text_resilient(action_prompt, user_effective_request)
 
             # Hard-reprompt once if no valid command is detected
             if not _has_valid_command(plan):
@@ -935,7 +935,7 @@ CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, 
 CRITICAL FILE POLICY: Use WRITE_FILE only for files that do NOT exist yet. If the file exists, you MUST use MODIFY_FILE. CREATE_FILE is only for empty files that don't exist yet.
 Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Use probe steps (READ_FILE/LIST_PATHS) when unsure.
 """
-                plan = llm.generate_text_resilient(reprompt)
+                plan = llm.generate_text_resilient(reprompt, user_effective_request)
             renderable_group, log_string = _generate_execution_renderables(plan)
             ui.console.print(
                 Panel(
