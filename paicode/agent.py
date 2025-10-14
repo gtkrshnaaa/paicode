@@ -867,7 +867,12 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
                 "Plan and execute the next action towards the user's goal. "
                 "Output EXACTLY ONE action line using a UNIVERSAL, semantic header followed by '::' and parameters. "
                 "Allowed headers ONLY: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH. "
-                "CRITICAL FILE POLICY: Use WRITE_FILE only for brand NEW files that do not exist. If a target file already exists, you MUST use MODIFY_FILE instead. CREATE_FILE is only for empty files that don't exist yet. "
+                "CRITICAL FILE OPERATION RULES - READ THIS CAREFULLY: "
+                "1. WRITE_FILE is ONLY for creating completely NEW files that do NOT exist yet. "
+                "2. If a file already exists, you MUST use MODIFY_FILE instead of WRITE_FILE. "
+                "3. CREATE_FILE is only for creating empty placeholder files that don't exist yet. "
+                "4. NEVER attempt WRITE_FILE on existing files - the system will reject it with an error. "
+                "5. When in doubt about file existence, use READ_FILE::<path> or LIST_PATHS:: to check first. "
                 "If unsure whether a file exists, first choose a probe step like READ_FILE::<path> or LIST_PATHS::. Since you must output exactly one action per step, probe first, then modify/create on a subsequent step. "
                 "You may use EXECUTE to run a shell command, and EXECUTE_INPUT::<command>::<stdin_payload> when a program prompts for input (to pipe answers). "
                 "Note: Shell runs have a timeout (env PAI_SHELL_TIMEOUT); prefer non-interactive runs or provide stdin via EXECUTE_INPUT. "
@@ -932,7 +937,12 @@ path_separator: {os_info.path_sep}
 --- ALLOWED HEADERS ---
 CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH
 
-CRITICAL FILE POLICY: Use WRITE_FILE only for files that do NOT exist yet. If the file exists, you MUST use MODIFY_FILE. CREATE_FILE is only for empty files that don't exist yet.
+CRITICAL FILE OPERATION RULES - MEMORIZE THIS:
+1. WRITE_FILE is ONLY for creating completely NEW files that do NOT exist yet.
+2. If a file already exists, you MUST use MODIFY_FILE instead of WRITE_FILE.
+3. CREATE_FILE is only for creating empty placeholder files that don't exist yet.
+4. NEVER attempt WRITE_FILE on existing files - the system will reject it with an error.
+5. When in doubt about file existence, use READ_FILE::<path> or LIST_PATHS:: to check first.
 Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Use probe steps (READ_FILE/LIST_PATHS) when unsure.
 """
                 plan = llm.generate_text_resilient(reprompt, user_effective_request)
