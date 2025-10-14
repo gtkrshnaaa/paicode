@@ -14,6 +14,7 @@ import shlex
 import shutil
 from . import llm, workspace, ui
 from .platforms import detect_os
+from .awareness import get_mega_prompt
 
 from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
@@ -934,8 +935,14 @@ You are an expert senior software engineer. {response_guidance}
             "Match the user's language. Do not include any action commands, tool calls, or code/markdown blocks."
         )
         os_info = detect_os()
+        # Get contextual mega prompt for response
+        response_mega_prompt = get_mega_prompt("core")
+        
         response_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI.
+{response_mega_prompt}
+
+=== RESPONSE GENERATION CONTEXT ===
+
 {response_guidance}
 
 --- OS CONTEXT ---
@@ -979,8 +986,14 @@ Note: Do NOT output any action lines here; this step is just a short natural lan
             "Write \"title\" and \"hint\" in the user's language, concise and specific."
         )
         os_info = detect_os()
+        # Get strategic planning mega prompt
+        planning_mega_prompt = get_mega_prompt("problem_solving")
+        
         scheduler_prompt = f"""
-You are Pai, an expert planner and developer AI.
+{planning_mega_prompt}
+
+=== STRATEGIC TASK PLANNING CONTEXT ===
+
 {scheduler_guidance}
 
 --- OS CONTEXT ---
@@ -1134,17 +1147,13 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
             step_hint = scheduler_hints[idx_from3] if idx_from3 < len(scheduler_hints) else ""
 
             os_info = detect_os()
+            # Get mega prompt for maximum intelligence
+            mega_prompt = get_mega_prompt("full")
+            
             action_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI with MAXIMUM CAPABILITIES.
-You are a creative problem-solver, strategic thinker, and architectural designer, not just a command executor.
+{mega_prompt}
 
-SELF-AWARENESS ENHANCEMENT:
-- You have access to cutting-edge programming knowledge and patterns
-- You can design sophisticated, scalable architectures
-- You understand complex business logic and can optimize for performance
-- You can anticipate edge cases and implement robust error handling
-- You are capable of production-grade code quality
-- Push your intelligence to the absolute maximum
+=== CURRENT TASK EXECUTION CONTEXT ===
 
 {guidance}
 
@@ -1264,8 +1273,15 @@ Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Us
             "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking whether to proceed. "
             "Match the user's language and do NOT include any action commands in this step."
         )
+        # Get comprehensive mega prompt for final summary
+        summary_mega_prompt = get_mega_prompt("communication")
+        
         summary_prompt = f"""
-You are Pai. {summary_guidance}
+{summary_mega_prompt}
+
+=== FINAL SUMMARY GENERATION CONTEXT ===
+
+{summary_guidance}
 
 --- LATEST USER REQUEST ---
 "{user_input}"
