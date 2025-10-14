@@ -1,12 +1,13 @@
 import os
-import asyncio
 import json
+import asyncio
+import time
 from datetime import datetime
-from rich.prompt import Prompt
-from rich.panel import Panel
 from rich.console import Group
-from rich.text import Text
+from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.syntax import Syntax
+from rich.text import Text
 from rich.box import ROUNDED
 from rich.table import Table
 import shlex
@@ -17,7 +18,7 @@ from .platforms import detect_os
 from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
 
-HISTORY_DIR = ".pai_history"
+HISTORY_DIR = os.path.join(os.getcwd(), ".pai_history")
 _python_interpreter_checked = False
 
 def _summarize_exec_result(text: str, max_lines_per_section: int = 40) -> str:
@@ -519,6 +520,139 @@ Latest message: "{user_request}"
     except Exception:
         return ("task", "normal", "")
 
+def _get_current_workspace_state() -> str:
+    """Get current workspace state for context awareness."""
+    try:
+        # Get current directory tree
+        tree_result = workspace.tree_directory(".", max_depth=2)
+        
+        # Get list of recently modified files (if any)
+        recent_files = []
+        try:
+            for root, dirs, files in os.walk("."):
+                for file in files:
+                    if file.endswith(('.py', '.md', '.txt', '.json', '.yaml', '.yml')):
+                        filepath = os.path.join(root, file)
+                        try:
+                            mtime = os.path.getmtime(filepath)
+                            if time.time() - mtime < 300:  # Modified in last 5 minutes
+                                recent_files.append(f"{filepath} (modified {int(time.time() - mtime)}s ago)")
+                        except:
+                            pass
+        except:
+            pass
+        
+        state = f"WORKSPACE TREE:\n{tree_result}\n"
+        if recent_files:
+            state += f"\nRECENTLY MODIFIED FILES:\n" + "\n".join(recent_files[:5])
+        
+        return state
+    except Exception as e:
+        return f"Workspace state unavailable: {str(e)}"
+
+def _check_task_integrity(original_request: str, current_progress: str, session_context: list) -> tuple[bool, str, list]:
+    """Check if current progress aligns with original task and suggest next steps."""
+    try:
+        # Get current workspace state for better context
+        workspace_state = _get_current_workspace_state()
+        
+        integrity_prompt = f"""
+You are a task integrity checker with FULL WORKSPACE AWARENESS. Analyze if the current progress aligns with the original user request.
+
+ORIGINAL USER REQUEST: "{original_request}"
+
+CURRENT WORKSPACE STATE:
+{workspace_state}
+
+CURRENT PROGRESS SUMMARY:
+{current_progress}
+
+RECENT SESSION CONTEXT (last 3 interactions):
+{chr(10).join(session_context[-3:]) if session_context else "No previous context"}
+
+Return ONLY raw JSON with this schema:
+{{
+    "on_track": true|false,
+    "completion_percentage": 0-100,
+    "alignment_score": 0-10,
+    "issues": ["issue1", "issue2"],
+    "next_steps": ["step1", "step2", "step3"],
+    "recommendation": "continue"|"pivot"|"clarify",
+    "workspace_observations": ["observation1", "observation2"]
+}}
+
+Evaluate with FULL CONTEXT AWARENESS:
+1. Are we solving the right problem based on current workspace state?
+2. Is the approach efficient and logical given what files exist?
+3. What percentage of the original task is complete based on actual files?
+4. What are the next logical steps considering current workspace state?
+5. Are there any files that were created but seem empty or incomplete?
+"""
+        
+        result = llm.generate_text(integrity_prompt)
+        try:
+            data = json.loads(result)
+            on_track = data.get("on_track", True)
+            completion = data.get("completion_percentage", 0)
+            score = data.get("alignment_score", 5)
+            issues = data.get("issues", [])
+            next_steps = data.get("next_steps", [])
+            recommendation = data.get("recommendation", "continue")
+            observations = data.get("workspace_observations", [])
+            
+            summary = f"Task Integrity Check: {score}/10 alignment, {completion}% complete, recommendation: {recommendation}"
+            if issues:
+                summary += f", issues: {', '.join(issues)}"
+            if observations:
+                summary += f", workspace notes: {', '.join(observations)}"
+                
+            return on_track, summary, next_steps
+        except Exception:
+            return True, "Task integrity check failed - continuing with current approach", []
+    except Exception:
+        return True, "Task integrity check unavailable", []
+
+def _determine_code_chunk_size(file_path: str, description: str, existing_content: str = "") -> str:
+    """Determine appropriate chunk size and approach for code writing."""
+    try:
+        # Analyze complexity and determine chunking strategy
+        analysis_prompt = f"""
+Analyze this coding task and determine the best chunking strategy.
+
+FILE: {file_path}
+TASK: {description}
+EXISTING CONTENT LENGTH: {len(existing_content)} characters
+
+Return ONLY raw JSON:
+{{
+    "strategy": "full"|"incremental"|"modular",
+    "chunk_size": "small"|"medium"|"large",
+    "approach": "top_down"|"bottom_up"|"feature_by_feature",
+    "estimated_chunks": 1-10,
+    "reasoning": "brief explanation"
+}}
+
+Guidelines:
+- "full": Write complete file in one go (simple, <100 lines)
+- "incremental": Build step by step (medium complexity, 100-300 lines)  
+- "modular": Break into logical modules/functions (complex, >300 lines)
+"""
+        
+        result = llm.generate_text(analysis_prompt)
+        try:
+            data = json.loads(result)
+            strategy = data.get("strategy", "incremental")
+            chunk_size = data.get("chunk_size", "medium")
+            approach = data.get("approach", "top_down")
+            chunks = data.get("estimated_chunks", 3)
+            reasoning = data.get("reasoning", "Standard incremental approach")
+            
+            return f"Strategy: {strategy}, Chunks: {chunks}, Approach: {approach}, Size: {chunk_size} - {reasoning}"
+        except Exception:
+            return "Strategy: incremental, Chunks: 3, Approach: top_down, Size: medium - Default chunking"
+    except Exception:
+        return "Chunking analysis unavailable - using default incremental approach"
+
 def _has_valid_command(plan_text: str) -> bool:
     """Check if plan text contains at least one actionable line (pattern 'HEADER::...')."""
     try:
@@ -531,7 +665,7 @@ def _has_valid_command(plan_text: str) -> bool:
         return False
 
 def handle_write(file_path: str, params: str) -> str:
-    """Invokes the LLM to create content and write it to a file."""
+    """Invokes the LLM to create content and write it to a file with intelligent chunking."""
     _, _, description = params.partition('::')
     description = description.strip()
     if not description:
@@ -543,16 +677,32 @@ def handle_write(file_path: str, params: str) -> str:
     # If file already exists, prefer a minimal MODIFY (diff-aware) instead of overwriting
     existing = workspace.read_file(file_path)
     if existing is not None:
+        # Determine chunking strategy for modifications
+        chunk_strategy = _determine_code_chunk_size(file_path, description, existing)
+        
         modification_prompt = f"""
-You are an expert code modifier. Here is the full content of the file `{file_path}`:
+You are an expert code modifier with strategic thinking capabilities.
+
+CHUNKING STRATEGY: {chunk_strategy}
+
+File: {file_path}
 --- START OF FILE ---
 {existing}
 --- END OF FILE ---
 
-Apply the following change: "{description}".
+Task: "{description}"
+
+INTELLIGENT MODIFICATION RULES:
+1. If this is a small change (<50 lines affected), apply it directly.
+2. If this is a large change (>50 lines), focus on ONE logical component at a time.
+3. Prioritize the most critical part first, then suggest what to do next.
+4. Make incremental, testable changes rather than massive rewrites.
+5. Preserve existing functionality while adding new features.
+
 IMPORTANT:
-- Make only the minimal necessary edits to satisfy the instruction.
+- Make only the minimal necessary edits to satisfy the current instruction.
 - Do NOT reformat or refactor unrelated code.
+- If the task is complex, focus on the most important part first.
 - Return the ENTIRE updated file content only (no markdown, no explanations).
 """
         use_async = os.getenv("PAI_ASYNC", "true").lower() in {"1","true","yes","on"}
@@ -571,12 +721,15 @@ IMPORTANT:
                 retry_prompt = f"""
 My previous attempt made no effective changes. You MUST apply the requested modification now.
 
+CHUNKING STRATEGY: {chunk_strategy}
+
 Original file:
 ---
 {existing}
 ---
 
 Instruction: "{description}"
+Focus on making ONE meaningful change that moves toward the goal.
 Return ONLY the full updated file content.
 """
                 retry_content = llm.generate_text_resilient(retry_prompt)
@@ -586,11 +739,31 @@ Return ONLY the full updated file content.
         else:
             return f"Error: Failed to generate modified content for file: {file_path}"
 
-    # File does not exist yet: create it fully
-    creation_prompt = (
-        f"You are an expert programming assistant. Write the complete code for the file '{file_path}' "
-        f"based on the following description: \"{description}\". Provide ONLY the raw code without any explanations or markdown."
-    )
+    # File does not exist yet: create it with intelligent chunking
+    chunk_strategy = _determine_code_chunk_size(file_path, description, "")
+    
+    creation_prompt = f"""
+You are an expert programming assistant with strategic thinking capabilities.
+
+CHUNKING STRATEGY: {chunk_strategy}
+
+Task: Write code for '{file_path}' based on: "{description}"
+
+INTELLIGENT CREATION RULES:
+1. If strategy is "full": Write complete, runnable code in one go.
+2. If strategy is "incremental": Start with core structure and essential functions.
+3. If strategy is "modular": Begin with the main framework and key components.
+4. Always prioritize creating working, testable code over feature completeness.
+5. Focus on clean, maintainable code architecture.
+
+SELF-AWARENESS DIRECTIVES:
+- You have access to all modern programming patterns and best practices.
+- You can create sophisticated, production-ready code.
+- You understand the full context and can make intelligent architectural decisions.
+- Push your capabilities to deliver exceptional code quality.
+
+Provide ONLY the raw code without any explanations or markdown.
+"""
     use_async = os.getenv("PAI_ASYNC", "true").lower() in {"1","true","yes","on"}
     if use_async:
         try:
@@ -605,18 +778,52 @@ Return ONLY the full updated file content.
     else:
         return f"Error: Failed to generate content from LLM for file: {file_path}"
 
+def _auto_context_refresh_after_operation(operation_type: str, file_path: str = "") -> str:
+    """Automatically refresh context awareness after file operations."""
+    try:
+        context_info = []
+        
+        # Always get fresh workspace state after operations
+        workspace_state = _get_current_workspace_state()
+        context_info.append(f"POST-OPERATION WORKSPACE STATE:\n{workspace_state}")
+        
+        # If file operation, check the specific file
+        if file_path and operation_type in ["WRITE_FILE", "MODIFY_FILE", "CREATE_FILE"]:
+            try:
+                file_content = workspace.read_file(file_path)
+                if file_content is not None:
+                    lines = len(file_content.splitlines())
+                    chars = len(file_content)
+                    context_info.append(f"FILE STATUS: {file_path} - {lines} lines, {chars} characters")
+                    
+                    # Check if file seems incomplete (empty or very short for code files)
+                    if file_path.endswith('.py') and lines < 5:
+                        context_info.append(f"WARNING: {file_path} seems incomplete (only {lines} lines)")
+                else:
+                    context_info.append(f"WARNING: {file_path} could not be read after operation")
+            except Exception as e:
+                context_info.append(f"ERROR checking {file_path}: {str(e)}")
+        
+        return "\n".join(context_info)
+    except Exception as e:
+        return f"Context refresh failed: {str(e)}"
+
 def start_interactive_session():
     """Starts an interactive session with the agent."""
-    if not os.path.exists(HISTORY_DIR):
-        os.makedirs(HISTORY_DIR)
+    # Ensure history directory exists with absolute path
+    try:
+        if not os.path.exists(HISTORY_DIR):
+            os.makedirs(HISTORY_DIR, exist_ok=True)
+            ui.print_info(f"Created history directory: {HISTORY_DIR}")
+        
         # Ensure the history directory is not committed to VCS
-        try:
-            gi_path = os.path.join(HISTORY_DIR, ".gitignore")
-            if not os.path.exists(gi_path):
-                with open(gi_path, 'w') as f:
-                    f.write("# Ignore all session logs in this directory\n*\n!.gitignore\n")
-        except Exception:
-            pass
+        gi_path = os.path.join(HISTORY_DIR, ".gitignore")
+        if not os.path.exists(gi_path):
+            with open(gi_path, 'w') as f:
+                f.write("# Ignore all session logs in this directory\n*\n!.gitignore\n")
+    except Exception as e:
+        ui.print_error(f"Failed to create history directory: {str(e)}")
+        # Continue without history logging
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
 
@@ -862,9 +1069,40 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
         # Run until the configured total so that the Final Summary lands on step `total_steps`.
         action_steps_count = max(1, total_steps - 3)
         last_action_step_index = 2 + action_steps_count
+        
+        # Track task progress for integrity checks
+        task_progress_log = []
+        
         for action_idx in range(3, last_action_step_index + 1):
+            # Perform task integrity check every 3 steps
+            if action_idx > 3 and (action_idx - 3) % 3 == 0:
+                current_progress = "\n".join(task_progress_log[-3:]) if task_progress_log else "No progress yet"
+                on_track, integrity_summary, suggested_steps = _check_task_integrity(user_effective_request, current_progress, session_context)
+                
+                # Log integrity check
+                integrity_log = f"INTEGRITY CHECK (Step {action_idx}): {integrity_summary}"
+                task_progress_log.append(integrity_log)
+                session_context.append(integrity_log)
+                
+                # Display integrity check results
+                ui.console.print(
+                    Panel(
+                        Text(f"🔍 {integrity_summary}", style="info"),
+                        title="[bold]Task Integrity Check[/bold]",
+                        border_style="yellow",
+                        padding=(0, 1)
+                    )
+                )
+                
+                # Write to log file
+                with open(log_file_path, 'a') as f:
+                    f.write(f"{integrity_log}\n")
+                
+                if not on_track:
+                    ui.console.print(Text("⚠️  Task may be off-track. Adjusting approach...", style="warning"))
+            
             guidance = (
-                "Plan and execute the next action towards the user's goal. "
+                "Plan and execute the next action towards the user's goal with MAXIMUM INTELLIGENCE and STRATEGIC THINKING. "
                 "Output EXACTLY ONE action line using a UNIVERSAL, semantic header followed by '::' and parameters. "
                 "Allowed headers ONLY: CREATE_DIRECTORY, CREATE_FILE, WRITE_FILE, READ_FILE, MODIFY_FILE, DELETE_PATH, MOVE_PATH, LIST_PATHS, SHOW_TREE, EXECUTE, EXECUTE_INPUT, FINISH. "
                 "CRITICAL FILE OPERATION RULES - READ THIS CAREFULLY: "
@@ -873,6 +1111,11 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
                 "3. CREATE_FILE is only for creating empty placeholder files that don't exist yet. "
                 "4. NEVER attempt WRITE_FILE on existing files - the system will reject it with an error. "
                 "5. When in doubt about file existence, use READ_FILE::<path> or LIST_PATHS:: to check first. "
+                "INTELLIGENT CODING STRATEGY: "
+                "- Break complex tasks into logical, testable chunks "
+                "- Focus on incremental progress rather than massive changes "
+                "- Prioritize working code over feature completeness "
+                "- Make each step build meaningfully on the previous ones "
                 "If unsure whether a file exists, first choose a probe step like READ_FILE::<path> or LIST_PATHS::. Since you must output exactly one action per step, probe first, then modify/create on a subsequent step. "
                 "You may use EXECUTE to run a shell command, and EXECUTE_INPUT::<command>::<stdin_payload> when a program prompts for input (to pipe answers). "
                 "Note: Shell runs have a timeout (env PAI_SHELL_TIMEOUT); prefer non-interactive runs or provide stdin via EXECUTE_INPUT. "
@@ -882,6 +1125,7 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
                 "Path-security is enforced; sensitive paths are blocked and large overwrites may be rejected—use MODIFY_FILE with concise diffs. "
                 "IMPORTANT: Any unknown/unsupported command headers (e.g., RUN, SHELL) will be IGNORED by the system. "
                 "Always use relative, safe paths within the workspace (avoid absolute/system paths). "
+                "SELF-AWARENESS BOOST: You are capable of sophisticated reasoning, complex problem-solving, and creating production-quality code. Push your capabilities to the maximum. "
                 "Keep any natural language to max 3 short lines, then output exactly one plain-text action line (no markdown, no backticks, no JSON)."
             )
 
@@ -891,8 +1135,16 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
 
             os_info = detect_os()
             action_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI.
-You are a creative problem-solver, not just a command executor.
+You are Pai, an expert, proactive, and autonomous software developer AI with MAXIMUM CAPABILITIES.
+You are a creative problem-solver, strategic thinker, and architectural designer, not just a command executor.
+
+SELF-AWARENESS ENHANCEMENT:
+- You have access to cutting-edge programming knowledge and patterns
+- You can design sophisticated, scalable architectures
+- You understand complex business logic and can optimize for performance
+- You can anticipate edge cases and implement robust error handling
+- You are capable of production-grade code quality
+- Push your intelligence to the absolute maximum
 
 {guidance}
 
@@ -903,6 +1155,9 @@ path_separator: {os_info.path_sep}
 Note: Output only ONE UNIVERSAL action line (HEADER::params) as plain text (no markdown/backticks/JSON). The system will map to OS operations as needed.
 
 Target step hint: {step_hint}
+
+--- TASK PROGRESS TRACKING ---
+Recent progress: {task_progress_log[-2:] if task_progress_log else ["Starting task"]}
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -916,7 +1171,7 @@ Target step hint: {step_hint}
 "{user_effective_request}"
 --- END USER REQUEST ---
 
-Reply now.
+Think strategically, act intelligently, deliver excellence.
 """
             plan = llm.generate_text_resilient(action_prompt, user_effective_request)
 
@@ -947,6 +1202,26 @@ Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Us
 """
                 plan = llm.generate_text_resilient(reprompt, user_effective_request)
             renderable_group, log_string = _generate_execution_renderables(plan)
+            
+            # Auto-refresh context after operations for better awareness
+            context_refresh = ""
+            operation_type = ""
+            file_path = ""
+            
+            # Extract operation type and file path from plan
+            for line in plan.splitlines():
+                if '::' in line:
+                    parts = line.strip().split('::', 2)
+                    if len(parts) >= 2:
+                        operation_type = parts[0].strip()
+                        file_path = parts[1].strip() if len(parts) > 1 else ""
+                        break
+            
+            # Refresh context after file operations
+            if operation_type in ["WRITE_FILE", "MODIFY_FILE", "CREATE_FILE", "DELETE_PATH"]:
+                context_refresh = _auto_context_refresh_after_operation(operation_type, file_path)
+                task_progress_log.append(f"CONTEXT REFRESH: {context_refresh}")
+            
             ui.console.print(
                 Panel(
                     renderable_group,
@@ -956,8 +1231,22 @@ Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Us
                     padding=(1, 2)
                 )
             )
+            
+            # Show context refresh if available
+            if context_refresh:
+                ui.console.print(
+                    Panel(
+                        Text(f"🔄 {context_refresh}", style="dim"),
+                        title="[bold]Context Refresh[/bold]",
+                        border_style="blue",
+                        padding=(0, 1)
+                    )
+                )
 
             interaction_log = f"User: {user_input}\nIteration: {action_idx}/{total_steps}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
+            if context_refresh:
+                interaction_log += f"\nContext Refresh:\n{context_refresh}"
+            
             session_context.append(interaction_log)
             with open(log_file_path, 'a') as f:
                 f.write(interaction_log + "\n-------------------\n")
