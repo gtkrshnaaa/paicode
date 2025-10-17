@@ -21,35 +21,18 @@ Pai Code is built on a set of guiding principles that define its purpose and des
 
 The project uses a standard Python package structure and is packaged with pip/setuptools.
 
-```
-
-### Running interactive CLI via EXECUTE_INPUT
-
-When a script waits for user input, the agent can provide stdin directly using `EXECUTE_INPUT::<command>::<stdin_payload>`.
-
-Examples:
-
 ```text
-# Provide five answers (each "1") to a math game script
-EXECUTE_INPUT::python3 math_game.py::1\n1\n1\n1\n1\n
-# Provide a name and a number to a demo CLI program
-EXECUTE_INPUT::python3 demo_cli.py::Alice\n42\n
-# Shell-style alternative without EXECUTE_INPUT
-EXECUTE::bash -lc "printf 'y\n42\n' | python3 demo_cli.py"
-```
-
-Notes:
-- Shell execution has a timeout (default 20s, set `PAI_SHELL_TIMEOUT`). If you need longer input sessions, prefer `EXECUTE_INPUT` with the full payload.
-- The agent prints the command it runs (verbose) and returns a clear timeout warning if the program still waits for input.
 paicode/          <-- Project Root
 ├── paicode/      <-- Python Package
 │   ├── __init__.py
 │   ├── agent.py      # The agent's core logic and prompt engineering
 │   ├── cli.py        # The main conversational CLI entry point
 │   ├── config.py     # Secure API key management
-│   ├── workspace.py # Workspace operations gateway: application-level file ops, path-security, diff-aware modify
+│   ├── workspace.py  # Workspace operations gateway: application-level file ops, path-security, diff-aware modify
 │   ├── llm.py        # Bridge to the Large Language Model
-│   └── ui.py         # Rich TUI components
+│   ├── ui.py         # Rich TUI components
+│   ├── awareness.py  # System prompt and awareness helpers
+│   └── platforms.py  # OS detection and metadata for command preview
 │
 ├── .gitignore
 ├── README.md
@@ -184,8 +167,10 @@ This removes `~/.local/bin/pai` and cleans up the PATH line added by the install
 
 Security is a core design principle of Pai Code.
 
-  * **Secure Key Storage:** Your API key is never stored in the project directory. It is placed in a `.config` folder in your home directory with `600` file permissions, meaning only your user account can access it.
-  * **Sensitive Path Blocking (Path Security):** The agent enforces a policy to block access to sensitive files and directories like `.env`, `.git`, `venv/`, and IDE-specific folders. This is implemented by a centralized workspace gateway (`workspace.py`) that inspects every application-level file operation in the project workspace.
+  * **Secure Key Storage:** Your API key is never stored in the project directory. It is placed at `~/.config/pai-code/credentials.json` with secure permissions. The config directory is created with `700` and the credentials file is saved with `600` permissions, ensuring only your user can access it (see `paicode/config.py`).
+  * **Sensitive Path Blocking (Path Security):** The agent enforces a policy to block access to sensitive files and directories. Deny-list (exact per code): `.env`, `.git`, `venv`, `__pycache__`, `.pai_history`, `.idea`, `.vscode`. Enforcement lives in the centralized workspace gateway (`paicode/workspace.py`) which validates every application-level file operation.
+  * **Audit Trail:** Execution logs for shell activity are stored under `.pai_history/` in your project root. A `.gitignore` is auto-created inside to prevent accidental commits (see `paicode/workspace.py`).
+  * **Network Guard for Shell:** Obvious network operations are blocked by default (set `PAI_ALLOW_NET=true` to enable). Indicators include: `curl`, `wget`, `http(s)://`, `git clone`, `pip install`, `apt`, `npm`, `yarn`, `brew`, `ssh`, `scp`.
 
 -----
 
@@ -381,8 +366,14 @@ A typical interaction follows this stateful data flow:
 
 As a developer, you can easily extend Pai's internal capabilities:
 
-  * **Add New Agent Commands:** Add a command to `VALID_COMMANDS` in `agent.py`, create a corresponding function in `workspace.py`, and add the handling logic in `_generate_execution_renderables`. This gives the agent a new tool to use in its planning.
+  * **Add New Agent Commands:** Implement the handling logic inside `paicode/agent.py` (see `_generate_execution_renderables()` for how semantic headers like `READ_FILE::...` are parsed and executed) and add the corresponding primitive in `paicode/workspace.py` if it touches the filesystem. Then document the new command in this README under "Internal Agent Commands".
   * **Tune the Agent's Persona:** The core personality and reasoning process of the agent lives in the `prompt` variable in `agent.py`. By modifying this prompt, you can change its behavior, specialize it for a specific framework, or alter its programming style.
+
+### **Execution Policy and Safety**
+
+  * The workspace root is determined at runtime as the current working directory when you start `pai` (see `paicode/workspace.py` `PROJECT_ROOT = os.path.abspath(os.getcwd())`). All file operations are constrained within this root.
+  * The agent enforces a single-command-per-step policy during plan execution to improve transparency and safety. If multiple actions are produced, only the first is executed (see `paicode/agent.py`).
+  * OS command previews are shown for transparency before executing actions, and shell commands are subject to timeout and optional streaming. The preview header includes detected OS, shell, and path separator (see `paicode/platforms.py`).
 
 ### **Technology Stack**
 
@@ -405,29 +396,9 @@ To avoid misunderstanding:
 
 -----
 
-## **8. Installation and Setup**
+## **8. Installation (Reference)**
 
-### **Linux/macOS**
-
-1.  Clone the repository: `git clone https://github.com/your-username/pai.git`
-2.  Navigate to the cloned directory: `cd pai`
-3.  Create a virtual environment: `python3 -m venv .venv`
-4.  Activate the virtual environment: `source .venv/bin/activate` (Linux/macOS)
-5.  Install dependencies: `pip install -r requirements.txt`
-6.  Install the `pai` launcher: `make install-cli`
-7.  Verify installation: `pai --version`
-
-### **Windows**
-
-1.  Clone the repository: `git clone https://github.com/your-username/pai.git`
-2.  Navigate to the cloned directory: `cd pai`
-3.  Create a virtual environment: `python -m venv .venv`
-4.  Activate the virtual environment: `.venv\Scripts\activate` (Windows)
-5.  Install dependencies: `pip install -r requirements.txt`
-6.  Install the `pai` launcher: `make install-cli`
-7.  Verify installation: `pai --version`
-
------
+For installation instructions, see Section 3: Installation and Setup. It covers Linux/macOS (Makefile or manual) and Windows (PowerShell) paths, along with launcher installation and verification steps.
 
 ## **9. CLI Command Reference**
 
@@ -496,6 +467,16 @@ Tune the runtime behavior via environment variables:
   - Enable shell execution primitives.
 - PAI_ALLOW_NET (default: false)
   - Allow commands with obvious network access (curl, wget, pip install, git clone, etc.).
+- PAI_MODEL (default: gemini-2.5-flash)
+  - Default model used by the LLM backend. Can be overridden at runtime via CLI flags or env.
+- PAI_TEMPERATURE (default: 0.4)
+  - Default sampling temperature for the LLM backend.
+- PAI_MAX_INFERENCE_RETRIES (default: 25)
+  - Maximum attempts for resilient text generation with backoff (see `paicode/llm.py`).
+- PAI_MAX_CMDS_PER_STEP (default: 15, capped to 50)
+  - Upper bound guard for plan lines per step before truncation (see `paicode/agent.py`).
+- PAI_EARLY_FINISH_NOOP (default: 3)
+  - Early finish heuristic after this many consecutive no-op/duplicate actions (see `paicode/agent.py`).
 
 Examples:
 
@@ -513,3 +494,23 @@ export PAI_ASYNC=true
 EXECUTE_INPUT::python3 demo_cli.py::Alice\n42\n
 # Alternative: shell pipe (identical effect)
 EXECUTE::bash -lc "printf 'Alice\n42\n' | python3 demo_cli.py"
+```
+
+## **11. Internal Agent Commands**
+
+These semantic headers are recognized and executed by the agent (see `paicode/agent.py` and `paicode/workspace.py`). Only one action is executed per step.
+
+- CREATE_DIRECTORY::<path>
+- CREATE_FILE::<path>
+- READ_FILE::<path>
+- WRITE_FILE::<path>::<description>
+- MODIFY_FILE::<path>::<description>
+- DELETE_PATH::<path>
+- MOVE_PATH::<src>::<dst>
+- SHOW_TREE::<path>
+- LIST_PATHS::<path>
+- EXECUTE::<shell_command>
+- EXECUTE_INPUT::<shell_command>::<stdin_payload>
+- FINISH::<message>
+
+Each action is checked against path-security rules. OS-specific command previews are shown before execution.
