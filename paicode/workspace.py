@@ -34,6 +34,7 @@ SENSITIVE_PATTERNS = {
     '.env', 
     '.git', 
     'venv', 
+    '.venv',
     '__pycache__', 
     '.pai_history', 
     '.idea', 
@@ -216,8 +217,13 @@ def _is_path_safe(path: str) -> bool:
 
     return True
 
-def tree_directory(path: str = '.') -> str:
-    """Creates a string representation of the directory structure recursively."""
+def tree_directory(path: str = '.', max_depth: int | None = None) -> str:
+    """Creates a string representation of the directory structure recursively.
+
+    Args:
+        path: Base path to render from (relative to PROJECT_ROOT).
+        max_depth: Optional depth limit (0 means only the base dir, 1 includes its children, etc.).
+    """
     if not _is_path_safe(path):
         return f"Error: Cannot access path '{path}'."
 
@@ -227,7 +233,10 @@ def tree_directory(path: str = '.') -> str:
 
     tree_lines = [f"{os.path.basename(full_path)}/"]
 
-    def build_tree(directory, prefix=""):
+    def build_tree(directory, prefix="", depth=0):
+        # Respect depth limit if provided
+        if max_depth is not None and depth >= max_depth:
+            return
         try:
             items = sorted([item for item in os.listdir(directory) if item not in SENSITIVE_PATTERNS])
         except FileNotFoundError:
@@ -240,7 +249,7 @@ def tree_directory(path: str = '.') -> str:
             item_path = os.path.join(directory, item)
             if os.path.isdir(item_path):
                 extension = '│   ' if pointer == '├── ' else '    '
-                build_tree(item_path, prefix=prefix + extension)
+                build_tree(item_path, prefix=prefix + extension, depth=depth + 1)
 
     build_tree(full_path)
     return "\n".join(tree_lines)
@@ -416,8 +425,13 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
     # No size-based rejection: apply any non-empty diff (user prefers iterative focus without hard limits)
 
     try:
-        write_to_file(file_path, new_content)
-        return True, f"Success: Applied modification to {file_path} ({changed_lines_count} lines changed)."
+        msg = write_to_file(file_path, new_content)
+        ok = isinstance(msg, str) and msg.startswith("Success")
+        # Preserve accurate downstream logging (do not fabricate success)
+        if ok:
+            return True, f"Success: Applied modification to {file_path} ({changed_lines_count} lines changed)."
+        else:
+            return False, msg
     except IOError as e:
         return False, f"Error: Failed to write modification to file: {e}"
 

@@ -22,6 +22,13 @@ from pygments.util import ClassNotFound
 HISTORY_DIR = os.path.join(os.getcwd(), ".pai_history")
 _python_interpreter_checked = False
 
+def _system_directive() -> str:
+    return (
+        "You are the LLM brain operating inside PaiCode. Always act as an agent that outputs at most one actionable line using HEADER:: syntax when planning actions. "
+        "Respect single-command-per-step. Prefer minimal, targeted edits. If a modification results in no changes, propose a more explicit patch or read the file first. "
+        "Avoid unrelated refactors. Never include markdown fences in code responses."
+    )
+
 def _summarize_exec_result(text: str, max_lines_per_section: int = 40) -> str:
     """Trim very long STDOUT/STDERR sections for summary display (streaming already shows full)."""
     try:
@@ -51,7 +58,7 @@ def _summarize_exec_result(text: str, max_lines_per_section: int = 40) -> str:
     except Exception:
         return text
 
-def _generate_execution_renderables(plan: str, omit_long_response: bool = True) -> tuple[Group, str]:
+def _generate_execution_renderables(plan: str, omit_long_response: bool = True, injected_thought: str = "") -> tuple[Group, str]:
     """
     Executes the plan, generates Rich renderables for display, and creates a detailed log string.
     """
@@ -78,12 +85,40 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
     early_noop_threshold = max(1, min(early_noop_threshold, 10))
     noop_streak = 0
 
+    # Helper: append a post-write verification of a file's current state
+    def _append_post_write_verification(path: str) -> None:
+        try:
+            curr = workspace.read_file(path)
+            if curr is None:
+                renderables.append(Text(f"Post-Write Verification: Unable to read '{path}'.", style="warning"))
+                log_results.append(f"Post-Write Verification: Unable to read '{path}'.")
+                return
+            line_count = len(curr.splitlines())
+            char_count = len(curr)
+            msg = f"Post-Write Verification: {path} - {line_count} lines, {char_count} characters"
+            renderables.append(Text(msg, style="dim"))
+            log_results.append(msg)
+        except Exception:
+            pass
+
     for line in all_lines:
         if '::' not in line:
             response_lines.append(line)
             continue
         else:
             plan_lines.append(line)
+
+    # Filter only allowed headers to avoid executing/logging unsupported ones
+    allowed_headers = {
+        "CREATE_DIRECTORY","CREATE_FILE","WRITE_FILE","READ_FILE","MODIFY_FILE",
+        "DELETE_PATH","MOVE_PATH","LIST_PATHS","SHOW_TREE","EXECUTE","EXECUTE_INPUT","FINISH"
+    }
+    filtered_plan = []
+    for pl in plan_lines:
+        hdr = pl.split('::', 1)[0].strip().upper()
+        if hdr in allowed_headers:
+            filtered_plan.append(pl)
+    plan_lines = filtered_plan
 
     # Helper to detect probable code/content blocks in Agent Response
     def _looks_like_code(s: str) -> bool:
@@ -136,6 +171,19 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
         log_results.append("\n".join(plan_lines))
 
     # No warnings about unknown commands; all structured lines with '::' are considered actionable
+
+    # Render Thought section (if provided by caller)
+    show_thoughts = os.getenv('PAI_SHOW_THOUGHTS', 'true').lower() in {'1','true','yes','on'}
+    if show_thoughts and injected_thought:
+        renderables.append(
+            Panel(
+                Text(injected_thought, style="info"),
+                title="[bold]Thought[/bold]",
+                border_style="green",
+                padding=(0, 1)
+            )
+        )
+        log_results.append("Thought:\n" + injected_thought)
 
     # Show OS Command Preview translating plan lines to platform-specific shell commands
     if plan_lines:
@@ -239,6 +287,7 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
                         continue
 
                     result = handle_write(file_path, params)
+                    _append_post_write_verification(file_path)
                 
             elif internal_op == "READ_FILE":
                     path_to_read, _, _ = params.partition('::')
@@ -285,6 +334,114 @@ def _generate_execution_renderables(plan: str, omit_long_response: bool = True) 
                         log_results.append(result)
                         continue
 
+                    # Heuristic: if description looks like inline full content (code block or CSS), apply directly
+                    def _strip_code_fences(txt: str) -> str:
+                        t = txt.strip()
+                        if t.startswith("```") and t.endswith("```"):
+                            # Remove first and last fence line
+                            lines = t.splitlines()
+                            if len(lines) >= 2:
+                                # drop first and last
+                                inner = "\n".join(lines[1:-1])
+                                return inner
+                        return txt
+
+                    desc_clean = _strip_code_fences(description)
+                    looks_like_inline_code = ("\n" in desc_clean) and (
+                        ("{" in desc_clean and "}" in desc_clean) or  # CSS/JS-like
+                        desc_clean.lstrip().startswith("/*") or         # CSS comment header
+                        desc_clean.lstrip().startswith("<!DOCTYPE") or  # HTML
+                        desc_clean.lstrip().startswith("import ") or    # code
+                        desc_clean.lstrip().startswith("--- a/")        # diff header (not fully supported)
+                    )
+
+                    if looks_like_inline_code and not desc_clean.lstrip().startswith("--- a/"):
+                        # Treat description as the intended full file content
+                        new_content_inline = desc_clean
+                        success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_inline)
+                        result = message
+                        style = "success" if success else "warning"
+                        icon = "✓ " if success else "! "
+                        _append_post_write_verification(file_path)
+                    else:
+                        # If unified diff is provided, reconstruct the new content and apply
+                        if desc_clean.lstrip().startswith("--- a/"):
+                            def _extract_new_from_unified_diff(patch_text: str) -> str:
+                                lines = patch_text.splitlines()
+                                out: list[str] = []
+                                for ln in lines:
+                                    if not ln:
+                                        continue
+                                    if ln.startswith('+++') or ln.startswith('---') or ln.startswith('@@'):
+                                        continue
+                                    ch = ln[0]
+                                    if ch == '+':
+                                        out.append(ln[1:])
+                                    elif ch == ' ':
+                                        out.append(ln[1:])
+                                    elif ch == '-':
+                                        continue
+                                    else:
+                                        out.append(ln)
+                                return "\n".join(out) + ("\n" if patch_text.endswith("\n") else "")
+
+                            try:
+                                new_content = _extract_new_from_unified_diff(desc_clean)
+                                success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content)
+                                result = message
+                                style = "success" if success else "warning"
+                                icon = "✓ " if success else "! "
+                                _append_post_write_verification(file_path)
+                            except Exception as e:
+                                result = f"Error: Failed to apply unified diff for '{file_path}': {e}"
+                                style = "error"; icon = "✗ "
+                        else:
+                            # Fallback to intelligent LLM-driven modification
+                            modification_prompt_1 = f"""
+You are an expert code modifier. Here is the full content of the file `{file_path}`:
+--- START OF FILE ---
+{original_content}
+--- END OF FILE ---
+
+Based on the file content above, apply the following modification: "{description}".
+IMPORTANT: You must only change the relevant parts of the code. Do not refactor, reformat, or alter any other part of the file.
+Provide back the ENTIRE, complete file content with the modification applied. Provide ONLY the raw code without any explanations or markdown.
+"""
+                        new_content_1 = llm.generate_text_resilient(modification_prompt_1)
+
+                        if new_content_1:
+                            success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_1)
+                            
+                            if success and "No changes detected" in message:
+                                renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
+                                
+                                modification_prompt_2 = f"""
+My first attempt to modify the file failed because the model returned the code completely unchanged.
+You MUST apply the requested change now. Be very literal and precise.
+
+Original file content to be modified:
+---
+{original_content}
+---
+
+The user's explicit instruction is: "{description}".
+This is a bug-fixing or specific modification task. You must return the complete, corrected code content. 
+Provide ONLY the raw code without any explanations or markdown.
+"""
+                                
+                                new_content_2 = llm.generate_text_resilient(modification_prompt_2)
+                                
+                                if new_content_2:
+                                    success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_2)
+                            
+                            result = message
+                            style = "success" if success else "warning"
+                            icon = "✓ " if success else "! "
+                            _append_post_write_verification(file_path)
+                        else:
+                            result = f"Error: LLM failed to generate content for modification of '{file_path}'."
+                            style = "error"; icon = "✗ "
+
                     modification_prompt_1 = f"""
 You are an expert code modifier. Here is the full content of the file `{file_path}`:
 --- START OF FILE ---
@@ -325,6 +482,7 @@ Provide ONLY the raw code without any explanations or markdown.
                         result = message
                         style = "success" if success else "warning"
                         icon = "✓ " if success else "! "
+                        _append_post_write_verification(file_path)
                     else:
                         result = f"Error: LLM failed to generate content for modification of '{file_path}'."
                         style = "error"; icon = "✗ "
@@ -477,6 +635,32 @@ Provide ONLY the raw code without any explanations or markdown.
                         renderables.append(Text(f"✓ Agent: {finish_msg}", style="success"))
                         log_results.append(finish_msg)
                         break
+
+                    # Minimal result interpreter: suggest concrete next steps when ineffective
+                    try:
+                        suggestions: list[str] = []
+                        low = result.lower()
+                        if "no changes detected" in low and internal_op == "MODIFY_FILE":
+                            # Encourage reading file or using a more explicit patch
+                            target_path, _, _ = params.partition('::')
+                            if target_path:
+                                suggestions.append(f"READ_FILE::{target_path}")
+                                suggestions.append(f"MODIFY_FILE::{target_path}::Apply an explicit, line-anchored patch that changes the relevant section.")
+                        elif "does not exist" in low and internal_op == "MODIFY_FILE":
+                            target_path, _, _ = params.partition('::')
+                            if target_path:
+                                suggestions.append(f"WRITE_FILE::{target_path}::Create initial valid content based on the user's intent, then refine.")
+                        elif "timed out" in low and internal_op in {"EXECUTE", "EXECUTE_INPUT"}:
+                            # Suggest non-interactive or provide stdin
+                            suggestions.append("Use EXECUTE_INPUT with the required stdin payload or switch to a non-interactive command.")
+                        # Show guidance panel if we have suggestions
+                        if suggestions:
+                            renderables.append(Text("Guidance:", style="bold underline"))
+                            for s in suggestions[:3]:
+                                renderables.append(Text(f"- {s}", style="plan"))
+                            log_results.append("\n".join(["Guidance:"] + suggestions[:3]))
+                    except Exception:
+                        pass
 
         except Exception as e:
             msg = f"An exception occurred while processing '{action}': {e}"
@@ -655,11 +839,18 @@ Guidelines:
         return "Chunking analysis unavailable - using default incremental approach"
 
 def _has_valid_command(plan_text: str) -> bool:
-    """Check if plan text contains at least one actionable line (pattern 'HEADER::...')."""
+    """Check if plan text contains at least one actionable line with an allowed header."""
     try:
-        for line in (plan_text or "").splitlines():
-            if '::' in line:
-                # At least appears to be an action line
+        allowed = {
+            "CREATE_DIRECTORY","CREATE_FILE","WRITE_FILE","READ_FILE","MODIFY_FILE",
+            "DELETE_PATH","MOVE_PATH","LIST_PATHS","SHOW_TREE","EXECUTE","EXECUTE_INPUT","FINISH"
+        }
+        for raw in (plan_text or "").splitlines():
+            line = raw.strip()
+            if '::' not in line:
+                continue
+            header = line.split('::', 1)[0].strip().upper()
+            if header in allowed:
                 return True
         return False
     except Exception:
@@ -682,6 +873,7 @@ def handle_write(file_path: str, params: str) -> str:
         chunk_strategy = _determine_code_chunk_size(file_path, description, existing)
         
         modification_prompt = f"""
+{_system_directive()}
 You are an expert code modifier with strategic thinking capabilities.
 
 CHUNKING STRATEGY: {chunk_strategy}
@@ -720,6 +912,7 @@ IMPORTANT:
             if success and "No changes detected" in message:
                 # Retry with stricter wording
                 retry_prompt = f"""
+{_system_directive()}
 My previous attempt made no effective changes. You MUST apply the requested modification now.
 
 CHUNKING STRATEGY: {chunk_strategy}
@@ -744,6 +937,7 @@ Return ONLY the full updated file content.
     chunk_strategy = _determine_code_chunk_size(file_path, description, "")
     
     creation_prompt = f"""
+{_system_directive()}
 You are an expert programming assistant with strategic thinking capabilities.
 
 CHUNKING STRATEGY: {chunk_strategy}
@@ -939,6 +1133,7 @@ You are an expert senior software engineer. {response_guidance}
         response_mega_prompt = get_mega_prompt("core")
         
         response_prompt = f"""
+{_system_directive()}
 {response_mega_prompt}
 
 === RESPONSE GENERATION CONTEXT ===
@@ -990,6 +1185,7 @@ Note: Do NOT output any action lines here; this step is just a short natural lan
         planning_mega_prompt = get_mega_prompt("problem_solving")
         
         scheduler_prompt = f"""
+{_system_directive()}
 {planning_mega_prompt}
 
 === STRATEGIC TASK PLANNING CONTEXT ===
@@ -1151,6 +1347,7 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
             mega_prompt = get_mega_prompt("full")
             
             action_prompt = f"""
+{_system_directive()}
 {mega_prompt}
 
 === CURRENT TASK EXECUTION CONTEXT ===
@@ -1161,7 +1358,6 @@ Policy: Prefer analyzing existing local files in the workspace. Do NOT plan step
 system_os: {os_info.name}
 shell: {os_info.shell}
 path_separator: {os_info.path_sep}
-Note: Output only ONE UNIVERSAL action line (HEADER::params) as plain text (no markdown/backticks/JSON). The system will map to OS operations as needed.
 
 Target step hint: {step_hint}
 
@@ -1182,12 +1378,16 @@ Recent progress: {task_progress_log[-2:] if task_progress_log else ["Starting ta
 
 Think strategically, act intelligently, deliver excellence.
 """
+            _t0 = time.perf_counter()
             plan = llm.generate_text_resilient(action_prompt, user_effective_request)
+            _t1 = time.perf_counter()
+            plan_latency = max(0.0, _t1 - _t0)
 
             # Hard-reprompt once if no valid command is detected
             if not _has_valid_command(plan):
                 os_info = detect_os()
                 reprompt = f"""
+{_system_directive()}
 You did not provide a valid actionable line. You MUST output EXACTLY ONE UNIVERSAL action line (HEADER::params) as plain text.
 Repeat with a stricter focus on the target step. Do not include any additional text, markdown/backticks, or JSON.
 
@@ -1210,7 +1410,29 @@ CRITICAL FILE OPERATION RULES - MEMORIZE THIS:
 Unknown/unsupported headers (e.g., RUN, SHELL) will be ignored by the system. Use probe steps (READ_FILE/LIST_PATHS) when unsure.
 """
                 plan = llm.generate_text_resilient(reprompt, user_effective_request)
-            renderable_group, log_string = _generate_execution_renderables(plan)
+            # Build automatic Thought text based on latency and planned action
+            def _auto_thought(latency_s: float, plan_text: str, hint: str) -> str:
+                # Parse first actionable line
+                header = ""
+                param = ""
+                for raw in (plan_text or "").splitlines():
+                    if '::' in raw:
+                        parts = raw.strip().split('::', 2)
+                        if len(parts) >= 2:
+                            header = parts[0].strip().upper()
+                            param = parts[1].strip()
+                            break
+                dur = f"{latency_s:.1f}s" if latency_s < 10 else f"{int(round(latency_s))}s"
+                core = f"Thought for {dur}"
+                details: list[str] = []
+                if header:
+                    details.append(f"Next: {header}::{param}" if param else f"Next: {header}")
+                if hint:
+                    details.append(f"Hint: {hint}")
+                return "\n".join([core] + [f"- {d}" for d in details]) if details else core
+
+            thought_text = _auto_thought(plan_latency, plan, step_hint)
+            renderable_group, log_string = _generate_execution_renderables(plan, injected_thought=thought_text)
             
             # Auto-refresh context after operations for better awareness
             context_refresh = ""
