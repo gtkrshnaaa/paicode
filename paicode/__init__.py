@@ -8,7 +8,6 @@ __all__ = [
     "agent",
     "cli",
     "config",
-    "fs",
     "llm",
     "ui",
     "workspace",

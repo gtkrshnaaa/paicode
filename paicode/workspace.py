@@ -1,6 +1,7 @@
 import os
 import shutil
 import difflib
+import tempfile
 from . import ui
 
 """
@@ -201,7 +202,7 @@ def write_to_file(file_path: str, content: str) -> str:
 
 
 
-def apply_modification_with_patch(file_path: str, original_content: str, new_content: str, threshold: int = 50) -> tuple[bool, str]:
+def apply_modification_with_patch(file_path: str, original_content: str, new_content: str, threshold: int = 120) -> tuple[bool, str]:
     """
     Applies a modification to a file safely by first verifying the scope of changes.
 
@@ -223,28 +224,74 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
     if not _is_path_safe(file_path):
         return False, f"Error: Access to path '{file_path}' is denied or path is not secure."
 
-    original_lines = original_content.splitlines(keepends=True)
-    new_lines = new_content.splitlines(keepends=True)
+    # Normalize line endings to reduce false-positive diffs
+    original_norm = original_content.replace('\r\n', '\n').replace('\r', '\n')
+    new_norm = new_content.replace('\r\n', '\n').replace('\r', '\n')
 
-    diff = list(difflib.unified_diff(original_lines, new_lines, fromfile=f"a/{file_path}", tofile=f"b/{file_path}"))
-    
-    changed_lines_count = sum(1 for line in diff if line.startswith('+') or line.startswith('-'))
-    
-    if not diff:
+    original_lines = original_norm.splitlines(keepends=True)
+    new_lines = new_norm.splitlines(keepends=True)
+
+    diff = list(difflib.unified_diff(
+        original_lines,
+        new_lines,
+        fromfile=f"a/{file_path}",
+        tofile=f"b/{file_path}"
+    ))
+
+    # Count only actual change lines, ignore headers and context lines
+    def _count_changes(d: list[str]) -> tuple[int, int, int]:
+        adds = deletes = 0
+        for line in d:
+            if line.startswith('@@') or line.startswith('+++') or line.startswith('---') or (line and line[0] == ' '):
+                continue
+            if line.startswith('+'):
+                adds += 1
+            elif line.startswith('-'):
+                deletes += 1
+        return adds + deletes, adds, deletes
+
+    changed_lines_count, add_count, del_count = _count_changes(diff)
+
+    if not diff or changed_lines_count == 0:
         return True, f"Success: No changes detected for {file_path}. File left untouched."
 
-    if changed_lines_count > threshold:
-        diff_preview = "\n".join(diff[:20]) 
+    # Allow configuring thresholds via environment
+    try:
+        env_threshold = int(os.getenv('PAI_MODIFY_THRESHOLD', str(threshold)))
+        if env_threshold < 1:
+            env_threshold = threshold
+    except ValueError:
+        env_threshold = threshold
+
+    try:
+        max_ratio = float(os.getenv('PAI_MODIFY_MAX_RATIO', '0.5'))  # up to 50% of lines by default
+        if not (0.0 < max_ratio <= 1.0):
+            max_ratio = 0.5
+    except ValueError:
+        max_ratio = 0.5
+
+    total_lines = max(1, len(original_lines))
+    ratio = changed_lines_count / total_lines
+
+    if changed_lines_count > env_threshold and ratio > max_ratio:
+        diff_preview = "\n".join(diff[:60])
         message = (
             f"Warning: Modification for '{file_path}' rejected. "
-            f"The change was too large ({changed_lines_count} lines), exceeding the threshold of {threshold} lines. "
-            f"This is a safeguard to prevent accidental overwrites.\n"
-            f"Diff Preview:\n{diff_preview}"
+            f"Change too large: {changed_lines_count} lines (~{ratio:.1%}) exceeds threshold {env_threshold} and ratio {max_ratio:.0%}.\n"
+            f"Diff Preview (first 60 lines):\n{diff_preview}"
         )
         return False, message
 
+    # Atomic write to avoid partial writes
     try:
-        write_to_file(file_path, new_content)
-        return True, f"Success: Applied modification to {file_path} ({changed_lines_count} lines changed)."
+        full_path = os.path.join(PROJECT_ROOT, file_path)
+        dir_name = os.path.dirname(full_path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+        with tempfile.NamedTemporaryFile('w', delete=False, dir=dir_name) as tmp:
+            tmp.write(new_norm)
+            tmp_name = tmp.name
+        os.replace(tmp_name, full_path)
+        return True, f"Success: Applied modification to {file_path} ({changed_lines_count} lines changed; +{add_count}/-{del_count})."
     except IOError as e:
         return False, f"Error: Failed to write modification to file: {e}"

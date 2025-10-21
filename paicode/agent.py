@@ -139,6 +139,10 @@ You are an expert code modifier. Here is the full content of the file `{file_pat
 Based on the file content above, apply the following modification: "{description}".
 IMPORTANT: You must only change the relevant parts of the code. Do not refactor, reformat, or alter any other part of the file.
 Provide back the ENTIRE, complete file content with the modification applied. Provide ONLY the raw code without any explanations or markdown.
+
+Hard constraints for safety:
+- Apply at most 120 changed lines in this single modification step.
+- If the requested change would exceed that, restrict this step to a coherent subset (e.g., one function/region) so that the total diff stays within 120 lines. Larger changes must be split across multiple steps.
 """
                     new_content_1 = llm.generate_text(modification_prompt_1)
 
@@ -160,6 +164,9 @@ Original file content to be modified:
 The user's explicit instruction is: "{description}".
 This is a bug-fixing or specific modification task. You must return the complete, corrected code content. 
 Provide ONLY the raw code without any explanations or markdown.
+
+Hard constraints for safety:
+- Maximum 120 changed lines per step. If more is needed overall, only modify a focused subset now and leave the rest for subsequent steps.
 """
                             
                             new_content_2 = llm.generate_text(modification_prompt_2)
@@ -533,6 +540,7 @@ You are Pai, an expert planner and developer AI.
                 "Plan and execute the next actions towards the user's goal. "
                 "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when it is efficient and safe. "
                 "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
+                "For MODIFY specifically, keep each modification under a hard cap of 120 changed lines; if the overall change is larger (e.g., ~300 lines), split it into multiple focused MODIFY steps across iterations (e.g., ~100 lines each) to stay within the cap. "
                 "Do NOT output any other command type (e.g., RUN). Keep natural language to max 3 short lines followed by 1..N command lines."
             )
 
