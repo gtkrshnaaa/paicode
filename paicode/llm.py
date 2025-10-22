@@ -21,6 +21,10 @@ except ValueError:
 
 # Global model holder
 model = None
+_runtime = {
+    "name": None,
+    "temperature": None,
+}
 
 def set_runtime_model(model_name: str | None = None, temperature: float | None = None):
     """Configure or reconfigure the GenerativeModel at runtime.
@@ -28,16 +32,14 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
     This reads the API key from config and constructs a new GenerativeModel
     using the provided (or default) model name and temperature.
     """
-    global model
-    api_key = config.get_api_key()
-    if not api_key:
-        ui.print_error("Error: API Key is not configured. Please run `pai config --set <YOUR_API_KEY>` to set it up.")
-        model = None
-        return
+    global model, _runtime
+    # Only update the runtime preferred name/temperature; API key will be injected per call (round-robin)
     try:
-        genai.configure(api_key=api_key)
         name = (model_name or DEFAULT_MODEL) or "gemini-2.5-flash"
         temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
+        _runtime["name"] = name
+        _runtime["temperature"] = temp
+        # (Re)build model object shell; API key is configured on each request
         generation_config = {"temperature": temp}
         model = genai.GenerativeModel(name, generation_config=generation_config)
     except Exception as e:
@@ -47,12 +49,38 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
 # Initialize once on import with defaults
 set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 
+def _prepare_runtime() -> bool:
+    """Configure API key via round-robin and ensure model object exists."""
+    global model
+    # Try round-robin key first
+    pair = config.next_api_key()
+    api_key = None
+    if pair is not None:
+        _, api_key = pair
+    if not api_key:
+        api_key = config.get_api_key()
+    if not api_key:
+        ui.print_error("Error: No API keys configured. Use `pai config add <ID> <API_KEY>`.")
+        model = None
+        return False
+    try:
+        genai.configure(api_key=api_key)
+        if model is None:
+            # build model using stored runtime prefs
+            name = _runtime.get("name") or DEFAULT_MODEL
+            temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
+            generation_config = {"temperature": temp}
+            model = genai.GenerativeModel(name, generation_config=generation_config)
+        return True
+    except Exception as e:
+        ui.print_error(f"Failed to set API key or build model: {e}")
+        model = None
+        return False
+
 def generate_text(prompt: str) -> str:
     """Sends a prompt to the Gemini API and returns the text response."""
-    if not model:
-        error_message = "Error: API Key or model is not configured. Please run `pai config --set <YOUR_API_KEY>` and try again."
-        ui.print_error(error_message)
-        return error_message
+    if not _prepare_runtime():
+        return ""
 
     try:
         with ui.console.status("[bold yellow]Agent is thinking...", spinner="dots"):
