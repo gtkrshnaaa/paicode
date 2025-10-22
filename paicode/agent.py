@@ -547,6 +547,45 @@ You are Pai, an expert planner and developer AI.
             # Supply a scheduler hint (if available) to make the step focused
             idx_from3 = action_idx - 3
             step_hint = scheduler_hints[idx_from3] if idx_from3 < len(scheduler_hints) else ""
+            
+            # Thinking phase (pre-execution): produce a concise internal reasoning summary (no commands)
+            thinking_prompt = f"""
+You are Pai, an expert, proactive, and autonomous software developer AI.
+You are a creative problem-solver, not just a command executor.
+
+Before taking any action, think step-by-step about the best minimal set of actions to make progress on the specific target step.
+Rules:
+- Do NOT output any commands here.
+- Keep it concise: 3-6 bullet points.
+- Focus strictly on the target step hint.
+
+Target step hint: {step_hint}
+
+--- CONVERSATION HISTORY (all previous turns) ---
+{context_str}
+--- END HISTORY ---
+
+--- LAST SYSTEM RESPONSE ---
+{last_system_response}
+--- END LAST SYSTEM RESPONSE ---
+
+--- LATEST USER REQUEST ---
+"{user_effective_request}"
+--- END USER REQUEST ---
+"""
+            thinking_text = llm.generate_text(thinking_prompt)
+            # Render concise thinking summary (no commands expected)
+            thinking_group, thinking_log = _generate_execution_renderables(thinking_text)
+            ui.console.print(
+                Panel(
+                    thinking_group,
+                    title=f"[bold]Thinking[/bold] (pre-execution for step {action_idx}/{total_steps})",
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2)
+                )
+            )
+            session_context.append(f"Pre-Execution Thinking (step {action_idx}):\n{thinking_text}")
 
             action_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
@@ -555,6 +594,10 @@ You are a creative problem-solver, not just a command executor.
 {guidance}
 
 Target step hint: {step_hint}
+
+--- YOUR THINKING SUMMARY (use as guidance; do not echo back) ---
+{thinking_text}
+--- END THINKING SUMMARY ---
 
 --- VALID COMMANDS ---
 1. MKDIR::path
@@ -622,6 +665,52 @@ Target step hint: {step_hint}
                 f.write(interaction_log + "\n-------------------\n")
 
             last_system_response = log_string
+
+            # Integrity check (post-execution): verify alignment with the step hint and task
+            integrity_prompt = f"""
+You are an integrity auditor AI. Evaluate whether the last executed actions align with the target step and user request.
+Return ONLY raw JSON with this schema:
+{{"passed": true|false, "reasons": [string..], "next_fix": [string..] }}
+
+Context:
+- Target step hint: {step_hint}
+- Latest system response (results of actions):
+{last_system_response}
+- Latest user request: "{user_effective_request}"
+"""
+            integrity_json = llm.generate_text(integrity_prompt)
+            # Best-effort parse
+            verdict = {"passed": False, "reasons": [], "next_fix": []}
+            try:
+                parsed = json.loads(integrity_json)
+                if isinstance(parsed, dict):
+                    verdict["passed"] = bool(parsed.get("passed", False))
+                    r = parsed.get("reasons")
+                    if isinstance(r, list): verdict["reasons"] = [str(x) for x in r]
+                    f = parsed.get("next_fix")
+                    if isinstance(f, list): verdict["next_fix"] = [str(x) for x in f]
+            except Exception:
+                pass
+
+            table = Table(show_header=True, header_style="bold", box=ROUNDED)
+            table.add_column("Integrity", justify="left")
+            table.add_column("Details", overflow="fold")
+            table.add_row("Status", "PASS" if verdict["passed"] else "FAIL")
+            if verdict["reasons"]:
+                table.add_row("Reasons", "\n".join(verdict["reasons"]))
+            if verdict["next_fix"]:
+                table.add_row("Next Fix", "\n".join(verdict["next_fix"]))
+            integrity_group = Group(Text("Integrity Check", style="bold underline"), table)
+            ui.console.print(
+                Panel(
+                    integrity_group,
+                    title=f"[bold]Integrity[/bold] (post-execution step {action_idx}/{total_steps})",
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2)
+                )
+            )
+            session_context.append(f"Integrity Check (step {action_idx}): {json.dumps(verdict)}")
 
             # If model indicates finish early, break action loop and proceed to summary
             if any(line.strip().upper().startswith("FINISH::") for line in plan.splitlines()):
