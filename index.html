@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paicode — Skripsi</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css" />
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              bgdom: '#E4E5FE',        // dominant background
+              primary: '#2C32C5',      // primary accent
+              accent2: '#E9C537',      // secondary accent
+              ink: '#252525'           // third accent (text/buttons)
+            },
+            fontFamily: {
+              display: ['Unbounded','system-ui','sans-serif'],
+              sans: ['Inter','ui-sans-serif','system-ui']
+            },
+            boxShadow: {
+              card: '0 10px 30px rgba(0,0,0,0.08)'
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #E4E5FE; /* dominant */
+        background-image:
+          radial-gradient(circle at 20% 10%, rgba(44,50,197,0.10) 0, rgba(44,50,197,0.0) 40%),
+          radial-gradient(circle at 80% 0%, rgba(233,197,55,0.14) 0, rgba(233,197,55,0.0) 35%),
+          repeating-linear-gradient(0deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px),
+          repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px);
+      }
+      /* Force darker default text for non-heading content */
+      p, li { color: #1f1f1f; }
+      .tilt { transform: rotate(-6deg); }
+      .tilt-r { transform: rotate(6deg); }
+      .icon { width: 16px; height: 16px; display: inline-block; }
+
+      /* Decorative fading orbs (right of hero heading) */
+      .orb {
+        position: absolute;
+        border-radius: 9999px;
+        pointer-events: none;
+        mix-blend-mode: normal;
+        animation: orbFade 6s ease-in-out infinite, orbHue 12s linear infinite;
+        opacity: 0.0;
+        z-index: 0;
+      }
+      @keyframes orbFade {
+        0%, 100% { opacity: 0.0; transform: scale(0.9); }
+        50% { opacity: 0.5; transform: scale(1.0); }
+      }
+      @keyframes orbHue {
+        0%, 100% { background: radial-gradient(circle, rgba(44,50,197,0.45) 0%, rgba(44,50,197,0.0) 70%); }
+        50% { background: radial-gradient(circle, rgba(233,197,55,0.45) 0%, rgba(233,197,55,0.0) 70%); }
+      }
+    </style>
+    <script>
+      (function(){
+        const t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+  </head>
+  <body class="text-ink dark:text-neutral-100 font-sans antialiased">
+    <div class="min-h-screen">
+      <!-- NAVBAR -->
+      <header class="sticky top-0 z-20 bg-bgdom/75 backdrop-blur border-b border-neutral-300/50">
+        <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <a href="index.html" class="flex items-center gap-2 shrink-0">
+            <span class="h-8 w-8 grid place-items-center rounded-lg bg-primary text-white font-display font-extrabold">P</span>
+            <span class="font-display font-extrabold tracking-tight bg-gradient-to-r from-ink to-primary bg-clip-text text-transparent">Paicode</span>
+          </a>
+          <div class="hidden md:flex items-center gap-6">
+            <a class="text-sm text-ink hover:text-primary inline-flex items-center gap-1" href="skripsi_latex/skripsipdf/skripsigtkrshnaaa.pdf" target="_blank" rel="noreferrer">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.6"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.6"/></svg>
+              <span>PDF Skripsi</span>
+            </a>
+            <a class="text-sm text-ink hover:text-primary inline-flex items-center gap-1" href="https://github.com/gtkrshnaaa/skripsipaicode" target="_blank" rel="noreferrer">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2.2c-3.34.73-4.04-1.61-4.04-1.61-.55-1.4-1.35-1.77-1.35-1.77-1.1-.75.08-.73.08-.73 1.22.09 1.86 1.27 1.86 1.27 1.08 1.86 2.84 1.33 3.53 1.02.11-.79.42-1.33.77-1.63-2.67-.3-5.47-1.33-5.47-5.9 0-1.3.47-2.36 1.24-3.19-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.22.96-.27 2-.41 3.03-.41s2.07.14 3.03.41c2.29-1.54 3.3-1.22 3.3-1.22.66 1.65.24 2.87.12 3.17.77.83 1.24 1.89 1.24 3.19 0 4.58-2.8 5.59-5.48 5.89.43.37.82 1.1.82 2.22v3.29c0 .32.21.7.82.58A12 12 0 0 0 12 .5Z"/></svg>
+              <span>Repository</span>
+            </a>
+            <a class="text-sm text-ink hover:text-primary inline-flex items-center gap-1" href="presentation/slide1.html">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 19h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9 10l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Presentasi</span>
+            </a>
+          </div>
+          <div class="hidden md:flex items-center gap-2">
+            <a href="presentation/slide1.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7-11-7Z"/></svg>
+              Mulai Presentasi
+            </a>
+          </div>
+        </nav>
+      </header>
+
+      <!-- HERO -->
+      <section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 pb-12 sm:pt-16 sm:pb-20">
+        <div class="relative">
+          <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-semibold">Skripsi • Agentic AI CLI</span>
+          <div class="mt-2 flex flex-col items-start gap-y-3">
+            <h1 class="font-display font-extrabold leading-none text-[11vw] sm:text-[9vw] lg:text-[6.5rem] tracking-tight bg-gradient-to-r from-primary to-ink bg-clip-text text-transparent">
+              Paicode
+            </h1>
+            <span class="tilt inline-flex select-none items-center gap-2 rounded-xl border border-ink/20 bg-white text-ink px-3 py-1 shadow-card text-xs sm:text-sm">
+              Workspace Controller • Diff-aware • CLI
+            </span>
+          </div>
+          <!-- Decorative Orbs: only show on md+ screens -->
+          <div class="hidden md:block absolute top-0 right-0 w-3/5 h-80 pointer-events-none">
+            <span class="orb" style="width:300px;height:300px; top:-20px; right:0.5rem; animation-delay:0s"></span>
+            <span class="orb" style="width:220px;height:220px; top:3.5rem; right:14rem; animation-delay:1.2s"></span>
+            <span class="orb" style="width:160px;height:160px; top:8rem; right:6rem; animation-delay:2.4s"></span>
+          </div>
+          <p class="mt-3 sm:mt-4 max-w-2xl text-ink text-sm sm:text-base">
+            Paicode adalah agen AI berbasis CLI yang menjalankan operasi berkas tingkat-aplikasi pada workspace proyek secara terkontrol. Terintegrasi LLM (Gemini), menerapkan path-security dan modifikasi berbasis diff.
+          </p>
+          <div class="mt-5 flex flex-wrap gap-3">
+            <a href="skripsi_latex/skripsipdf/skripsigtkrshnaaa.pdf" target="_blank" rel="noreferrer" class="inline-flex items-center gap-2 rounded-full bg-primary text-white px-4 py-2 text-sm font-semibold hover:opacity-90">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8"/></svg>
+              Baca PDF
+            </a>
+            <a href="https://github.com/gtkrshnaaa/skripsipaicode" target="_blank" rel="noreferrer" class="inline-flex items-center gap-2 rounded-full bg-ink text-white px-4 py-2 text-sm font-semibold hover:opacity-90">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2.2c-3.34.73-4.04-1.61-4.04-1.61-.55-1.4-1.35-1.77-1.35-1.77-1.1-.75.08-.73.08-.73 1.22.09 1.86 1.27 1.86 1.27 1.08 1.86 2.84 1.33 3.53 1.02.11-.79.42-1.33.77-1.63-2.67-.3-5.47-1.33-5.47-5.9 0-1.3.47-2.36 1.24-3.19-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.22.96-.27 2-.41 3.03-.41s2.07.14 3.03.41c2.29-1.54 3.3-1.22 3.3-1.22.66 1.65.24 2.87.12 3.17.77.83 1.24 1.89 1.24 3.19 0 4.58-2.8 5.59-5.48 5.89.43.37.82 1.1.82 2.22v3.29c0 .32.21.7.82.58A12 12 0 0 0 12 .5Z"/></svg>
+              Lihat Repo
+            </a>
+            <a href="presentation/slide1.html" class="inline-flex items-center gap-2 rounded-full bg-accent2 text-ink px-4 py-2 text-sm font-semibold hover:opacity-90">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 19h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9 10l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Mulai Presentasi
+            </a>
+          </div>
+        </div>
+
+        <!-- Feature Cards -->
+        <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <!-- Card 1: primary accent, light text -->
+          <div class="rounded-3xl bg-primary text-white p-5 sm:p-6 shadow-card border border-transparent">
+            <div class="h-20 mb-3 grid place-items-center">
+              <!-- Inline SVG: Terminal icon -->
+              <svg class="text-white" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M6 9l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M11 15h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3 class="font-display text-xl font-bold text-white">Agentic CLI</h3>
+            <p class="mt-2 text-white/90 text-sm">Interaksi stateful via terminal dengan rencana aksi eksplisit: MKDIR, TOUCH, READ, WRITE, MODIFY, dst.</p>
+          </div>
+          <!-- Card 2: secondary accent (yellow), dark text -->
+          <div class="rounded-3xl bg-accent2 text-ink p-5 sm:p-6 shadow-card border border-transparent">
+            <div class="h-20 mb-3 grid place-items-center">
+              <!-- Inline SVG: Folder-check icon -->
+              <svg class="text-ink" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke="currentColor" stroke-width="1.8" fill="none"/>
+                <path d="M8.5 14.5l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3 class="font-display text-xl font-bold text-ink">Workspace Controller</h3>
+            <p class="mt-2 text-ink/90 text-sm">Operasi berkas tingkat-aplikasi pada ruang kerja proyek dengan path-security dan deny-list sensitif.</p>
+          </div>
+          <!-- Card 3: third accent (ink), light text -->
+          <div class="rounded-3xl bg-ink text-white p-5 sm:p-6 shadow-card border border-transparent">
+            <div class="h-20 mb-3 grid place-items-center">
+              <!-- Inline SVG: Chip/circuit icon -->
+              <svg class="text-white" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/>
+                <rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3 class="font-display text-xl font-bold text-white">Diff-aware Modify</h3>
+            <p class="mt-2 text-white/90 text-sm">Perubahan terarah dengan patch/diff untuk meminimalkan risiko penimpaan tak diinginkan.</p>
+          </div>
+        </div>
+
+        <!-- CTA Strip -->
+        <div class="mt-12">
+          <div class="rounded-3xl border border-ink/10 bg-gradient-to-r from-[#2C32C5]/15 via-[#E9C537]/20 to-[#252525]/10 p-5 sm:p-6 lg:p-8 flex flex-col lg:flex-row items-center gap-4 text-ink">
+            <div>
+              <h2 class="font-display text-xl sm:text-2xl font-bold">Siap lihat demonya?</h2>
+              <p class="text-ink text-sm sm:text-base">Mulai presentasi berbasis HTML. Tanpa PPT, full kustomisasi web.</p>
+            </div>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-3 w-full sm:w-auto lg:w-auto lg:ml-auto">
+              <a href="presentation/slide1.html" class="inline-flex items-center justify-center rounded-full px-4 py-2 sm:px-5 sm:py-2.5 bg-primary text-white font-semibold hover:opacity-90 w-full sm:w-auto text-center whitespace-nowrap shrink-0">Mulai Presentasi</a>
+              <a href="skripsi_latex/skripsipdf/skripsigtkrshnaaa.pdf" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-full px-4 py-2 sm:px-5 sm:py-2.5 border border-ink text-ink hover:bg-ink hover:text-white w-full sm:w-auto text-center whitespace-nowrap shrink-0">Baca Skripsi</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="border-t border-ink/10 py-8">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-ink">
+          <span>&copy; <span id="y"></span> Paicode • Skripsi</span>
+          <div class="flex items-center gap-4">
+            <a class="text-ink hover:text-primary" href="https://github.com/gtkrshnaaa/skripsipaicode" target="_blank" rel="noreferrer">GitHub</a>
+            <a class="text-ink hover:text-primary" href="presentation/slide1.html">Presentasi</a>
+            <a class="text-ink hover:text-primary" href="skripsi_latex/skripsipdf/skripsigtkrshnaaa.pdf" target="_blank" rel="noreferrer">PDF</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      document.getElementById('y').textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
