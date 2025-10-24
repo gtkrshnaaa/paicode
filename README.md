@@ -145,6 +145,12 @@ To begin coding, simply run `pai` or `pai auto`. This will drop you into an inte
 # Start the agent directly
 pai
 ```
+Pai example prompt:
+```bash
+Hi Pai, create a Python boilerplate project for a simple number range classification task. For now, use a basic array as the data source instead of a CSV file.  
+For example, generate an array of random numbers and classify them into categories like “low”, “medium”, and “high” based on defined numeric ranges. Make the structure modular and ready to be replaced with CSV input later.  
+Include separate functions for loading data, preprocessing, and classification. If possible, use a class-based design to make future expansion easier.
+```
 
 ### **Interacting with the Agent**
 
