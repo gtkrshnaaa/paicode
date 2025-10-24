@@ -47,19 +47,87 @@
       .sheet {
         width: 3508px;
         height: 4961px;
-        background: #ffffff;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+        box-shadow: 0 40px 120px rgba(0,0,0,0.12), 0 0 0 1px rgba(44,50,197,0.08);
+        position: relative;
+        overflow: hidden;
+      }
+      .sheet::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 60%;
+        height: 100%;
+        background: 
+          radial-gradient(circle at 85% 15%, rgba(44,50,197,0.06) 0%, transparent 50%),
+          radial-gradient(circle at 75% 85%, rgba(233,197,55,0.08) 0%, transparent 50%);
+        pointer-events: none;
+        z-index: 0;
       }
       .safe {
         /* inner safe area */
         width: calc(3508px - 240px);
         height: calc(4961px - 240px);
+        position: relative;
+        z-index: 1;
+      }
+      .orb-poster {
+        position: absolute;
+        border-radius: 9999px;
+        pointer-events: none;
+        mix-blend-mode: normal;
+        animation: orbFadePoster 8s ease-in-out infinite;
+        opacity: 0.0;
+        z-index: 0;
+      }
+      @keyframes orbFadePoster {
+        0%, 100% { opacity: 0.0; transform: scale(0.95) rotate(0deg); }
+        50% { opacity: 0.4; transform: scale(1.05) rotate(180deg); }
+      }
+      .gradient-text {
+        background: linear-gradient(135deg, #2C32C5 0%, #E9C537 50%, #252525 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .feature-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,249,255,0.8) 100%);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(44,50,197,0.1);
+        transition: all 0.3s ease;
+      }
+      .feature-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      }
+      .metric-card {
+        background: linear-gradient(135deg, #2C32C5 0%, #4C52D5 100%);
+        color: white;
+        position: relative;
+        overflow: hidden;
+      }
+      .metric-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle, rgba(233,197,55,0.3) 0%, transparent 70%);
+        animation: shimmer 3s ease-in-out infinite;
+      }
+      @keyframes shimmer {
+        0%, 100% { transform: translate(50%, 50%) scale(0.8); opacity: 0; }
+        50% { transform: translate(-20%, -20%) scale(1.2); opacity: 1; }
       }
       /* Print-friendly */
       @media print {
         @page { size: A3 portrait; margin: 10mm; }
         body { background: #fff; }
-        .sheet { width: auto; height: auto; box-shadow: none; }
+        .sheet { width: auto; height: auto; box-shadow: none; background: #fff; }
+        .sheet::before { display: none; }
+        .orb-poster { display: none; }
       }
     </style>
     <script>
@@ -74,81 +142,218 @@
   <body class="text-ink font-sans antialiased">
     <div class="min-h-screen w-full overflow-auto">
       <div class="mx-auto my-10 sheet relative rounded-2xl">
-        <div class="safe mx-auto h-full p-6" style="max-width: 3268px;">
-          <!-- Header / Title -->
-          <header class="pt-10 pb-6 border-b border-ink/10">
-            <div class="flex items-center gap-4">
-              <span class="h-12 w-12 grid place-items-center rounded-xl bg-primary text-white font-display font-extrabold text-xl">P</span>
-              <div>
-                <h1 class="font-display text-5xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-ink bg-clip-text text-transparent">Paicode</h1>
-                <p class="text-ink/70">Agentic AI CLI • Workspace Controller • Diff-aware</p>
+        <!-- Decorative Orbs -->
+        <span class="orb-poster" style="width:400px;height:400px; top:10%; right:5%; background: radial-gradient(circle, rgba(44,50,197,0.15) 0%, transparent 70%); animation-delay:0s"></span>
+        <span class="orb-poster" style="width:300px;height:300px; top:60%; right:15%; background: radial-gradient(circle, rgba(233,197,55,0.12) 0%, transparent 70%); animation-delay:2s"></span>
+        <span class="orb-poster" style="width:200px;height:200px; top:30%; left:10%; background: radial-gradient(circle, rgba(44,50,197,0.08) 0%, transparent 70%); animation-delay:4s"></span>
+        
+        <div class="safe mx-auto h-full p-8" style="max-width: 3268px;">
+          <!-- Header with Logos -->
+          <header class="pb-6 relative">
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-4">
+                <img src="assets/images/univlogo.png" alt="University Logo" class="h-16 w-auto">
+                <img src="assets/images/metariselogo.png" alt="Metarise Logo" class="h-16 w-auto">
+              </div>
+              <div class="text-right">
+                <div class="text-xl font-semibold text-ink/70">International Competition</div>
+                <div class="text-lg text-ink/60">Research Poster Presentation</div>
               </div>
             </div>
-            <h2 class="mt-6 font-display text-6xl font-extrabold text-ink">Project Poster</h2>
+            
+            <div class="text-center mb-8">
+              <h1 class="font-display text-6xl font-extrabold tracking-tight gradient-text mb-4">PAICODE</h1>
+              <h2 class="text-3xl font-bold text-ink mb-2">An Agentic CLI to Safely Orchestrate Project Workspaces with LLM Assistance</h2>
+              <div class="text-xl text-ink/70">
+                <span class="font-semibold">Team Leader:</span> [Your Name] • 
+                <span class="font-semibold">Members:</span> [Team Members] • 
+                <span class="font-semibold">Affiliation:</span> [Your Institution]
+              </div>
+            </div>
           </header>
 
-          <!-- Grid Content -->
-          <main class="mt-10 grid grid-cols-2 gap-10 text-[20px] leading-relaxed">
-            <!-- Left Column -->
-            <section>
-              <h3 class="font-display text-3xl font-bold text-primary">Project Title</h3>
-              <p class="mt-3 text-ink">Paicode — An Agentic CLI to safely orchestrate project workspaces with LLM assistance.</p>
-
-              <h3 class="mt-10 font-display text-3xl font-bold text-primary">Abstract</h3>
-              <p class="mt-3 text-ink">Paicode streamlines file-level and application-level operations in software projects using explicit, auditable action plans. It integrates with modern LLMs to propose, explain, and execute changes while enforcing path-security and diff-based modifications.</p>
-
-              <h3 class="mt-10 font-display text-3xl font-bold text-primary">Methodology</h3>
-              <ul class="mt-3 list-disc pl-6 text-ink">
-                <li>Agentic loop with explicit plans (MKDIR, READ, WRITE, MODIFY, etc.).</li>
-                <li>Workspace controller with deny-lists and path guards.</li>
-                <li>Diff/patch application to minimize unintended overwrites.</li>
-                <li>Human-in-the-loop approvals for critical steps.</li>
-              </ul>
-
-              <h3 class="mt-10 font-display text-3xl font-bold text-primary">Analysis & Results</h3>
-              <ul class="mt-3 list-disc pl-6 text-ink">
-                <li>Reduced manual file operations and errors in routine tasks.</li>
-                <li>Traceable change history via structured diffs.</li>
-                <li>Improved developer productivity in multi-file refactors.</li>
-              </ul>
+          <!-- Main Content - Portrait Layout -->
+          <main class="space-y-6 text-lg">
+            <!-- Abstract -->
+            <section class="feature-card rounded-2xl p-6 shadow-card">
+              <div class="bg-primary text-white px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
+                <h3 class="font-display text-2xl font-bold">ABSTRACT</h3>
+              </div>
+              <p class="text-ink leading-relaxed">Summarize your research in a compact paragraph that covers the background, problem, objectives, methodology, key findings, and conclusions. Use clear and concise language to convey the essence of your work, making it accessible to a broad audience.</p>
+              <p class="text-ink leading-relaxed mt-3">Paicode streamlines file-level and application-level operations in software projects using explicit, auditable action plans. It integrates with modern LLMs to propose, explain, and execute changes while enforcing path-security and diff-based modifications.</p>
             </section>
 
-            <!-- Right Column -->
-            <section>
-              <h3 class="font-display text-3xl font-bold text-primary">Potential to be Commercialized</h3>
-              <p class="mt-3 text-ink">Paicode can be offered as a developer productivity suite with enterprise controls: policy enforcement, audit trails, and integrations with common VCS/CI pipelines.</p>
+            <!-- Methodology -->
+            <section class="feature-card rounded-2xl p-6 shadow-card">
+              <div class="bg-ink text-white px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
+                <h3 class="font-display text-2xl font-bold">METHODOLOGY</h3>
+              </div>
+              <p class="text-ink leading-relaxed mb-4">Summarize the approach, tools, or techniques used to conduct your research in text along with appropriate diagrams.</p>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex items-start gap-3">
+                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
+                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-ink">Agentic loop with explicit plans (MKDIR, READ, WRITE, MODIFY, etc.).</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
+                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-ink">Workspace controller with deny-lists and path guards.</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
+                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-ink">Diff/patch application to minimize unintended overwrites.</span>
+                </div>
+                <div class="flex items-start gap-3">
+                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
+                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                  </div>
+                  <span class="text-ink">Human-in-the-loop approvals for critical steps.</span>
+                </div>
+              </div>
+            </section>
 
-              <h3 class="mt-10 font-display text-3xl font-bold text-primary">Usefulness / Impact</h3>
-              <ul class="mt-3 list-disc pl-6 text-ink">
-                <li>Accelerates prototyping and code maintenance.</li>
-                <li>Improves safety of automated code modifications.</li>
-                <li>Lowers onboarding friction via consistent workflows.</li>
-              </ul>
-
-              <div class="mt-10 rounded-2xl border border-ink/10 bg-white p-6 shadow-card">
-                <h3 class="font-display text-3xl font-bold text-primary">Scoring Rubric</h3>
-                <div class="mt-4 grid grid-cols-2 gap-4 text-ink">
-                  <span class="inline-flex items-center gap-2"><i class="uil uil-check-circle text-primary"></i> Content</span>
-                  <span class="inline-flex items-center gap-2"><i class="uil uil-check-circle text-primary"></i> Presentation</span>
-                  <span class="inline-flex items-center gap-2"><i class="uil uil-check-circle text-primary"></i> Mechanics</span>
-                  <span class="inline-flex items-center gap-2"><i class="uil uil-check-circle text-primary"></i> Visual Appeal</span>
-                  <span class="inline-flex items-center gap-2"><i class="uil uil-check-circle text-primary"></i> Overall</span>
+            <!-- Analysis and Result -->
+            <section class="feature-card rounded-2xl p-6 shadow-card">
+              <div class="bg-accent2 text-ink px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
+                <h3 class="font-display text-2xl font-bold">ANALYSIS AND RESULT</h3>
+              </div>
+              <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="flex items-start gap-3">
+                  <i class="uil uil-chart-line text-primary text-xl mt-1"></i>
+                  <div>
+                    <p class="text-ink font-semibold">Showcase results of your product</p>
+                    <p class="text-ink/80 text-base">AND/OR prototype AND/OR research findings with clear visual representation of its design and functionality in form of screenshots, graphs, charts, tables, or other relevant features and user interface elements.</p>
+                  </div>
+                </div>
+                <div class="flex items-start gap-3">
+                  <i class="uil uil-lightbulb-alt text-primary text-xl mt-1"></i>
+                  <div>
+                    <p class="text-ink font-semibold">Highlight the key outcomes or data</p>
+                    <p class="text-ink/80 text-base">from your study in a clear and concise form.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="metric-card rounded-xl p-4 text-center">
+                  <div class="text-3xl font-extrabold">-35%</div>
+                  <div class="text-sm opacity-90">Manual Ops</div>
+                </div>
+                <div class="metric-card rounded-xl p-4 text-center">
+                  <div class="text-3xl font-extrabold">+28%</div>
+                  <div class="text-sm opacity-90">Productivity</div>
+                </div>
+                <div class="metric-card rounded-xl p-4 text-center">
+                  <div class="text-3xl font-extrabold">100%</div>
+                  <div class="text-sm opacity-90">Auditable</div>
                 </div>
               </div>
 
-              <div class="mt-10 p-6 rounded-2xl bg-primary/10 text-ink border border-primary/20">
-                <p class="text-ink"><span class="font-semibold">Note:</span> This A3 canvas uses fixed pixels (3508×4961). Use your browser zoom or print to A3 for best viewing.</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <i class="uil uil-check-circle text-primary"></i>
+                  <span class="text-ink text-base">Traceable change history via structured diffs</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="uil uil-check-circle text-primary"></i>
+                  <span class="text-ink text-base">Improved developer productivity in multi-file refactors</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="uil uil-check-circle text-primary"></i>
+                  <span class="text-ink text-base">Reduced manual file operations and errors</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="uil uil-check-circle text-primary"></i>
+                  <span class="text-ink text-base">Enhanced code quality and consistency</span>
+                </div>
               </div>
             </section>
+
+            <!-- Bottom Row: Commercialization and Usefulness -->
+            <div class="grid grid-cols-2 gap-6">
+              <!-- Potential to be Commercialized -->
+              <section class="feature-card rounded-2xl p-6 shadow-card">
+                <div class="bg-primary text-white px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
+                  <h3 class="font-display text-2xl font-bold">POTENTIAL TO BE COMMERCIALIZED</h3>
+                </div>
+                <p class="text-ink leading-relaxed mb-4">Discuss the practical value and market readiness of your research. Highlight its unique selling points, target markets, scalability, and potential for commercialization or societal impact. Consider addressing intellectual property, industry partnerships, or future development plans.</p>
+                <div class="space-y-3">
+                  <div class="flex items-center gap-3">
+                    <i class="uil uil-shield-check text-accent2 text-xl"></i>
+                    <span class="text-ink">Policy enforcement & audit trails</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <i class="uil uil-link text-accent2 text-xl"></i>
+                    <span class="text-ink">VCS/CI pipeline integrations</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <i class="uil uil-users-alt text-accent2 text-xl"></i>
+                    <span class="text-ink">Team workflow management</span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Usefulness -->
+              <section class="feature-card rounded-2xl p-6 shadow-card">
+                <div class="bg-accent2 text-ink px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
+                  <h3 class="font-display text-2xl font-bold">USEFULNESS</h3>
+                </div>
+                <p class="text-ink leading-relaxed mb-4">The true value of innovation lies in its ability to deliver tangible benefits and address real-world challenges. Clearly articulate the potential for practical application, offering solutions that can be effectively translated into products, services, or processes. Its relevance to current market needs and its potential for economic impact underscore its readiness for broader adoption.</p>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="flex items-center gap-2">
+                    <i class="uil uil-fast-forward text-primary"></i>
+                    <span class="text-ink text-sm">Accelerates prototyping and code maintenance</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i class="uil uil-shield text-primary"></i>
+                    <span class="text-ink text-sm">Improves safety of automated code modifications</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i class="uil uil-graduation-cap text-primary"></i>
+                    <span class="text-ink text-sm">Lowers onboarding friction via consistent workflows</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i class="uil uil-rocket text-primary"></i>
+                    <span class="text-ink text-sm">Enables rapid iteration and experimentation</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i class="uil uil-users-alt text-primary"></i>
+                    <span class="text-ink text-sm">Facilitates collaborative development workflows</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i class="uil uil-chart-growth text-primary"></i>
+                    <span class="text-ink text-sm">Scales with project complexity and team size</span>
+                  </div>
+                </div>
+              </section>
+            </div>
           </main>
 
           <!-- Footer -->
-          <footer class="mt-16 pt-6 border-t border-ink/10 flex items-center justify-between text-xl text-ink/70">
-            <span>&copy; <span id="y"></span> Paicode</span>
-            <nav class="flex items-center gap-6">
-              <a class="text-ink hover:text-primary" href="../../index.html">Home</a>
-              <a class="text-ink hover:text-primary" href="../presentation/slide1.html">Presentation</a>
-            </nav>
+          <footer class="mt-20 pt-8 relative">
+            <div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <span class="h-10 w-10 grid place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-white font-display font-extrabold">P</span>
+                <div>
+                  <span class="text-2xl font-semibold text-ink">&copy; <span id="y"></span> Paicode</span>
+                  <p class="text-lg text-ink/60">Agentic AI for Modern Development</p>
+                </div>
+              </div>
+              <nav class="flex items-center gap-6">
+                <a class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-lg font-semibold" href="../../index.html">
+                  <i class="uil uil-home"></i> Home
+                </a>
+                <a class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent2/10 text-ink hover:bg-accent2 hover:text-ink transition-all text-lg font-semibold" href="../presentation/slide1.html">
+                  <i class="uil uil-presentation"></i> Presentation
+                </a>
+              </nav>
+            </div>
           </footer>
         </div>
       </div>
