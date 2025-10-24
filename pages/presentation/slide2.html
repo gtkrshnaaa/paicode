@@ -20,11 +20,34 @@
       }
     </script>
     <style>
-      body { background-color: #E4E5FE; background-image:
-        radial-gradient(circle at 20% 10%, rgba(44,50,197,0.10) 0, rgba(44,50,197,0.0) 40%),
-        radial-gradient(circle at 80% 0%, rgba(233,197,55,0.14) 0, rgba(233,197,55,0.0) 35%),
-        repeating-linear-gradient(0deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px),
-        repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px);
+      body {
+        background: linear-gradient(135deg, #E4E5FE 0%, #F0F1FF 50%, #E4E5FE 100%);
+        background-attachment: fixed;
+        position: relative;
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+          linear-gradient(rgba(233,197,55,0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(44,50,197,0.06) 1px, transparent 1px),
+          linear-gradient(rgba(233,197,55,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(44,50,197,0.03) 1px, transparent 1px);
+        background-size: 50px 50px, 50px 50px, 100px 100px, 100px 100px;
+        background-position: 0 0, 0 0, 25px 25px, 25px 25px;
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0.7;
+      }
+      .premium-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,255,0.98) 100%);
+        backdrop-filter: blur(20px);
+        box-shadow: 0 25px 50px rgba(44,50,197,0.15), 0 10px 20px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
       }
     </style>
     <script>(function(){const t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}})();</script>
@@ -43,14 +66,37 @@
 
       <main class="flex-1 grid place-items-center p-6">
         <section class="max-w-5xl">
-          <h2 class="font-display text-4xl sm:text-5xl font-extrabold text-ink">Abstract</h2>
-          <p class="mt-4 text-lg text-ink/85">Paicode streamlines file- and app-level operations in software projects via explicit plans and diff-based changes, leveraging LLMs for safe, auditable automation.</p>
-          <ul class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink/90">
-            <li class="inline-flex items-start gap-2"><i class="uil uil-check-circle text-primary mt-1"></i><span>Agentic loop with explainable actions.</span></li>
-            <li class="inline-flex items-start gap-2"><i class="uil uil-check-circle text-primary mt-1"></i><span>Path-security and sensitive deny-lists.</span></li>
-            <li class="inline-flex items-start gap-2"><i class="uil uil-check-circle text-primary mt-1"></i><span>Diff patches reduce unintended overwrites.</span></li>
-            <li class="inline-flex items-start gap-2"><i class="uil uil-check-circle text-primary mt-1"></i><span>Human approvals for critical steps.</span></li>
-          </ul>
+          <div class="premium-card rounded-3xl p-8">
+            <div class="text-center mb-8">
+              <div class="inline-flex items-center rounded-full bg-primary/10 text-primary px-4 py-2 text-sm font-semibold mb-4">
+                <i class="uil uil-file-alt mr-2"></i> Abstract
+              </div>
+              <h2 class="font-display text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-ink bg-clip-text text-transparent">ABSTRACT</h2>
+            </div>
+            <div class="bg-gradient-to-r from-primary/5 to-accent2/5 rounded-2xl p-6 mb-6 border border-primary/10">
+              <p class="text-lg text-ink leading-relaxed text-center">Paicode is an autonomous, conversational AI agent designed to accelerate software development through intelligent, stateful interaction directly in your terminal. It acts as a true developer companion capable of understanding high-level goals, observing project environments, and translating intent into concrete tasks.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-4 border border-primary/20">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <i class="uil uil-brain text-primary"></i>
+                  </div>
+                  <h3 class="font-semibold text-ink">Intelligent Agent</h3>
+                </div>
+                <p class="text-ink/80 text-sm">Conversational workflow that's editor-agnostic and agentic with context throughout sessions</p>
+              </div>
+              <div class="bg-gradient-to-br from-accent2/10 to-accent2/5 rounded-xl p-4 border border-accent2/20">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-accent2/20 flex items-center justify-center">
+                    <i class="uil uil-shield-check text-accent2"></i>
+                  </div>
+                  <h3 class="font-semibold text-ink">Safe Operations</h3>
+                </div>
+                <p class="text-ink/80 text-sm">Path-security safeguards and diff-based modifications for safe, auditable workspace operations</p>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
 

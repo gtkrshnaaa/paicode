@@ -21,12 +21,33 @@
     </script>
     <style>
       body {
-        background-color: #E4E5FE;
-        background-image:
-          radial-gradient(circle at 20% 10%, rgba(44,50,197,0.10) 0, rgba(44,50,197,0.0) 40%),
-          radial-gradient(circle at 80% 0%, rgba(233,197,55,0.14) 0, rgba(233,197,55,0.0) 35%),
-          repeating-linear-gradient(0deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px),
-          repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px);
+        background: linear-gradient(135deg, #E4E5FE 0%, #F0F1FF 50%, #E4E5FE 100%);
+        background-attachment: fixed;
+        position: relative;
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+          linear-gradient(rgba(233,197,55,0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(44,50,197,0.06) 1px, transparent 1px),
+          linear-gradient(rgba(233,197,55,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(44,50,197,0.03) 1px, transparent 1px);
+        background-size: 50px 50px, 50px 50px, 100px 100px, 100px 100px;
+        background-position: 0 0, 0 0, 25px 25px, 25px 25px;
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0.7;
+      }
+      .premium-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,255,0.98) 100%);
+        backdrop-filter: blur(20px);
+        box-shadow: 0 25px 50px rgba(44,50,197,0.15), 0 10px 20px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
       }
     </style>
     <script>(function(){const t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}})();</script>
@@ -45,9 +66,25 @@
 
       <main class="flex-1 grid place-items-center p-6">
         <section class="max-w-5xl text-center">
-          <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-semibold">Agentic AI CLI</span>
-          <h1 class="mt-4 font-display font-extrabold leading-none text-[12vw] sm:text-[9vw] lg:text-[5rem] tracking-tight bg-gradient-to-r from-primary to-ink bg-clip-text text-transparent">Paicode</h1>
-          <p class="mt-4 text-lg text-ink/80">An agentic CLI that safely orchestrates project workspaces with LLM assistance.</p>
+          <div class="premium-card rounded-3xl p-8 text-center">
+            <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-4 py-2 text-sm font-semibold mb-6">🤖 Agentic AI CLI Tool</span>
+            <h1 class="font-display font-extrabold leading-none text-[12vw] sm:text-[9vw] lg:text-[6rem] tracking-tight bg-gradient-to-r from-primary via-accent2 to-ink bg-clip-text text-transparent mb-6">PAICODE</h1>
+            <p class="text-xl text-ink/90 max-w-3xl mx-auto leading-relaxed">An Agentic CLI to Safely Orchestrate Project Workspaces with LLM Assistance</p>
+            <div class="mt-8 flex flex-wrap justify-center gap-3">
+              <div class="bg-gradient-to-r from-primary/10 to-primary/5 px-4 py-2 rounded-xl border border-primary/20">
+                <span class="text-primary font-semibold text-sm">🎯 Conversational CLI</span>
+              </div>
+              <div class="bg-gradient-to-r from-accent2/10 to-accent2/5 px-4 py-2 rounded-xl border border-accent2/20">
+                <span class="text-ink font-semibold text-sm">🔒 Path Security</span>
+              </div>
+              <div class="bg-gradient-to-r from-primary/10 to-primary/5 px-4 py-2 rounded-xl border border-primary/20">
+                <span class="text-primary font-semibold text-sm">🚀 Gemini API</span>
+              </div>
+              <div class="bg-gradient-to-r from-accent2/10 to-accent2/5 px-4 py-2 rounded-xl border border-accent2/20">
+                <span class="text-ink font-semibold text-sm">✨ Rich TUI</span>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
 
