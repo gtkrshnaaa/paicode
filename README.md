@@ -65,20 +65,36 @@ The setup process uses pip and Make.
 
     ```bash
     # From the project's root directory
-    make cli-install
+    make install-cli
     # or
     pip install --user .
     ```
 
-3.  **Configure Your API Key**
-    Pai Code uses a secure, built-in configuration manager. You only need to set your key once.
+3.  **Configure Your API Keys (Multi-Key Support)**
+    Pai Code includes a secure, built‑in configuration manager with multi-key support. Keys are stored under your home config and can be switched via an explicit default.
 
     ```bash
-    # Replace YOUR_API_KEY_HERE with your Gemini API key
-    pai config --set YOUR_API_KEY_HERE
+    # Add keys with IDs (recommended)
+    pai config add g1 YOUR_API_KEY_1
+    pai config add g2 YOUR_API_KEY_2
+    pai config add g3 YOUR_API_KEY_3
+
+    # List stored keys (masked)
+    pai config list
+
+    # Set the default key to use
+    pai config set-default g1
+
+    # Show a specific key (masked)
+    pai config show g1
+
+    # Remove a key by ID
+    pai config remove g3
     ```
 
-    This command securely stores your key in `~/.config/pai-code/credentials`.
+    Notes:
+    - Legacy flags like `pai config --set/--show/--remove` are still available but DEPRECATED. Prefer the subcommands shown above.
+    - Keys are securely stored in your user config directory (not in the repository).
 
 4.  **Verify the Installation**
 
@@ -107,11 +123,19 @@ All development with Pai happens inside a single, interactive session. You don't
 
 ### **Configuration (One-Time Setup)**
 
-Manage your API key with the `config` command.
+Manage your API keys with the `config` command (multi-key mode):
 
-  * `pai config --set <API_KEY>`: Sets or replaces the API key.
-  * `pai config --show`: Displays the currently stored key (masked).
-  * `pai config --remove`: Deletes the credentials file.
+  * `pai config add <ID> <API_KEY>`: Add a new API key with an identifier.
+  * `pai config list`: List all stored keys (masked) and the current default.
+  * `pai config show <ID>`: Display a masked version of the key by ID.
+  * `pai config remove <ID>`: Remove a stored key by ID.
+  * `pai config set-default <ID>`: Set which key is used by the agent.
+
+Legacy (deprecated) flags retained for compatibility:
+
+  * `pai config --set <API_KEY>`
+  * `pai config --show`
+  * `pai config --remove`
 
 ### **Starting an Agent Session**
 
@@ -130,150 +154,6 @@ The workflow is designed to be intuitive and iterative.
 2.  **Let it Observe:** The agent will use its internal tools (like `LIST_PATH` or `TREE`) to understand the project structure.
 3.  **Ask Follow-up Questions:** Based on its observations, you can then ask it to perform specific actions, like reading a file, modifying code, or creating a new module. Because the agent is stateful, it will remember the context from previous steps.
 
-### **Example Session**
-
-This example shows the agent's ability to observe, remember, and act upon context.
-
-```bash
-(pai-code-py3.12) user@localhost:~/space/dev/try/testtpai$ pai auto
-╭───────────────────────╮
-│ Interactive Auto Mode │
-╰───────────────────────╯
-i Type 'exit' or 'quit' to leave.
-
-user>: hii pai, lets make a simple project with python, BMI Calculator
-╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
-│                                                                                                                         │
-│  Agent's Plan or Response:                                                                                              │
-│  MKDIR::bmi_calculator                                                                                                  │
-│  TOUCH::bmi_calculator/main.py                                                                                          │
-│  WRITE::bmi_calculator/main.py::A Python script that calculates Body Mass Index (BMI) based on user input for weight    │
-│  (kg) and height (cm). It should handle potential non-numeric input and provide an interpretation of the BMI result     │
-│  (underweight, normal, overweight, obese).                                                                              │
-│  FINISH::The basic structure for the BMI calculator project has been set up, and the main Python file is ready with a   │
-│  description of its content. Let me know if you want to modify or run it!                                               │
-│                                                                                                                         │
-│  Execution Results:                                                                                                     │
-│  -> MKDIR::bmi_calculator                                                                                               │
-│  ✓ Success: Directory created: bmi_calculator                                                                           │
-│  -> TOUCH::bmi_calculator/main.py                                                                                       │
-│  ✓ Success: File created: bmi_calculator/main.py                                                                        │
-│  -> WRITE::bmi_calculator/main.py::A Python script that calculates Body Mass Index (BMI) based on user input for        │
-│  weight (kg) and height (cm). It should handle potential non-numeric input and provide an interpretation of the BMI     │
-│  result (underweight, normal, overweight, obese).                                                                       │
-│  ✓ Success: Content successfully written to: bmi_calculator/main.py                                                     │
-│  -> FINISH::The basic structure for the BMI calculator project has been set up, and the main Python file is ready with  │
-│  a description of its content. Let me know if you want to modify or run it!                                             │
-│  ✓ Agent: The basic structure for the BMI calculator project has been set up, and the main Python file is ready with a  │
-│  description of its content. Let me know if you want to modify or run it!                                               │
-│                                                                                                                         │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-user>: okay, now show me the list of file using tree 
-╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
-│                                                                                                                         │
-│  Agent's Plan or Response:                                                                                              │
-│  TREE::bmi_calculator                                                                                                   │
-│                                                                                                                         │
-│  Execution Results:                                                                                                     │
-│  -> TREE::bmi_calculator                                                                                                │
-│  bmi_calculator/                                                                                                        │
-│  └── main.py                                                                                                            │
-│  ✓ Success: Displayed directory structure.                                                                              │
-│                                                                                                                         │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-user>: good, show me the source code
-╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
-│                                                                                                                         │
-│  Agent's Plan or Response:                                                                                              │
-│  READ::bmi_calculator/main.py                                                                                           │
-│                                                                                                                         │
-│  Execution Results:                                                                                                     │
-│  -> READ::bmi_calculator/main.py                                                                                        │
-│  ╭──────────────────────── Content of bmi_calculator/main.py ────────────────────────╮                                  │
-│  │    1 def main():                                                                  │                                  │
-│  │    2     print("BMI Calculator")                                                  │                                  │
-│  │    3     print("----------------")                                                │                                  │
-│  │    4                                                                              │                                  │
-│  │    5     # Get weight input                                                       │                                  │
-│  │    6     while True:                                                              │                                  │
-│  │    7         try:                                                                 │                                  │
-│  │    8             weight_str = input("Enter your weight in kilograms (kg): ")      │                                  │
-│  │    9             weight = float(weight_str)                                       │                                  │
-│  │   10             if weight <= 0:                                                  │                                  │
-│  │   11                 print("Weight must be a positive number. Please try again.") │                                  │
-│  │   12             else:                                                            │                                  │
-│  │   13                 break                                                        │                                  │
-│  │   14         except ValueError:                                                   │                                  │
-│  │   15             print("Invalid input. Please enter a numeric value for weight.") │                                  │
-│  │   16                                                                              │                                  │
-│  │   17     # Get height input                                                       │                                  │
-│  │   18     while True:                                                              │                                  │
-│  │   19         try:                                                                 │                                  │
-│  │   20             height_str = input("Enter your height in centimeters (cm): ")    │                                  │
-│  │   21             height_cm = float(height_str)                                    │                                  │
-│  │   22             if height_cm <= 0:                                               │                                  │
-│  │   23                 print("Height must be a positive number. Please try again.") │                                  │
-│  │   24             else:                                                            │                                  │
-│  │   25                 break                                                        │                                  │
-│  │   26         except ValueError:                                                   │                                  │
-│  │   27             print("Invalid input. Please enter a numeric value for height.") │                                  │
-│  │   28                                                                              │                                  │
-│  │   29     # Convert height from cm to meters                                       │                                  │
-│  │   30     height_m = height_cm / 100                                               │                                  │
-│  │   31                                                                              │                                  │
-│  │   32     # Calculate BMI                                                          │                                  │
-│  │   33     # BMI = weight (kg) / (height (m))^2                                     │                                  │
-│  │   34     if height_m == 0:                                                        │                                  │
-│  │   35         print("Error: Height cannot be zero for BMI calculation.")           │                                  │
-│  │   36         return                                                               │                                  │
-│  │   37                                                                              │                                  │
-│  │   38     bmi = weight / (height_m ** 2)                                           │                                  │
-│  │   39                                                                              │                                  │
-│  │   40     # Interpret BMI                                                          │                                  │
-│  │   41     interpretation = ""                                                      │                                  │
-│  │   42     if bmi < 18.5:                                                           │                                  │
-│  │   43         interpretation = "Underweight"                                       │                                  │
-│  │   44     elif 18.5 <= bmi < 25:                                                   │                                  │
-│  │   45         interpretation = "Normal weight"                                     │                                  │
-│  │   46     elif 25 <= bmi < 30:                                                     │                                  │
-│  │   47         interpretation = "Overweight"                                        │                                  │
-│  │   48     else:  # bmi >= 30                                                       │                                  │
-│  │   49         interpretation = "Obese"                                             │                                  │
-│  │   50                                                                              │                                  │
-│  │   51     # Display results                                                        │                                  │
-│  │   52     print(f"\nYour BMI is: {bmi:.2f}")  # Format to 2 decimal places         │                                  │
-│  │   53     print(f"Interpretation: {interpretation}")                               │                                  │
-│  │   54                                                                              │                                  │
-│  │   55 if __name__ == "__main__":                                                   │                                  │
-│  │   56     main()                                                                   │                                  │
-│  ╰───────────────────────────────────────────────────────────────────────────────────╯                                  │
-│  ✓ Success: Read and displayed bmi_calculator/main.py                                                                   │
-│                                                                                                                         │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-user>: okay tquu
-╭──────────────────────────────────────────────────── Agent Response ─────────────────────────────────────────────────────╮
-│                                                                                                                         │
-│  Agent's Plan or Response:                                                                                              │
-│  FINISH::You're welcome! It seems the BMI Calculator project is complete as per your requests. Let me know if you need  │
-│  any further assistance or want to work on a new project!                                                               │
-│                                                                                                                         │
-│  Execution Results:                                                                                                     │
-│  -> FINISH::You're welcome! It seems the BMI Calculator project is complete as per your requests. Let me know if you    │
-│  need any further assistance or want to work on a new project!                                                          │
-│  ✓ Agent: You're welcome! It seems the BMI Calculator project is complete as per your requests. Let me know if you      │
-│  need any further assistance or want to work on a new project!                                                          │
-│                                                                                                                         │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-user>: exit
-i Session ended.
-(pai-code-py3.12) user@localhost:~/space/dev/try/testtpai$ 
-
-```
------
 
 ## **6. Technical Details**
 
@@ -298,7 +178,7 @@ As a developer, you can easily extend Pai's internal capabilities:
 
 ### **Technology Stack**
 
-  * **Language:** Python 3.9+
+  * **Language:** Python 3.10+
   * **Dependency Management & Packaging:** pip + setuptools
   * **LLM API:** Google Gemini
   * **Core Libraries:**
