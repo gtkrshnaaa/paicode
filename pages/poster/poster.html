@@ -43,10 +43,10 @@
           repeating-linear-gradient(0deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px),
           repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 60px);
       }
-      /* A3 fixed pixel canvas (portrait): 3508 x 4961 px */
+      /* A3 ratio canvas (portrait): smaller responsive size */
       .sheet {
-        width: 3508px;
-        height: 4961px;
+        width: 800px;
+        height: 1131px;
         background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
         box-shadow: 0 40px 120px rgba(0,0,0,0.12), 0 0 0 1px rgba(44,50,197,0.08);
         position: relative;
@@ -67,8 +67,8 @@
       }
       .safe {
         /* inner safe area */
-        width: calc(3508px - 240px);
-        height: calc(4961px - 240px);
+        width: calc(800px - 30px);
+        height: calc(1131px - 30px);
         position: relative;
         z-index: 1;
       }
@@ -92,9 +92,8 @@
         -webkit-text-fill-color: transparent;
       }
       .feature-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,249,255,0.8) 100%);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(44,50,197,0.1);
+        background: rgba(255,255,255,0.95);
+        border: 1px solid rgba(44,50,197,0.15);
         transition: all 0.3s ease;
       }
       .feature-card:hover {
@@ -124,6 +123,7 @@
       /* Print-friendly */
       @media print {
         @page { size: A3 portrait; margin: 10mm; }
+        .sheet { width: 100% !important; height: 100% !important; max-width: none !important; }
         body { background: #fff; }
         .sheet { width: auto; height: auto; box-shadow: none; background: #fff; }
         .sheet::before { display: none; }
@@ -141,216 +141,204 @@
   </head>
   <body class="text-ink font-sans antialiased">
     <div class="min-h-screen w-full overflow-auto">
-      <div class="mx-auto my-10 sheet relative rounded-2xl">
+      <div class="mx-auto my-10 sheet relative">
         <!-- Decorative Orbs -->
         <span class="orb-poster" style="width:400px;height:400px; top:10%; right:5%; background: radial-gradient(circle, rgba(44,50,197,0.15) 0%, transparent 70%); animation-delay:0s"></span>
         <span class="orb-poster" style="width:300px;height:300px; top:60%; right:15%; background: radial-gradient(circle, rgba(233,197,55,0.12) 0%, transparent 70%); animation-delay:2s"></span>
         <span class="orb-poster" style="width:200px;height:200px; top:30%; left:10%; background: radial-gradient(circle, rgba(44,50,197,0.08) 0%, transparent 70%); animation-delay:4s"></span>
         
-        <div class="safe mx-auto h-full p-8" style="max-width: 3268px;">
+        <div class="safe mx-auto h-full p-3" style="max-width: 770px;">
           <!-- Header with Logos -->
           <header class="pb-6 relative">
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-4">
-                <img src="assets/images/univlogo.png" alt="University Logo" class="h-16 w-auto">
-                <img src="assets/images/metariselogo.png" alt="Metarise Logo" class="h-16 w-auto">
+                <img src="../assets/images/univlogo.png" alt="University Logo" class="h-12 w-auto">
+                <img src="../assets/images/metariselogo.png" alt="Metarise Logo" class="h-12 w-auto">
               </div>
               <div class="text-right">
-                <div class="text-xl font-semibold text-ink/70">International Competition</div>
-                <div class="text-lg text-ink/60">Research Poster Presentation</div>
+                <div class="text-lg font-semibold text-ink/70">International Competition</div>
+                <div class="text-base text-ink/60">Research Poster Presentation</div>
               </div>
             </div>
             
-            <div class="text-center mb-8">
-              <h1 class="font-display text-6xl font-extrabold tracking-tight gradient-text mb-4">PAICODE</h1>
-              <h2 class="text-3xl font-bold text-ink mb-2">An Agentic CLI to Safely Orchestrate Project Workspaces with LLM Assistance</h2>
-              <div class="text-xl text-ink/70">
-                <span class="font-semibold">Team Leader:</span> [Your Name] • 
-                <span class="font-semibold">Members:</span> [Team Members] • 
-                <span class="font-semibold">Affiliation:</span> [Your Institution]
+            <div class="text-center mb-4">
+              <h1 class="font-display text-3xl font-extrabold tracking-tight gradient-text mb-2">PAICODE</h1>
+              <h2 class="text-lg font-bold text-ink mb-1 leading-tight">An Agentic CLI to Safely Orchestrate Project Workspaces with LLM Assistance</h2>
+              <div class="text-sm text-ink/70 leading-relaxed">
+                 Gilang Teja Krishna • Universitas Teknologi Digital Indonesia
               </div>
             </div>
           </header>
 
           <!-- Main Content - Portrait Layout -->
-          <main class="space-y-6 text-lg">
+          <main class="space-y-3 text-sm">
             <!-- Abstract -->
-            <section class="feature-card rounded-2xl p-6 shadow-card">
-              <div class="bg-primary text-white px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
-                <h3 class="font-display text-2xl font-bold">ABSTRACT</h3>
+            <section class="feature-card rounded-xl p-3 shadow-card">
+              <div class="bg-primary text-white px-2 py-1 rounded-t-lg -mx-3 -mt-3 mb-2">
+                <h3 class="font-display text-base font-bold">ABSTRACT</h3>
               </div>
-              <p class="text-ink leading-relaxed">Summarize your research in a compact paragraph that covers the background, problem, objectives, methodology, key findings, and conclusions. Use clear and concise language to convey the essence of your work, making it accessible to a broad audience.</p>
-              <p class="text-ink leading-relaxed mt-3">Paicode streamlines file-level and application-level operations in software projects using explicit, auditable action plans. It integrates with modern LLMs to propose, explain, and execute changes while enforcing path-security and diff-based modifications.</p>
+              <p class="text-ink leading-relaxed text-xs">Summarize your research in a compact paragraph that covers the background, problem, objectives, methodology, key findings, and conclusions. Use clear and concise language to convey the essence of your work, making it accessible to a broad audience.</p>
+              <p class="text-ink leading-relaxed mt-1 text-xs">Paicode streamlines file-level and application-level operations in software projects using explicit, auditable action plans. It integrates with modern LLMs to propose, explain, and execute changes while enforcing path-security and diff-based modifications.</p>
             </section>
 
             <!-- Methodology -->
-            <section class="feature-card rounded-2xl p-6 shadow-card">
-              <div class="bg-ink text-white px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
-                <h3 class="font-display text-2xl font-bold">METHODOLOGY</h3>
+            <section class="feature-card rounded-xl p-3 shadow-card">
+              <div class="bg-ink text-white px-2 py-1 rounded-t-lg -mx-3 -mt-3 mb-2">
+                <h3 class="font-display text-base font-bold">METHODOLOGY</h3>
               </div>
-              <p class="text-ink leading-relaxed mb-4">Summarize the approach, tools, or techniques used to conduct your research in text along with appropriate diagrams.</p>
-              <div class="grid grid-cols-2 gap-4">
-                <div class="flex items-start gap-3">
-                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
-                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+              <p class="text-ink leading-relaxed mb-2 text-xs">Summarize the approach, tools, or techniques used to conduct your research in text along with appropriate diagrams.</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="flex items-start gap-1">
+                  <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                    <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
                   </div>
-                  <span class="text-ink">Agentic loop with explicit plans (MKDIR, READ, WRITE, MODIFY, etc.).</span>
+                  <span class="text-ink text-xs">Agentic loop with explicit plans (MKDIR, READ, WRITE, MODIFY, etc.).</span>
                 </div>
-                <div class="flex items-start gap-3">
-                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
-                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                <div class="flex items-start gap-1">
+                  <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                    <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
                   </div>
-                  <span class="text-ink">Workspace controller with deny-lists and path guards.</span>
+                  <span class="text-ink text-xs">Workspace controller with deny-lists and path guards.</span>
                 </div>
-                <div class="flex items-start gap-3">
-                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
-                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                <div class="flex items-start gap-1">
+                  <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                    <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
                   </div>
-                  <span class="text-ink">Diff/patch application to minimize unintended overwrites.</span>
+                  <span class="text-ink text-xs">Diff/patch application to minimize unintended overwrites.</span>
                 </div>
-                <div class="flex items-start gap-3">
-                  <div class="h-6 w-6 rounded-full bg-primary/20 grid place-items-center mt-1 flex-shrink-0">
-                    <div class="h-2 w-2 rounded-full bg-primary"></div>
+                <div class="flex items-start gap-1">
+                  <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                    <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
                   </div>
-                  <span class="text-ink">Human-in-the-loop approvals for critical steps.</span>
+                  <span class="text-ink text-xs">Human-in-the-loop approvals for critical steps.</span>
                 </div>
               </div>
             </section>
 
             <!-- Analysis and Result -->
-            <section class="feature-card rounded-2xl p-6 shadow-card">
-              <div class="bg-accent2 text-ink px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
-                <h3 class="font-display text-2xl font-bold">ANALYSIS AND RESULT</h3>
+            <section class="feature-card rounded-xl p-3 shadow-card">
+              <div class="bg-accent2 text-ink px-2 py-1 rounded-t-lg -mx-3 -mt-3 mb-2">
+                <h3 class="font-display text-base font-bold">ANALYSIS AND RESULT</h3>
               </div>
-              <div class="grid grid-cols-2 gap-6 mb-6">
-                <div class="flex items-start gap-3">
-                  <i class="uil uil-chart-line text-primary text-xl mt-1"></i>
-                  <div>
-                    <p class="text-ink font-semibold">Showcase results of your product</p>
-                    <p class="text-ink/80 text-base">AND/OR prototype AND/OR research findings with clear visual representation of its design and functionality in form of screenshots, graphs, charts, tables, or other relevant features and user interface elements.</p>
+              <div class="grid grid-cols-2 gap-2 mb-2">
+                <div class="space-y-1">
+                  <div class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink text-xs">Showcase your findings with visual elements like charts, graphs, or images with clear visual hierarchy and user-friendly elements.</span>
+                  </div>
+                  <div class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink text-xs">Improved security and MKDIR with clear visual hierarchy and user-friendly elements.</span>
                   </div>
                 </div>
-                <div class="flex items-start gap-3">
-                  <i class="uil uil-lightbulb-alt text-primary text-xl mt-1"></i>
-                  <div>
-                    <p class="text-ink font-semibold">Highlight the key outcomes or data</p>
-                    <p class="text-ink/80 text-base">from your study in a clear and concise form.</p>
+                <div class="space-y-1">
+                  <div class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink text-xs">Highlight the key outcomes or data that you want to share and emphasize their significance.</span>
                   </div>
-                </div>
-              </div>
-              
-              <div class="grid grid-cols-3 gap-4 mb-6">
-                <div class="metric-card rounded-xl p-4 text-center">
-                  <div class="text-3xl font-extrabold">-35%</div>
-                  <div class="text-sm opacity-90">Manual Ops</div>
-                </div>
-                <div class="metric-card rounded-xl p-4 text-center">
-                  <div class="text-3xl font-extrabold">+28%</div>
-                  <div class="text-sm opacity-90">Productivity</div>
-                </div>
-                <div class="metric-card rounded-xl p-4 text-center">
-                  <div class="text-3xl font-extrabold">100%</div>
-                  <div class="text-sm opacity-90">Auditable</div>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 gap-3">
-                <div class="flex items-center gap-2">
-                  <i class="uil uil-check-circle text-primary"></i>
-                  <span class="text-ink text-base">Traceable change history via structured diffs</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <i class="uil uil-check-circle text-primary"></i>
-                  <span class="text-ink text-base">Improved developer productivity in multi-file refactors</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <i class="uil uil-check-circle text-primary"></i>
-                  <span class="text-ink text-base">Reduced manual file operations and errors</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <i class="uil uil-check-circle text-primary"></i>
-                  <span class="text-ink text-base">Enhanced code quality and consistency</span>
+                  <div class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink text-xs">Improved developer productivity in multi-file refactoring.</span>
+                  </div>
                 </div>
               </div>
             </section>
 
+
             <!-- Bottom Row: Commercialization and Usefulness -->
-            <div class="grid grid-cols-2 gap-6">
+            <div class="grid grid-cols-2 gap-3">
               <!-- Potential to be Commercialized -->
-              <section class="feature-card rounded-2xl p-6 shadow-card">
-                <div class="bg-primary text-white px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
-                  <h3 class="font-display text-2xl font-bold">POTENTIAL TO BE COMMERCIALIZED</h3>
+              <section class="feature-card rounded-xl p-3 shadow-card">
+                <div class="bg-primary text-white px-2 py-1 rounded-t-lg -mx-3 -mt-3 mb-2">
+                  <h3 class="font-display text-sm font-bold">POTENTIAL TO BE COMMERCIALIZED</h3>
                 </div>
-                <p class="text-ink leading-relaxed mb-4">Discuss the practical value and market readiness of your research. Highlight its unique selling points, target markets, scalability, and potential for commercialization or societal impact. Consider addressing intellectual property, industry partnerships, or future development plans.</p>
-                <div class="space-y-3">
-                  <div class="flex items-center gap-3">
-                    <i class="uil uil-shield-check text-accent2 text-xl"></i>
-                    <span class="text-ink">Policy enforcement & audit trails</span>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <i class="uil uil-link text-accent2 text-xl"></i>
-                    <span class="text-ink">VCS/CI pipeline integrations</span>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <i class="uil uil-users-alt text-accent2 text-xl"></i>
+                <p class="text-ink leading-relaxed mb-2 text-xs">Discuss the practical value and market readiness of your research. Highlight its unique selling points, target markets, scalability, and potential for commercialization or successful impact. Consider addressing intellectual property, industry partnerships, or future development plans.</p>
+                <ul class="space-y-1 text-xs">
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">Policy enforcement & audit tools</span>
+                  </li>
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">VSCode extension integrations</span>
+                  </li>
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
                     <span class="text-ink">Team workflow management</span>
-                  </div>
-                </div>
+                  </li>
+                </ul>
               </section>
 
               <!-- Usefulness -->
-              <section class="feature-card rounded-2xl p-6 shadow-card">
-                <div class="bg-accent2 text-ink px-4 py-2 rounded-t-lg -mx-6 -mt-6 mb-4">
-                  <h3 class="font-display text-2xl font-bold">USEFULNESS</h3>
+              <section class="feature-card rounded-xl p-3 shadow-card">
+                <div class="bg-accent2 text-ink px-2 py-1 rounded-t-lg -mx-3 -mt-3 mb-2">
+                  <h3 class="font-display text-sm font-bold">USEFULNESS</h3>
                 </div>
-                <p class="text-ink leading-relaxed mb-4">The true value of innovation lies in its ability to deliver tangible benefits and address real-world challenges. Clearly articulate the potential for practical application, offering solutions that can be effectively translated into products, services, or processes. Its relevance to current market needs and its potential for economic impact underscore its readiness for broader adoption.</p>
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="flex items-center gap-2">
-                    <i class="uil uil-fast-forward text-primary"></i>
-                    <span class="text-ink text-sm">Accelerates prototyping and code maintenance</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <i class="uil uil-shield text-primary"></i>
-                    <span class="text-ink text-sm">Improves safety of automated code modifications</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <i class="uil uil-graduation-cap text-primary"></i>
-                    <span class="text-ink text-sm">Lowers onboarding friction via consistent workflows</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <i class="uil uil-rocket text-primary"></i>
-                    <span class="text-ink text-sm">Enables rapid iteration and experimentation</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <i class="uil uil-users-alt text-primary"></i>
-                    <span class="text-ink text-sm">Facilitates collaborative development workflows</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <i class="uil uil-chart-growth text-primary"></i>
-                    <span class="text-ink text-sm">Scales with project complexity and team size</span>
-                  </div>
-                </div>
+                <p class="text-ink leading-relaxed mb-2 text-xs">The true value of Paicode lies in its ability to deliver tangible benefits and address real-world challenges. Clearly articulate the potential for practical application, offering solutions that can be effectively translated into products, services, or processes. Its relevance to current market trends and its potential for economic impact, competitive advantage, or broader societal adoption.</p>
+                <ul class="space-y-1 text-xs">
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">Improves safety of automated code modifications</span>
+                  </li>
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">Reduces developer cognitive load in complex workflows</span>
+                  </li>
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">Enables iteration and experimentation</span>
+                  </li>
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">Facilitates collaborative development workflows</span>
+                  </li>
+                  <li class="flex items-start gap-1">
+                    <div class="h-3 w-3 rounded-full bg-primary/20 grid place-items-center mt-0.5 flex-shrink-0">
+                      <div class="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                    </div>
+                    <span class="text-ink">Scales with project complexity and team size</span>
+                  </li>
+                </ul>
               </section>
             </div>
           </main>
 
           <!-- Footer -->
-          <footer class="mt-20 pt-8 relative">
+          <footer class="mt-6 pt-3 relative">
             <div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <span class="h-10 w-10 grid place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-white font-display font-extrabold">P</span>
+              <div class="flex items-center gap-2">
+                <span class="h-6 w-6 grid place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/80 text-white font-display font-extrabold text-xs">P</span>
                 <div>
-                  <span class="text-2xl font-semibold text-ink">&copy; <span id="y"></span> Paicode</span>
-                  <p class="text-lg text-ink/60">Agentic AI for Modern Development</p>
+                  <span class="text-base font-semibold text-ink">&copy; <span id="y"></span> Paicode</span>
+                  <p class="text-xs text-ink/60">Agentic AI for Modern Development</p>
                 </div>
               </div>
-              <nav class="flex items-center gap-6">
-                <a class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-lg font-semibold" href="../../index.html">
-                  <i class="uil uil-home"></i> Home
-                </a>
-                <a class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent2/10 text-ink hover:bg-accent2 hover:text-ink transition-all text-lg font-semibold" href="../presentation/slide1.html">
-                  <i class="uil uil-presentation"></i> Presentation
+              <nav class="flex items-center gap-2">
+                <a class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-xs font-semibold" href="https://github.com/username/paicode" target="_blank">
+                  <i class="uil uil-github text-xs"></i> github.com/gtkrshnaaa/paicode
                 </a>
               </nav>
             </div>
