@@ -24,6 +24,19 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
         msg = "Agent did not produce an action plan."
         return Group(Text(msg, style="warning")), msg
 
+    # Additional cleanup: remove any markdown artifacts that slipped through
+    plan = plan.strip()
+    # Remove code block markers
+    if plan.startswith('```'):
+        lines = plan.split('\n')
+        # Remove first line if it's a code block marker
+        if lines[0].startswith('```'):
+            lines = lines[1:]
+        # Remove last line if it's a closing marker
+        if lines and lines[-1].strip() == '```':
+            lines = lines[:-1]
+        plan = '\n'.join(lines)
+    
     all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
     renderables = []
     log_results = []
@@ -149,15 +162,43 @@ CRITICAL INSTRUCTIONS:
 6. Consider edge cases and potential bugs
 7. Maintain backward compatibility unless explicitly asked to break it
 
-SAFETY CONSTRAINTS:
-- Maximum 120 changed lines per modification
-- If the change requires more, focus on one coherent subset (e.g., one function)
-- Larger changes must be split across multiple steps
+SAFETY CONSTRAINTS - VERY IMPORTANT:
+- HARD LIMIT: Maximum 120 changed lines per modification
+- If the change requires more than 120 lines, you MUST split it into smaller parts
+- Focus on ONE specific area at a time (e.g., one section, one function, one feature)
+- Example: If adding CSS, do it in parts:
+  * Part 1: Add basic layout styles (body, container)
+  * Part 2: Add form element styles (inputs, labels)
+  * Part 3: Add button and interactive styles
+- NEVER try to apply all changes at once if they exceed 120 lines
+- It's better to make 3 small modifications than 1 large rejected modification
 
 OUTPUT REQUIREMENTS:
 - Provide the ENTIRE, complete file content with modifications applied
 - Output ONLY raw code without explanations, markdown, or comments about changes
+- Do NOT use markdown code blocks (no ```)
+- Do NOT include language tags or diff format
+- Do NOT show before/after comparisons
+- Start directly with the complete modified file content
 - Ensure the code is syntactically correct and will run without errors
+
+Example of CORRECT output:
+<!DOCTYPE html>
+<html>
+... (complete file with modifications)
+
+Example of WRONG output (DO NOT DO THIS):
+```html
+<!DOCTYPE html>
+...
+```
+
+OR
+
+```diff
+- old line
++ new line
+```
 
 Think carefully before modifying. Quality over speed.
 """
@@ -165,6 +206,15 @@ Think carefully before modifying. Quality over speed.
 
                     if new_content_1:
                         success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_1)
+                        
+                        # Check if modification was rejected due to size
+                        if not success and "exceeds" in message.lower():
+                            renderables.append(Text(f"! Modification rejected: too large. {message}", style="warning"))
+                            renderables.append(Text("! Hint: Break this modification into smaller parts across multiple steps.", style="warning"))
+                            result = f"Error: {message}\nSuggestion: Split this modification into 2-3 smaller modifications in subsequent steps."
+                            renderables.append(Text(f"✗ {result}", style="error"))
+                            log_results.append(result)
+                            continue
                         
                         if success and "No changes detected" in message:
                             renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
@@ -370,11 +420,24 @@ CRITICAL REQUIREMENTS:
 7. Consider edge cases and potential issues
 8. Make the code maintainable and readable
 
-OUTPUT REQUIREMENTS:
-- Provide ONLY the raw code without explanations or markdown code blocks
-- Do not include any commentary before or after the code
+CRITICAL OUTPUT FORMAT:
+- Output ONLY the raw code, nothing else
+- Do NOT use markdown code blocks (no ```)
+- Do NOT include language tags (no "html", "python", etc. on first line)
+- Do NOT add explanations before or after the code
+- Start directly with the code content
 - Ensure proper indentation and formatting
-- Make it production-ready
+
+Example of CORRECT output for HTML:
+<!DOCTYPE html>
+<html>
+...
+
+Example of WRONG output (DO NOT DO THIS):
+```html
+<!DOCTYPE html>
+...
+```
 
 Write high-quality code that you would be proud to ship.
 """
@@ -394,6 +457,29 @@ def _compress_context(context: list[str], max_items: int = 10) -> str:
     # Keep first 2 items (initial context) and last max_items-2 items (recent context)
     compressed = context[:2] + ["... [earlier context omitted for brevity] ..."] + context[-(max_items-2):]
     return "\n".join(compressed)
+
+def _clean_markdown_formatting(text: str) -> str:
+    """Remove markdown formatting artifacts from text."""
+    if not text:
+        return text
+    
+    # Remove markdown bullet points at line start
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Remove markdown list markers (*, -, +) at the start
+        if stripped.startswith('* '):
+            stripped = stripped[2:]
+        elif stripped.startswith('- '):
+            stripped = stripped[2:]
+        elif stripped.startswith('+ '):
+            stripped = stripped[2:]
+        # Remove bold markers but keep content
+        stripped = stripped.replace('**', '')
+        cleaned_lines.append(stripped)
+    
+    return '\n'.join(cleaned_lines)
 
 def start_interactive_session():
     """Starts an interactive session with the agent."""
@@ -509,10 +595,11 @@ You are an expert senior software engineer. {response_guidance}
 
         # Step 1: Agent Response (no commands allowed)
         response_guidance = (
-            "Provide a brief, warm, and encouraging response acknowledging the user's request. "
-            "Show that you understand the context and requirements. "
-            "If the request is ambiguous, briefly mention what you'll assume. "
-            "Do NOT include any actionable commands or tool calls."
+            "Provide a VERY brief (1-2 sentences max) acknowledgment of the user's request. "
+            "Show understanding but be concise. "
+            "If the request is ambiguous, state your assumption in one sentence. "
+            "Do NOT include any actionable commands or tool calls. "
+            "Keep it short and professional."
         )
         response_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI with deep understanding of:
@@ -559,7 +646,9 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
             "Steps should describe meaningful sub-goals (each may require executing multiple file operations). "
             "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
-            "Each step should be atomic and verifiable."
+            "Each step should be atomic and verifiable. "
+            "IMPORTANT: If a task involves large modifications (e.g., adding extensive CSS/HTML), break it into smaller incremental steps. "
+            "Example: Instead of 'Add all CSS styling', break into 'Add basic layout CSS', 'Add form styling CSS', 'Add interactive CSS'."
         )
         scheduler_prompt = f"""
 You are Pai, an expert planner and developer AI with strong analytical skills.
@@ -570,6 +659,17 @@ Your task planning should:
 3. Anticipate potential issues and plan accordingly
 4. Ensure each step has a clear, verifiable outcome
 5. Follow software engineering best practices
+6. CRITICAL: Keep each step small enough to fit within 120 line modification limit
+7. If a step would require modifying >120 lines, split it into 2-3 smaller steps
+
+Example of GOOD planning (incremental):
+- Step 1: Create basic HTML structure
+- Step 2: Add basic layout CSS (body, container)
+- Step 3: Add form element CSS (inputs, labels)
+- Step 4: Add button and interactive CSS
+
+Example of BAD planning (too large):
+- Step 1: Create complete HTML with all CSS styling (would exceed 120 lines)
 
 {scheduler_guidance}
 
@@ -584,10 +684,26 @@ Your task planning should:
         scheduler_plan = llm.generate_text(scheduler_prompt)
         # Sanitize accidental language tag prefix like 'json' on its own line
         sp = scheduler_plan.strip()
-        if sp.lower().startswith("json"):
-            parts = sp.split('\n', 1)
-            if len(parts) == 2:
-                scheduler_plan = parts[1]
+        
+        # Remove common prefixes that might appear before JSON
+        prefixes_to_remove = ['json', 'JSON', 'on', 'ON']
+        for prefix in prefixes_to_remove:
+            if sp.lower().startswith(prefix.lower()):
+                parts = sp.split('\n', 1)
+                if len(parts) == 2:
+                    sp = parts[1].strip()
+                    break
+        
+        # Try to extract JSON if it's wrapped in text
+        if not sp.startswith('{'):
+            # Find first { and last }
+            start_idx = sp.find('{')
+            end_idx = sp.rfind('}')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                sp = sp[start_idx:end_idx+1]
+        
+        scheduler_plan = sp
+        
         # Try to render scheduler JSON as a nice table
         parsed_scheduler = None
         try:
@@ -656,11 +772,12 @@ Your task planning should:
         last_action_step_index = 2 + action_steps_count
         for action_idx in range(3, last_action_step_index + 1):
             guidance = (
-                "Plan and execute the next actions towards the user's goal. "
-                "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when it is efficient and safe. "
-                "If the step requires several related file operations (e.g., delete multiple files, create several files), group them in this step. "
-                "For MODIFY specifically, keep each modification under a hard cap of 120 changed lines; if the overall change is larger (e.g., ~300 lines), split it into multiple focused MODIFY steps across iterations (e.g., ~100 lines each) to stay within the cap. "
-                "Do NOT output any other command type (e.g., RUN). Keep natural language to max 3 short lines followed by 1..N command lines."
+                "Execute the next actions towards the user's goal. "
+                "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when efficient and safe. "
+                "If the step requires several related file operations, group them in this step. "
+                "For MODIFY, keep each modification under 120 changed lines; split larger changes across iterations. "
+                "Do NOT output any other command type (e.g., RUN). "
+                "Keep explanations to 1-2 lines max, then output commands directly."
             )
 
             # Supply a scheduler hint (if available) to make the step focused
@@ -678,12 +795,16 @@ Before taking any action, think step-by-step about the best approach. Consider:
 3. What are potential edge cases or issues?
 4. What is the minimal, safest set of actions needed?
 5. How will I verify success?
+6. CRITICAL: If modifying a file, will the changes exceed 120 lines? If yes, how to split it?
 
-Rules:
-- Do NOT output any commands here.
-- Keep it concise: 3-6 bullet points.
-- Focus strictly on the target step hint.
-- Think like a senior developer reviewing code.
+CRITICAL OUTPUT FORMAT:
+- Output ONLY plain text bullet points, NO markdown
+- Do NOT use markdown formatting (no *, **, -, etc.)
+- Use simple numbered list or plain text
+- Keep it concise: 3-6 points
+- Focus strictly on the target step hint
+- Think like a senior developer reviewing code
+- If modification seems large, explicitly mention splitting strategy
 
 Target step hint: {step_hint}
 
@@ -702,6 +823,8 @@ Target step hint: {step_hint}
 Think carefully and methodically.
 """
             thinking_text = llm.generate_text(thinking_prompt)
+            # Clean markdown formatting from thinking output
+            thinking_text = _clean_markdown_formatting(thinking_text)
             # Render concise thinking summary (no commands expected)
             thinking_group, thinking_log = _generate_execution_renderables(thinking_text)
             ui.console.print(
@@ -728,6 +851,13 @@ CRITICAL RULES FOR HIGH-QUALITY OUTPUT:
 6. If uncertain, READ first to gather information
 7. Use descriptive file/directory names following conventions
 8. Consider error cases and edge conditions
+
+CRITICAL OUTPUT FORMAT RULES:
+- Output ONLY plain text commands, NO markdown code blocks
+- Do NOT wrap commands in ```command``` or ```language``` blocks
+- Do NOT include language tags like "html", "json", "diff" on separate lines
+- Keep explanations brief (max 2 lines) before commands
+- Commands must be on their own lines in format: COMMAND::params
 
 {guidance}
 
@@ -815,12 +945,18 @@ Your evaluation should check:
 4. Did the agent follow best practices?
 5. Is the output complete and correct?
 
-Return ONLY raw JSON with this schema:
+CRITICAL OUTPUT FORMAT:
+- Return ONLY raw JSON, no markdown code blocks
+- Do NOT wrap in ```json or ``` markers
+- Start directly with {{ and end with }}
+- No explanations before or after JSON
+
+JSON Schema:
 {{"passed": true|false, "reasons": [string..], "next_fix": [string..], "quality_score": 1-10 }}
 
 Where:
 - passed: true if actions correctly addressed the step, false otherwise
-- reasons: list of specific reasons for the verdict
+- reasons: list of specific reasons for the verdict (ALWAYS provide at least 1 reason)
 - next_fix: list of specific fixes needed if failed, or improvements if passed
 - quality_score: 1-10 rating of execution quality (10 = perfect)
 
@@ -831,6 +967,7 @@ Context:
 - Latest user request: "{user_effective_request}"
 
 Be thorough and critical. High standards lead to better code.
+Output ONLY the JSON object.
 """
             integrity_json = llm.generate_text(integrity_prompt)
             # Best-effort parse
@@ -849,17 +986,26 @@ Be thorough and critical. High standards lead to better code.
                 pass
 
             table = Table(show_header=True, header_style="bold", box=ROUNDED)
-            table.add_column("Integrity", justify="left")
+            table.add_column("Integrity", justify="left", style="bold")
             table.add_column("Details", overflow="fold")
             status_text = "PASS" if verdict["passed"] else "FAIL"
             if verdict["quality_score"] > 0:
                 status_text += f" (Quality: {verdict['quality_score']}/10)"
             table.add_row("Status", status_text)
-            if verdict["reasons"]:
-                table.add_row("Reasons", "\n".join(verdict["reasons"]))
-            if verdict["next_fix"]:
+            
+            # Always show reasons and fixes if available
+            if verdict["reasons"] and len(verdict["reasons"]) > 0:
+                reasons_text = "\n".join(verdict["reasons"])
+                table.add_row("Reasons", reasons_text)
+            else:
+                # If no reasons provided but status is FAIL, add default message
+                if not verdict["passed"]:
+                    table.add_row("Reasons", "Integrity check failed. Review the action results above.")
+            
+            if verdict["next_fix"] and len(verdict["next_fix"]) > 0:
                 fix_label = "Improvements" if verdict["passed"] else "Required Fixes"
-                table.add_row(fix_label, "\n".join(verdict["next_fix"]))
+                fixes_text = "\n".join(verdict["next_fix"])
+                table.add_row(fix_label, fixes_text)
             integrity_group = Group(Text("Integrity Check", style="bold underline"), table)
             ui.console.print(
                 Panel(

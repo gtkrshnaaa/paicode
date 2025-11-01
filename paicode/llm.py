@@ -104,15 +104,40 @@ def generate_text(prompt: str) -> str:
         
         # Clean the output from markdown code blocks if they exist
         cleaned_text = response.text.strip()
-        if cleaned_text.startswith("```python"):
-            cleaned_text = cleaned_text[len("```python"):].strip()
-        elif cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text[len("```json"):].strip()
-        elif cleaned_text.startswith("```"):
-            cleaned_text = cleaned_text[len("```"):].strip()
-
+        
+        # Remove all common markdown code block patterns
+        # Handle language-specific code blocks
+        code_block_prefixes = [
+            "```python", "```html", "```css", "```javascript", "```js",
+            "```typescript", "```ts", "```json", "```yaml", "```yml",
+            "```bash", "```sh", "```diff", "```xml", "```sql",
+            "```java", "```cpp", "```c", "```go", "```rust", "```ruby",
+            "```php", "```markdown", "```md", "```text", "```txt", "```"
+        ]
+        
+        for prefix in code_block_prefixes:
+            if cleaned_text.startswith(prefix):
+                cleaned_text = cleaned_text[len(prefix):].strip()
+                break
+        
+        # Remove trailing code block markers
         if cleaned_text.endswith("```"):
             cleaned_text = cleaned_text[:-len("```")].strip()
+        
+        # Remove any remaining language tags at the start (e.g., "html", "json")
+        lines = cleaned_text.split('\n')
+        if lines and len(lines[0].strip()) < 20 and lines[0].strip().lower() in [
+            'html', 'css', 'javascript', 'js', 'python', 'json', 'yaml', 
+            'bash', 'sh', 'diff', 'xml', 'sql', 'java', 'cpp', 'c', 'go', 
+            'rust', 'ruby', 'php', 'markdown', 'md', 'text', 'txt', 'on'
+        ]:
+            cleaned_text = '\n'.join(lines[1:]).strip()
+        
+        # Additional cleanup for markdown formatting in text
+        # Remove markdown bold/italic markers if they appear to be artifacts
+        if cleaned_text.count('**') > 0 or cleaned_text.count('*') > 10:
+            # This might be markdown formatting, but only clean if it looks excessive
+            pass  # Keep for now, as some legitimate content uses these
             
         return cleaned_text
     except Exception as e:
