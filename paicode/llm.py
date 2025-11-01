@@ -1,23 +1,37 @@
 import os
+import warnings
 
 # Reduce noisy STDERR logs from gRPC/absl before importing Google SDKs.
 # These settings aim to suppress INFO/WARNING/ERROR logs emitted by native libs
 # that happen prior to Python log initialization.
-os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
+os.environ.setdefault("GRPC_VERBOSITY", "NONE")
 os.environ.setdefault("GRPC_LOG_SEVERITY", "ERROR")
 # Abseil logging (used by some Google native deps). 3 ~ FATAL-only
 os.environ.setdefault("ABSL_LOGGING_MIN_LOG_LEVEL", "3")
 # glog compatibility (some builds respect this env var)
 os.environ.setdefault("GLOG_minloglevel", "3")
+# Additional environment variables to suppress Google SDK warnings
+os.environ.setdefault("GOOGLE_CLOUD_DISABLE_GRPC", "true")
+os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "false")
+
+# Suppress specific warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="google")
+warnings.filterwarnings("ignore", message=".*ALTS.*")
+warnings.filterwarnings("ignore", message=".*log messages before absl::InitializeLog.*")
 
 import google.generativeai as genai
 from . import config, ui
 
 DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-2.5-flash")
 try:
-    DEFAULT_TEMPERATURE = float(os.getenv("PAI_TEMPERATURE", "0.4"))
+    DEFAULT_TEMPERATURE = float(os.getenv("PAI_TEMPERATURE", "0.3"))
+    # Clamp temperature to safe range
+    if DEFAULT_TEMPERATURE < 0.0:
+        DEFAULT_TEMPERATURE = 0.0
+    elif DEFAULT_TEMPERATURE > 2.0:
+        DEFAULT_TEMPERATURE = 2.0
 except ValueError:
-    DEFAULT_TEMPERATURE = 0.4
+    DEFAULT_TEMPERATURE = 0.3
 
 # Global model holder
 model = None
@@ -37,6 +51,8 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
     try:
         name = (model_name or DEFAULT_MODEL) or "gemini-2.5-flash"
         temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
+        # Clamp temperature to safe range
+        temp = max(0.0, min(2.0, temp))
         _runtime["name"] = name
         _runtime["temperature"] = temp
         # (Re)build model object shell; API key is configured on each request

@@ -37,22 +37,26 @@ def _is_path_safe(path: str) -> bool:
     """
     Ensures the target path is within the project directory and not sensitive.
     """
-    if not path:
+    if not path or not isinstance(path, str):
         return False
         
     try:
-        # 1. Normalize the path for consistency
-        norm_path = os.path.normpath(path)
+        # 1. Normalize the path for consistency and strip whitespace
+        norm_path = os.path.normpath(path.strip())
         
-        # 2. Check if the path tries to escape the root directory
+        # 2. Reject empty paths after normalization
+        if not norm_path or norm_path in {'.', '..'}:
+            return False
+        
+        # 3. Check if the path tries to escape the root directory
         full_path = os.path.realpath(os.path.join(PROJECT_ROOT, norm_path))
-        if not full_path.startswith(PROJECT_ROOT):
+        if not full_path.startswith(os.path.realpath(PROJECT_ROOT)):
             ui.print_error(f"Operation cancelled. Path '{path}' is outside the project directory.")
             return False
 
-        # 3. Block access to sensitive files and directories
+        # 4. Block access to sensitive files and directories
         path_parts = norm_path.replace('\\', '/').split('/')
-        if any(part in SENSITIVE_PATTERNS for part in path_parts):
+        if any(part in SENSITIVE_PATTERNS for part in path_parts if part):
             ui.print_error(f"Access to the sensitive path '{path}' is denied.")
             return False
 

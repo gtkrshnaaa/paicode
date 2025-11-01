@@ -83,7 +83,13 @@ def main():
         temperature = getattr(args, 'temperature', None)
         if model is not None or temperature is not None:
             llm.set_runtime_model(model, temperature)
-        agent.start_interactive_session()
+        try:
+            agent.start_interactive_session()
+        except KeyboardInterrupt:
+            ui.print_info("\nSession terminated by user.")
+        except Exception as e:
+            ui.print_error(f"An error occurred during the session: {e}")
+            return 1
 
 if __name__ == "__main__":
     main()

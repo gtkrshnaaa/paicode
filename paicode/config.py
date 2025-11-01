@@ -103,7 +103,14 @@ def list_api_keys() -> List[Dict[str, str]]:
     default_id = store.get("default")
     for kid in store.get("order", []):
         val = store["keys"].get(kid, "")
-        masked = f"{val[:5]}...{val[-4:]}" if val else ""
+        if val:
+            # Handle short keys gracefully
+            if len(val) < 10:
+                masked = f"{val[:2]}...{val[-2:]}"
+            else:
+                masked = f"{val[:5]}...{val[-4:]}"
+        else:
+            masked = ""
         rows.append({
             "id": kid,
             "masked": masked,
@@ -123,7 +130,11 @@ def show_api_key(key_id: Optional[str] = None):
     if not val:
         ui.print_error(f"API key id '{key_id}' not found.")
         return
-    masked_key = f"{val[:5]}...{val[-4:]}"
+    # Handle short keys gracefully
+    if len(val) < 10:
+        masked_key = f"{val[:2]}...{val[-2:]}"
+    else:
+        masked_key = f"{val[:5]}...{val[-4:]}"
     suffix = " (default)" if key_id == store.get("default") else ""
     ui.print_info(f"Key [{key_id}]{suffix}: {masked_key}")
 

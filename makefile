@@ -47,19 +47,25 @@ install-cli:
 	@echo 'export GRPC_LOG_SEVERITY="ERROR"' >> $(HOME)/.local/bin/pai
 	@echo 'export ABSL_LOGGING_MIN_LOG_LEVEL="3"' >> $(HOME)/.local/bin/pai
 	@echo 'export GLOG_minloglevel="3"' >> $(HOME)/.local/bin/pai
+	@echo 'export GOOGLE_CLOUD_DISABLE_GRPC="true"' >> $(HOME)/.local/bin/pai
+	@echo 'export GRPC_ENABLE_FORK_SUPPORT="false"' >> $(HOME)/.local/bin/pai
+	@echo 'SCRIPT_DIR="$$(cd "$$(dirname "$${BASH_SOURCE[0]}")" && pwd)"' >> $(HOME)/.local/bin/pai
 	@echo 'APPDIR="$(shell pwd)"' >> $(HOME)/.local/bin/pai
 	@echo 'VENVDIR="$$APPDIR/.venv"' >> $(HOME)/.local/bin/pai
 	@echo 'PY="$$VENVDIR/bin/python"' >> $(HOME)/.local/bin/pai
+	@echo '# Redirect stderr to suppress remaining warnings' >> $(HOME)/.local/bin/pai
 	@echo 'if [ -x "$$VENVDIR/bin/pai" ]; then' >> $(HOME)/.local/bin/pai
-	@echo '  exec "$$VENVDIR/bin/pai" "$$@"' >> $(HOME)/.local/bin/pai
+	@echo '  exec "$$VENVDIR/bin/pai" "$$@" 2>/dev/null' >> $(HOME)/.local/bin/pai
 	@echo 'elif [ -x "$$PY" ]; then' >> $(HOME)/.local/bin/pai
-	@echo '  exec "$$PY" -m paicode.cli "$$@"' >> $(HOME)/.local/bin/pai
+	@echo '  exec "$$PY" -m paicode.cli "$$@" 2>/dev/null' >> $(HOME)/.local/bin/pai
 	@echo 'else' >> $(HOME)/.local/bin/pai
-	@echo '  exec python3 -m paicode.cli "$$@"' >> $(HOME)/.local/bin/pai
+	@echo '  exec python3 -m paicode.cli "$$@" 2>/dev/null' >> $(HOME)/.local/bin/pai
 	@echo 'fi' >> $(HOME)/.local/bin/pai
 	@chmod +x $(HOME)/.local/bin/pai
 	@# Ensure ~/.local/bin is in PATH (append to ~/.bashrc if missing)
-	@grep -qxF 'export PATH="$$HOME/.local/bin:$$PATH"' $(HOME)/.bashrc || printf '\n# Added by pai install-cli\nexport PATH="$$HOME/.local/bin:$$PATH"\n' >> $(HOME)/.bashrc
+	@if [ -f $(HOME)/.bashrc ]; then \
+		grep -qxF 'export PATH="$$HOME/.local/bin:$$PATH"' $(HOME)/.bashrc || printf '\n# Added by pai install-cli\nexport PATH="$$HOME/.local/bin:$$PATH"\n' >> $(HOME)/.bashrc; \
+	fi
 	@echo "Ensured PATH includes $$HOME/.local/bin in $$HOME/.bashrc. Run: 'source $$HOME/.bashrc' or open a new terminal."
 	@echo "Done. Ensure $(HOME)/.local/bin is in your PATH. Try running: pai --help"
 

@@ -131,18 +131,35 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         continue
 
                     modification_prompt_1 = f"""
-You are an expert code modifier. Here is the full content of the file `{file_path}`:
+You are an expert code modifier with deep understanding of software engineering best practices.
+
+CURRENT FILE: `{file_path}`
 --- START OF FILE ---
 {original_content}
 --- END OF FILE ---
 
-Based on the file content above, apply the following modification: "{description}".
-IMPORTANT: You must only change the relevant parts of the code. Do not refactor, reformat, or alter any other part of the file.
-Provide back the ENTIRE, complete file content with the modification applied. Provide ONLY the raw code without any explanations or markdown.
+MODIFICATION REQUEST: "{description}"
 
-Hard constraints for safety:
-- Apply at most 120 changed lines in this single modification step.
-- If the requested change would exceed that, restrict this step to a coherent subset (e.g., one function/region) so that the total diff stays within 120 lines. Larger changes must be split across multiple steps.
+CRITICAL INSTRUCTIONS:
+1. Analyze the current code structure carefully
+2. Identify EXACTLY what needs to change to fulfill the request
+3. Make ONLY the necessary changes - do not refactor unrelated code
+4. Preserve existing code style, formatting, and conventions
+5. Ensure the modification is correct and complete
+6. Consider edge cases and potential bugs
+7. Maintain backward compatibility unless explicitly asked to break it
+
+SAFETY CONSTRAINTS:
+- Maximum 120 changed lines per modification
+- If the change requires more, focus on one coherent subset (e.g., one function)
+- Larger changes must be split across multiple steps
+
+OUTPUT REQUIREMENTS:
+- Provide the ENTIRE, complete file content with modifications applied
+- Output ONLY raw code without explanations, markdown, or comments about changes
+- Ensure the code is syntactically correct and will run without errors
+
+Think carefully before modifying. Quality over speed.
 """
                     new_content_1 = llm.generate_text(modification_prompt_1)
 
@@ -153,20 +170,31 @@ Hard constraints for safety:
                             renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
                             
                             modification_prompt_2 = f"""
-My first attempt to modify the file failed because the model returned the code completely unchanged.
-You MUST apply the requested change now. Be very literal and precise.
+CRITICAL: First attempt returned unchanged code. You MUST make the requested modification now.
 
-Original file content to be modified:
+FILE: `{file_path}`
+ORIGINAL CONTENT:
 ---
 {original_content}
 ---
 
-The user's explicit instruction is: "{description}".
-This is a bug-fixing or specific modification task. You must return the complete, corrected code content. 
-Provide ONLY the raw code without any explanations or markdown.
+EXPLICIT INSTRUCTION: "{description}"
 
-Hard constraints for safety:
-- Maximum 120 changed lines per step. If more is needed overall, only modify a focused subset now and leave the rest for subsequent steps.
+WHAT WENT WRONG:
+The previous attempt returned the code unchanged. This means you need to:
+1. Re-read the instruction more carefully
+2. Identify the EXACT location that needs modification
+3. Make the specific change requested
+4. Ensure the change is actually applied
+
+REQUIREMENTS:
+- This is a critical modification - it MUST be applied
+- Be very literal and precise about the change
+- Return the COMPLETE file with the modification applied
+- Output ONLY raw code without explanations or markdown
+- Maximum 120 changed lines
+
+DO NOT return the code unchanged again. Make the modification.
 """
                             
                             new_content_2 = llm.generate_text(modification_prompt_2)
@@ -244,14 +272,27 @@ def _classify_intent(user_request: str, context: str) -> tuple[str, str, str]:
             return ("task", "simple", "")
 
         prompt = (
-            "Return ONLY raw JSON with this schema: "
-            "{\"mode\": \"chat\"|\"task\", \"complexity\": \"simple\"|\"normal\"|\"complex\", \"reply\": string|null}. "
-            "If mode is 'chat', set 'reply' to a concise, warm response (no commands). If mode is 'task', set 'reply' to null."
+            "You are an intent classifier for a coding assistant. Analyze the user's message and classify it.\n\n"
+            "CLASSIFICATION CRITERIA:\n"
+            "- 'chat' mode: Questions, greetings, clarifications, discussions (no file operations needed)\n"
+            "- 'task' mode: Requests to create, modify, read, or manage files/code\n\n"
+            "COMPLEXITY LEVELS:\n"
+            "- 'simple': Single file operation or basic task (1-2 steps)\n"
+            "- 'normal': Multiple related operations or moderate complexity (3-5 steps)\n"
+            "- 'complex': Large-scale changes, architecture work, or many dependencies (6+ steps)\n\n"
+            "Return ONLY raw JSON with this schema:\n"
+            "{\"mode\": \"chat\"|\"task\", \"complexity\": \"simple\"|\"normal\"|\"complex\", \"reply\": string|null}\n\n"
+            "If mode is 'chat', provide a helpful reply. If mode is 'task', set 'reply' to null."
         )
         classifier_input = f"""
 {prompt}
 
-Latest message: "{user_request}"
+User's message: "{user_request}"
+
+Context from conversation:
+{context[-500:] if context else "No prior context"}
+
+Classify accurately based on the actual intent.
 """
         result = llm.generate_text(classifier_input)
         mode = "task"; complexity = "normal"; reply = ""
@@ -287,14 +328,72 @@ def handle_write(file_path: str, params: str) -> str:
     """Invokes the LLM to create content and write it to a file."""
     _, _, description = params.partition('::')
     
-    prompt = f"You are an expert programming assistant. Write the complete code for the file '{file_path}' based on the following description: \"{description}\". Provide ONLY the raw code without any explanations or markdown."
+    if not description.strip():
+        return f"Error: No description provided for file: {file_path}"
+    
+    # Infer file type and provide context
+    file_ext = os.path.splitext(file_path)[1].lower()
+    lang_hints = {
+        '.py': 'Python',
+        '.js': 'JavaScript',
+        '.ts': 'TypeScript',
+        '.java': 'Java',
+        '.cpp': 'C++',
+        '.c': 'C',
+        '.go': 'Go',
+        '.rs': 'Rust',
+        '.rb': 'Ruby',
+        '.php': 'PHP',
+        '.html': 'HTML',
+        '.css': 'CSS',
+        '.json': 'JSON',
+        '.yaml': 'YAML',
+        '.yml': 'YAML',
+        '.md': 'Markdown',
+        '.txt': 'Plain Text'
+    }
+    language = lang_hints.get(file_ext, 'code')
+    
+    prompt = f"""You are an expert programming assistant with deep knowledge of software engineering best practices.
+
+TARGET FILE: {file_path}
+LANGUAGE: {language}
+DESCRIPTION: {description}
+
+CRITICAL REQUIREMENTS:
+1. Write complete, production-quality code
+2. Follow {language} best practices and conventions
+3. Include appropriate error handling
+4. Add clear, concise comments for complex logic
+5. Use meaningful variable and function names
+6. Ensure code is syntactically correct and will run without errors
+7. Consider edge cases and potential issues
+8. Make the code maintainable and readable
+
+OUTPUT REQUIREMENTS:
+- Provide ONLY the raw code without explanations or markdown code blocks
+- Do not include any commentary before or after the code
+- Ensure proper indentation and formatting
+- Make it production-ready
+
+Write high-quality code that you would be proud to ship.
+"""
     
     code_content = llm.generate_text(prompt)
     
-    if code_content:
+    if code_content and code_content.strip():
         return workspace.write_to_file(file_path, code_content)
     else:
         return f"Error: Failed to generate content from LLM for file: {file_path}"
+
+def _compress_context(context: list[str], max_items: int = 10) -> str:
+    """Compress context to keep only the most recent and relevant items."""
+    if len(context) <= max_items:
+        return "\n".join(context)
+    
+    # Keep first 2 items (initial context) and last max_items-2 items (recent context)
+    compressed = context[:2] + ["... [earlier context omitted for brevity] ..."] + context[-(max_items-2):]
+    return "\n".join(compressed)
 
 def start_interactive_session():
     """Starts an interactive session with the agent."""
@@ -346,7 +445,8 @@ def start_interactive_session():
         else:
             user_effective_request = user_input
 
-        context_str = "\n".join(session_context)
+        # Compress context to avoid token overflow
+        context_str = _compress_context(session_context, max_items=12)
 
         last_system_response = ""
         finished_early = False
@@ -410,10 +510,17 @@ You are an expert senior software engineer. {response_guidance}
         # Step 1: Agent Response (no commands allowed)
         response_guidance = (
             "Provide a brief, warm, and encouraging response acknowledging the user's request. "
+            "Show that you understand the context and requirements. "
+            "If the request is ambiguous, briefly mention what you'll assume. "
             "Do NOT include any actionable commands or tool calls."
         )
         response_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI.
+You are Pai, an expert, proactive, and autonomous software developer AI with deep understanding of:
+- Software architecture and design patterns
+- Best practices for clean, maintainable code
+- Common pitfalls and how to avoid them
+- Context from previous interactions
+
 {response_guidance}
 
 --- CONVERSATION HISTORY (all previous turns) ---
@@ -423,6 +530,8 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
 --- LATEST USER REQUEST ---
 "{user_effective_request}"
 --- END USER REQUEST ---
+
+Analyze the request carefully. If anything is unclear, state your assumptions.
 """
         response_text = llm.generate_text(response_prompt)
         response_group, response_log = _generate_execution_renderables(response_text)
@@ -448,10 +557,20 @@ You are Pai, an expert, proactive, and autonomous software developer AI.
             "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
-            "Steps should describe meaningful sub-goals (each may require executing multiple file operations)."
+            "Steps should describe meaningful sub-goals (each may require executing multiple file operations). "
+            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
+            "Each step should be atomic and verifiable."
         )
         scheduler_prompt = f"""
-You are Pai, an expert planner and developer AI.
+You are Pai, an expert planner and developer AI with strong analytical skills.
+
+Your task planning should:
+1. Break down complex tasks into logical, sequential steps
+2. Consider dependencies between steps
+3. Anticipate potential issues and plan accordingly
+4. Ensure each step has a clear, verifiable outcome
+5. Follow software engineering best practices
+
 {scheduler_guidance}
 
 --- CONVERSATION HISTORY (all previous turns) ---
@@ -551,13 +670,20 @@ You are Pai, an expert planner and developer AI.
             # Thinking phase (pre-execution): produce a concise internal reasoning summary (no commands)
             thinking_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
-You are a creative problem-solver, not just a command executor.
+You are a creative problem-solver with deep technical expertise, not just a command executor.
 
-Before taking any action, think step-by-step about the best minimal set of actions to make progress on the specific target step.
+Before taking any action, think step-by-step about the best approach. Consider:
+1. What is the exact goal of this step?
+2. What files/directories need to be checked or modified?
+3. What are potential edge cases or issues?
+4. What is the minimal, safest set of actions needed?
+5. How will I verify success?
+
 Rules:
 - Do NOT output any commands here.
 - Keep it concise: 3-6 bullet points.
 - Focus strictly on the target step hint.
+- Think like a senior developer reviewing code.
 
 Target step hint: {step_hint}
 
@@ -572,6 +698,8 @@ Target step hint: {step_hint}
 --- LATEST USER REQUEST ---
 "{user_effective_request}"
 --- END USER REQUEST ---
+
+Think carefully and methodically.
 """
             thinking_text = llm.generate_text(thinking_prompt)
             # Render concise thinking summary (no commands expected)
@@ -589,7 +717,17 @@ Target step hint: {step_hint}
 
             action_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
-You are a creative problem-solver, not just a command executor.
+You are a creative problem-solver with deep technical expertise, not just a command executor.
+
+CRITICAL RULES FOR HIGH-QUALITY OUTPUT:
+1. Always READ files before MODIFY to understand current state
+2. Use TREE or LIST_PATH to explore structure before creating files
+3. For WRITE commands, provide detailed, complete descriptions
+4. For MODIFY commands, be specific about what to change and why
+5. Verify your actions make sense given the context
+6. If uncertain, READ first to gather information
+7. Use descriptive file/directory names following conventions
+8. Consider error cases and edge conditions
 
 {guidance}
 
@@ -600,16 +738,16 @@ Target step hint: {step_hint}
 --- END THINKING SUMMARY ---
 
 --- VALID COMMANDS ---
-1. MKDIR::path
-2. TOUCH::path
-3. WRITE::path::description
-4. MODIFY::path::description
-5. READ::path
-6. LIST_PATH::path
-7. RM::path
-8. MV::source::destination
-9. TREE::path
-10. FINISH::message
+1. MKDIR::path - Create directory (use forward slashes, no spaces in names)
+2. TOUCH::path - Create empty file
+3. WRITE::path::description - Write new file with detailed description of content
+4. MODIFY::path::description - Modify existing file with specific changes
+5. READ::path - Read file content (ALWAYS do this before MODIFY)
+6. LIST_PATH::path - List all files/dirs recursively
+7. RM::path - Delete file or directory
+8. MV::source::destination - Move/rename file or directory
+9. TREE::path - Show directory tree structure
+10. FINISH::message - Mark task complete with summary
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
@@ -623,7 +761,7 @@ Target step hint: {step_hint}
 "{user_effective_request}"
 --- END USER REQUEST ---
 
-Reply now.
+Execute the target step with precision and care. Double-check your commands before outputting.
 """
             plan = llm.generate_text(action_prompt)
 
@@ -668,19 +806,35 @@ Target step hint: {step_hint}
 
             # Integrity check (post-execution): verify alignment with the step hint and task
             integrity_prompt = f"""
-You are an integrity auditor AI. Evaluate whether the last executed actions align with the target step and user request.
+You are a senior code reviewer and integrity auditor AI. Evaluate whether the last executed actions align with the target step and user request.
+
+Your evaluation should check:
+1. Did the actions address the target step correctly?
+2. Were the actions safe and appropriate?
+3. Are there any obvious errors or issues?
+4. Did the agent follow best practices?
+5. Is the output complete and correct?
+
 Return ONLY raw JSON with this schema:
-{{"passed": true|false, "reasons": [string..], "next_fix": [string..] }}
+{{"passed": true|false, "reasons": [string..], "next_fix": [string..], "quality_score": 1-10 }}
+
+Where:
+- passed: true if actions correctly addressed the step, false otherwise
+- reasons: list of specific reasons for the verdict
+- next_fix: list of specific fixes needed if failed, or improvements if passed
+- quality_score: 1-10 rating of execution quality (10 = perfect)
 
 Context:
 - Target step hint: {step_hint}
 - Latest system response (results of actions):
 {last_system_response}
 - Latest user request: "{user_effective_request}"
+
+Be thorough and critical. High standards lead to better code.
 """
             integrity_json = llm.generate_text(integrity_prompt)
             # Best-effort parse
-            verdict = {"passed": False, "reasons": [], "next_fix": []}
+            verdict = {"passed": False, "reasons": [], "next_fix": [], "quality_score": 0}
             try:
                 parsed = json.loads(integrity_json)
                 if isinstance(parsed, dict):
@@ -689,17 +843,23 @@ Context:
                     if isinstance(r, list): verdict["reasons"] = [str(x) for x in r]
                     f = parsed.get("next_fix")
                     if isinstance(f, list): verdict["next_fix"] = [str(x) for x in f]
+                    q = parsed.get("quality_score")
+                    if isinstance(q, (int, float)): verdict["quality_score"] = int(q)
             except Exception:
                 pass
 
             table = Table(show_header=True, header_style="bold", box=ROUNDED)
             table.add_column("Integrity", justify="left")
             table.add_column("Details", overflow="fold")
-            table.add_row("Status", "PASS" if verdict["passed"] else "FAIL")
+            status_text = "PASS" if verdict["passed"] else "FAIL"
+            if verdict["quality_score"] > 0:
+                status_text += f" (Quality: {verdict['quality_score']}/10)"
+            table.add_row("Status", status_text)
             if verdict["reasons"]:
                 table.add_row("Reasons", "\n".join(verdict["reasons"]))
             if verdict["next_fix"]:
-                table.add_row("Next Fix", "\n".join(verdict["next_fix"]))
+                fix_label = "Improvements" if verdict["passed"] else "Required Fixes"
+                table.add_row(fix_label, "\n".join(verdict["next_fix"]))
             integrity_group = Group(Text("Integrity Check", style="bold underline"), table)
             ui.console.print(
                 Panel(
@@ -720,19 +880,33 @@ Context:
         # Final Summary step index depends on how many action steps we ran
         summary_guidance = (
             "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
-            "followed by 2-3 concrete suggestions for next steps. End with a clear confirmation question asking the user "
-            "whether you should proceed with those suggestions. Do NOT include any actionable commands in this step."
+            "followed by 2-3 concrete, actionable suggestions for next steps. "
+            "End with a clear confirmation question asking the user whether you should proceed with those suggestions. "
+            "Do NOT include any actionable commands in this step."
         )
         summary_prompt = f"""
-You are Pai. {summary_guidance}
+You are Pai, an expert software developer AI providing a comprehensive summary.
 
---- LATEST USER REQUEST ---
+TASK: Summarize the work completed and suggest next steps.
+
+SUMMARY REQUIREMENTS:
+1. List what was successfully accomplished (be specific)
+2. Mention any issues encountered and how they were resolved
+3. Provide 2-3 concrete, logical next steps that build on what was done
+4. Make suggestions actionable and prioritized
+5. End with a clear question asking if the user wants to proceed
+
+TONE: Professional, clear, and helpful. Show understanding of the bigger picture.
+
+--- ORIGINAL USER REQUEST ---
 "{user_input}"
 --- END USER REQUEST ---
 
 --- MOST RECENT SYSTEM RESPONSE ---
 {last_system_response}
 --- END SYSTEM RESPONSE ---
+
+Provide a summary that demonstrates deep understanding of what was accomplished and what should come next.
 """
         summary_plan = llm.generate_text(summary_prompt)
         summary_group, summary_log = _generate_execution_renderables(summary_plan)
