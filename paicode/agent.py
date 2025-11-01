@@ -163,15 +163,21 @@ CRITICAL INSTRUCTIONS:
 7. Maintain backward compatibility unless explicitly asked to break it
 
 SAFETY CONSTRAINTS - VERY IMPORTANT:
-- HARD LIMIT: Maximum 120 changed lines per modification
-- If the change requires more than 120 lines, you MUST split it into smaller parts
+- HARD LIMIT: Maximum 500 changed lines per modification
+- BEST PRACTICE: Even though limit is 500, prefer smaller focused modifications (100-200 lines)
+- Think like a senior developer: make surgical, targeted changes
 - Focus on ONE specific area at a time (e.g., one section, one function, one feature)
-- Example: If adding CSS, do it in parts:
-  * Part 1: Add basic layout styles (body, container)
-  * Part 2: Add form element styles (inputs, labels)
-  * Part 3: Add button and interactive styles
-- NEVER try to apply all changes at once if they exceed 120 lines
-- It's better to make 3 small modifications than 1 large rejected modification
+- Example of EXCELLENT incremental approach (like Cascade):
+  * Modification 1: Update function signature and add type hints (30 lines)
+  * Modification 2: Add input validation logic (50 lines)
+  * Modification 3: Enhance error handling (40 lines)
+  * Modification 4: Add comprehensive docstrings (30 lines)
+- Example: If adding CSS, do it in logical sections:
+  * Part 1: Add basic layout styles (body, container, main structure)
+  * Part 2: Add form element styles (inputs, labels, form-group)
+  * Part 3: Add button and interactive styles (hover, focus, active states)
+- NEVER try to apply all changes at once if they can be logically separated
+- Quality over quantity: smaller, focused changes are easier to verify and safer
 
 OUTPUT REQUIREMENTS:
 - Provide the ENTIRE, complete file content with modifications applied
@@ -210,8 +216,9 @@ Think carefully before modifying. Quality over speed.
                         # Check if modification was rejected due to size
                         if not success and "exceeds" in message.lower():
                             renderables.append(Text(f"! Modification rejected: too large. {message}", style="warning"))
-                            renderables.append(Text("! Hint: Break this modification into smaller parts across multiple steps.", style="warning"))
-                            result = f"Error: {message}\nSuggestion: Split this modification into 2-3 smaller modifications in subsequent steps."
+                            renderables.append(Text("! Think like Cascade: Break into focused, surgical modifications.", style="warning"))
+                            renderables.append(Text("! Ideal: 100-200 lines (very focused), Acceptable: 200-500 lines (one area)", style="info"))
+                            result = f"Error: {message}\nSuggestion: Use Cascade-style approach - split into focused modifications targeting one specific area at a time."
                             renderables.append(Text(f"✗ {result}", style="error"))
                             log_results.append(result)
                             continue
@@ -659,17 +666,28 @@ Your task planning should:
 3. Anticipate potential issues and plan accordingly
 4. Ensure each step has a clear, verifiable outcome
 5. Follow software engineering best practices
-6. CRITICAL: Keep each step small enough to fit within 120 line modification limit
-7. If a step would require modifying >120 lines, split it into 2-3 smaller steps
+6. Think like Cascade: make focused, surgical modifications
+7. BEST PRACTICE: Keep each step focused on one specific area (100-200 lines ideal)
+8. Maximum 500 lines per modification, but prefer smaller when possible
 
-Example of GOOD planning (incremental):
-- Step 1: Create basic HTML structure
-- Step 2: Add basic layout CSS (body, container)
-- Step 3: Add form element CSS (inputs, labels)
-- Step 4: Add button and interactive CSS
+Example of EXCELLENT planning (Cascade-style, incremental and focused):
+- Step 1: Create basic HTML structure (semantic elements only)
+- Step 2: Add core layout CSS (body, container, flexbox centering)
+- Step 3: Add form structure CSS (form-group, spacing, alignment)
+- Step 4: Add input field styling (borders, padding, focus states)
+- Step 5: Add button styling (colors, hover effects, transitions)
 
-Example of BAD planning (too large):
-- Step 1: Create complete HTML with all CSS styling (would exceed 120 lines)
+Example of GOOD planning (efficient but still focused):
+- Step 1: Create HTML structure with basic inline comments
+- Step 2: Add layout and form container CSS together
+- Step 3: Add all form element styling (inputs, labels, buttons)
+
+Example of ACCEPTABLE planning (uses higher limit but less ideal):
+- Step 1: Create complete HTML structure
+- Step 2: Add all CSS styling in one go (up to 500 lines)
+
+Example of BAD planning (too monolithic):
+- Step 1: Create everything at once (HTML + all CSS + JavaScript)
 
 {scheduler_guidance}
 
@@ -795,7 +813,12 @@ Before taking any action, think step-by-step about the best approach. Consider:
 3. What are potential edge cases or issues?
 4. What is the minimal, safest set of actions needed?
 5. How will I verify success?
-6. CRITICAL: If modifying a file, will the changes exceed 120 lines? If yes, how to split it?
+6. CRITICAL: Can this modification be focused on one specific area (like Cascade does)?
+7. If modifying a file, estimate the size:
+   - Small (30-100 lines): Perfect, very focused
+   - Medium (100-200 lines): Good, still focused
+   - Large (200-500 lines): Acceptable but consider if it can be split
+   - Very Large (>500 lines): MUST split into multiple modifications
 
 CRITICAL OUTPUT FORMAT:
 - Output ONLY plain text bullet points, NO markdown
@@ -803,8 +826,8 @@ CRITICAL OUTPUT FORMAT:
 - Use simple numbered list or plain text
 - Keep it concise: 3-6 points
 - Focus strictly on the target step hint
-- Think like a senior developer reviewing code
-- If modification seems large, explicitly mention splitting strategy
+- Think like Cascade: surgical, focused, one area at a time
+- Explicitly state estimated modification size and approach
 
 Target step hint: {step_hint}
 

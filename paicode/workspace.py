@@ -206,7 +206,7 @@ def write_to_file(file_path: str, content: str) -> str:
 
 
 
-def apply_modification_with_patch(file_path: str, original_content: str, new_content: str, threshold: int = 120) -> tuple[bool, str]:
+def apply_modification_with_patch(file_path: str, original_content: str, new_content: str, threshold: int = 500) -> tuple[bool, str]:
     """
     Applies a modification to a file safely by first verifying the scope of changes.
 
@@ -282,10 +282,12 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
         message = (
             f"Warning: Modification for '{file_path}' rejected. "
             f"Change too large: {changed_lines_count} lines (~{ratio:.1%}) exceeds threshold {env_threshold} and ratio {max_ratio:.0%}.\n"
-            f"SOLUTION: Break this modification into smaller parts:\n"
-            f"  - Modify only one section/feature at a time\n"
-            f"  - Aim for <100 lines changed per modification\n"
+            f"SOLUTION: Think like Cascade - break this into focused, surgical modifications:\n"
+            f"  - Focus on ONE specific area/feature at a time\n"
+            f"  - Ideal: 100-200 lines per modification (very focused)\n"
+            f"  - Acceptable: 200-500 lines (still focused on one area)\n"
             f"  - Use multiple MODIFY commands across different steps\n"
+            f"  - Example: Instead of 'add all CSS', do 'add layout CSS', then 'add form CSS', then 'add button CSS'\n"
             f"Diff Preview (first 60 lines):\n{diff_preview}"
         )
         return False, message
