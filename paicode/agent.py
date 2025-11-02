@@ -654,15 +654,11 @@ You are an expert senior software engineer. {response_guidance}
         # 8) Final Summary (no commands; suggestions + confirmation question)
         #
 
-        # Allow configuring total steps via environment, default to 8 (minimum 6)
-        try:
-            total_steps = int(os.getenv("PAI_MAX_STEPS", "8"))
-            if total_steps < 6:
-                total_steps = 8
-        except ValueError:
-            total_steps = 8
-
+        # Track actual steps executed (for proper numbering)
+        current_step = 0
+        
         # Step 1: Agent Response (no commands allowed)
+        current_step += 1
         response_guidance = (
             "Provide a VERY brief (1-2 sentences max) acknowledgment of the user's request. "
             "Show understanding but be concise. "
@@ -697,13 +693,13 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
         ui.console.print(
             Panel(
                 response_group,
-                title=f"[bold]Agent Response[/bold] (step 1/{total_steps})",
+                title=f"[bold]Agent Response[/bold] (step {current_step})",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
             )
         )
-        interaction_log = f"User: {user_input}\nIteration: 1/{total_steps}\nAI Plan:\n{response_text}\nSystem Response:\n{response_log}"
+        interaction_log = f"User: {user_input}\nIteration: {current_step}\nAI Plan:\n{response_text}\nSystem Response:\n{response_log}"
         session_context.append(interaction_log)
         with open(log_file_path, 'a') as f:
             f.write(interaction_log + "\n-------------------\n")
@@ -712,6 +708,7 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
         # Always use the Task Scheduler for 'task' mode to outline steps first
 
         # Step 2: Task Scheduler (no commands; outline steps) for normal/complex tasks
+        current_step += 1
         scheduler_guidance = (
             "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
@@ -812,13 +809,13 @@ Example of BAD planning (too monolithic):
         ui.console.print(
             Panel(
                 scheduler_group,
-                title=f"[bold]Task Scheduler[/bold] (step 2/{total_steps})",
+                title=f"[bold]Task Scheduler[/bold] (step {current_step})",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
             )
         )
-        interaction_log = f"User: {user_input}\nIteration: 2/{total_steps}\nAI Plan:\n{scheduler_plan}\nSystem Response:\n{scheduler_log}"
+        interaction_log = f"User: {user_input}\nIteration: {current_step}\nAI Plan:\n{scheduler_plan}\nSystem Response:\n{scheduler_log}"
         session_context.append(interaction_log)
         with open(log_file_path, 'a') as f:
             f.write(interaction_log + "\n-------------------\n")
@@ -847,17 +844,17 @@ Example of BAD planning (too monolithic):
                     if len(parts) == 2:
                         scheduler_hints.append(parts[1].strip())
 
-        # Steps 3-?: Action iterations (one or more actionable commands per step when appropriate)
+        # Steps 3+: Action iterations (one or more actionable commands per step when appropriate)
         # Cap the number of action steps to at most 5 and also to the number of hints
-        action_steps_count = min(5, max(1, total_steps - 3))
-        if scheduler_hints:
-            action_steps_count = min(action_steps_count, len(scheduler_hints))
-        last_action_step_index = 2 + action_steps_count
-        for action_idx in range(3, last_action_step_index + 1):
+        action_steps_count = min(5, max(1, len(scheduler_hints) if scheduler_hints else 3))
+        
+        for action_iteration in range(action_steps_count):
+            current_step += 1
+            
             # Check for interrupt before each step
             if check_interrupt():
                 ui.console.print("\n[yellow]⚠ AI response interrupted by user. Stopping execution.[/yellow]")
-                session_context.append(f"[SYSTEM] AI response interrupted at step {action_idx}/{total_steps}")
+                session_context.append(f"[SYSTEM] AI response interrupted at step {current_step}")
                 break
             
             guidance = (
@@ -870,8 +867,7 @@ Example of BAD planning (too monolithic):
             )
 
             # Supply a scheduler hint (if available) to make the step focused
-            idx_from3 = action_idx - 3
-            step_hint = scheduler_hints[idx_from3] if idx_from3 < len(scheduler_hints) else ""
+            step_hint = scheduler_hints[action_iteration] if action_iteration < len(scheduler_hints) else ""
             
             # Thinking phase (pre-execution): produce a concise internal reasoning summary (no commands)
             thinking_prompt = f"""
@@ -924,13 +920,13 @@ Think carefully and methodically.
             ui.console.print(
                 Panel(
                     thinking_group,
-                    title=f"[bold]Thinking[/bold] (pre-execution for step {action_idx}/{total_steps})",
+                    title=f"[bold]Thinking[/bold] (pre-execution for step {current_step})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
                 )
             )
-            session_context.append(f"Pre-Execution Thinking (step {action_idx}):\n{thinking_text}")
+            session_context.append(f"Pre-Execution Thinking (step {current_step}):\n{thinking_text}")
 
             action_prompt = f"""
 You are Pai, an expert, proactive, and autonomous software developer AI.
@@ -1027,14 +1023,14 @@ Target step hint: {step_hint}
             ui.console.print(
                 Panel(
                     renderable_group,
-                    title=f"[bold]Agent Action[/bold] (step {action_idx}/{total_steps})",
+                    title=f"[bold]Agent Action[/bold] (step {current_step})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
                 )
             )
 
-            interaction_log = f"User: {user_input}\nIteration: {action_idx}/{total_steps}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
+            interaction_log = f"User: {user_input}\nIteration: {current_step}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
             session_context.append(interaction_log)
             with open(log_file_path, 'a') as f:
                 f.write(interaction_log + "\n-------------------\n")
@@ -1117,20 +1113,21 @@ Output ONLY the JSON object.
             ui.console.print(
                 Panel(
                     integrity_group,
-                    title=f"[bold]Integrity[/bold] (post-execution step {action_idx}/{total_steps})",
+                    title=f"[bold]Integrity[/bold] (post-execution step {current_step})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
                 )
             )
-            session_context.append(f"Integrity Check (step {action_idx}): {json.dumps(verdict)}")
+            session_context.append(f"Integrity Check (step {current_step}): {json.dumps(verdict)}")
 
             # If model indicates finish early, break action loop and proceed to summary
             if any(line.strip().upper().startswith("FINISH::") for line in plan.splitlines()):
                 finished_early = True
                 break
 
-        # Final Summary step index depends on how many action steps we ran
+        # Final Summary step
+        current_step += 1
         summary_guidance = (
             "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
             "followed by 2-3 concrete, actionable suggestions for next steps. "
@@ -1166,7 +1163,7 @@ Provide a summary that demonstrates deep understanding of what was accomplished 
         ui.console.print(
             Panel(
                 summary_group,
-                title=f"[bold]Agent Response[/bold] (step {last_action_step_index + 1}/{total_steps} - final summary)",
+                title=f"[bold]Agent Response[/bold] (step {current_step} - final summary)",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
