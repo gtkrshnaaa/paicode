@@ -656,6 +656,7 @@ You are an expert senior software engineer. {response_guidance}
 
         # Track actual steps executed (for proper numbering)
         current_step = 0
+        max_steps = 8  # Maximum steps to show user the limit
         
         # Step 1: Agent Response (no commands allowed)
         current_step += 1
@@ -693,7 +694,7 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
         ui.console.print(
             Panel(
                 response_group,
-                title=f"[bold]Agent Response[/bold] (step {current_step})",
+                title=f"[bold]Agent Response[/bold] (step {current_step}/{max_steps})",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
@@ -809,7 +810,7 @@ Example of BAD planning (too monolithic):
         ui.console.print(
             Panel(
                 scheduler_group,
-                title=f"[bold]Task Scheduler[/bold] (step {current_step})",
+                title=f"[bold]Task Scheduler[/bold] (step {current_step}/{max_steps})",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
@@ -920,7 +921,7 @@ Think carefully and methodically.
             ui.console.print(
                 Panel(
                     thinking_group,
-                    title=f"[bold]Thinking[/bold] (pre-execution for step {current_step})",
+                    title=f"[bold]Thinking[/bold] (pre-execution for step {current_step}/{max_steps})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
@@ -1023,7 +1024,7 @@ Target step hint: {step_hint}
             ui.console.print(
                 Panel(
                     renderable_group,
-                    title=f"[bold]Agent Action[/bold] (step {current_step})",
+                    title=f"[bold]Agent Action[/bold] (step {current_step}/{max_steps})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
@@ -1113,7 +1114,7 @@ Output ONLY the JSON object.
             ui.console.print(
                 Panel(
                     integrity_group,
-                    title=f"[bold]Integrity[/bold] (post-execution step {current_step})",
+                    title=f"[bold]Integrity[/bold] (post-execution step {current_step}/{max_steps})",
                     box=ROUNDED,
                     border_style="grey50",
                     padding=(1, 2)
@@ -1163,7 +1164,7 @@ Provide a summary that demonstrates deep understanding of what was accomplished 
         ui.console.print(
             Panel(
                 summary_group,
-                title=f"[bold]Agent Response[/bold] (step {current_step} - final summary)",
+                title=f"[bold]Agent Response[/bold] (step {current_step}/{max_steps} - final summary)",
                 box=ROUNDED,
                 border_style="grey50",
                 padding=(1, 2)
