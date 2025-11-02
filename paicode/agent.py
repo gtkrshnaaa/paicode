@@ -1,5 +1,7 @@
 import os
 import json
+import signal
+import threading
 from datetime import datetime
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -13,8 +15,42 @@ from . import llm, workspace, ui
 from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
 
+# Try to import prompt_toolkit for better input experience
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.keys import Keys
+    PROMPT_TOOLKIT_AVAILABLE = True
+except ImportError:
+    PROMPT_TOOLKIT_AVAILABLE = False
+
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY"] 
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY"]
+
+# Global flag for interrupt handling
+_interrupt_requested = False
+_interrupt_lock = threading.Lock()
+
+def request_interrupt():
+    """Request interruption of current AI response."""
+    global _interrupt_requested
+    with _interrupt_lock:
+        _interrupt_requested = True
+
+def check_interrupt():
+    """Check if interrupt was requested and reset flag."""
+    global _interrupt_requested
+    with _interrupt_lock:
+        if _interrupt_requested:
+            _interrupt_requested = False
+            return True
+        return False
+
+def reset_interrupt():
+    """Reset interrupt flag."""
+    global _interrupt_requested
+    with _interrupt_lock:
+        _interrupt_requested = False 
 
 def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
     """
@@ -500,7 +536,9 @@ def start_interactive_session():
     
     welcome_message = (
         "Welcome! I'm Pai, your agentic AI coding companion. Let's build something amazing together. ✨\n"
-        "[info]Type 'exit' or 'quit' to leave.[/info]"
+        "[info]Type 'exit' or 'quit' to leave.[/info]\n"
+        "[info]Press Ctrl+C once during AI response to interrupt (keeps session alive).[/info]\n"
+        "[info]Press Ctrl+C twice to exit completely.[/info]"
     )
 
     ui.console.print(
@@ -513,15 +551,39 @@ def start_interactive_session():
         )
     )
     
+    # Setup prompt session with better input handling
+    if PROMPT_TOOLKIT_AVAILABLE:
+        prompt_session = PromptSession()
+    
+    # Setup signal handler for graceful interrupt
+    def signal_handler(signum, frame):
+        if check_interrupt():
+            # Second Ctrl+C, actually exit
+            ui.console.print("\n[warning]Session terminated.[/warning]")
+            os._exit(0)
+        else:
+            # First Ctrl+C, just interrupt AI response
+            request_interrupt()
+            ui.console.print("\n[yellow]⚠ Interrupt requested. AI will stop after current step.[/yellow]")
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    
     while True:
+        reset_interrupt()  # Reset interrupt flag at start of each loop
         try:
-            user_input = Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
-        except (KeyboardInterrupt, EOFError):
+            if PROMPT_TOOLKIT_AVAILABLE:
+                # Use prompt_toolkit for better multiline editing
+                user_input = prompt_session.prompt("\nuser> ").strip()
+            else:
+                # Fallback to rich Prompt
+                user_input = Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
+        except (EOFError, KeyboardInterrupt):
             ui.console.print("\n[warning]Session terminated.[/warning]")
             break
         if user_input.lower() in ['exit', 'quit']:
             ui.print_info("Session ended.")
             break
+        
         if not user_input: continue
 
         # Detect short affirmative to auto-continue previous suggestions
@@ -627,6 +689,9 @@ You are Pai, an expert, proactive, and autonomous software developer AI with dee
 
 Analyze the request carefully. If anything is unclear, state your assumptions.
 """
+        # Show interrupt hint before AI starts working
+        ui.console.print("[dim]💡 Tip: Press Ctrl+C to interrupt AI response[/dim]")
+        
         response_text = llm.generate_text(response_prompt)
         response_group, response_log = _generate_execution_renderables(response_text)
         ui.console.print(
@@ -789,6 +854,12 @@ Example of BAD planning (too monolithic):
             action_steps_count = min(action_steps_count, len(scheduler_hints))
         last_action_step_index = 2 + action_steps_count
         for action_idx in range(3, last_action_step_index + 1):
+            # Check for interrupt before each step
+            if check_interrupt():
+                ui.console.print("\n[yellow]⚠ AI response interrupted by user. Stopping execution.[/yellow]")
+                session_context.append(f"[SYSTEM] AI response interrupted at step {action_idx}/{total_steps}")
+                break
+            
             guidance = (
                 "Execute the next actions towards the user's goal. "
                 "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when efficient and safe. "
@@ -889,18 +960,31 @@ Target step hint: {step_hint}
 --- YOUR THINKING SUMMARY (use as guidance; do not echo back) ---
 {thinking_text}
 --- END THINKING SUMMARY ---
-
 --- VALID COMMANDS ---
 1. MKDIR::path - Create directory (use forward slashes, no spaces in names)
 2. TOUCH::path - Create empty file
 3. WRITE::path::description - Write new file with detailed description of content
-4. MODIFY::path::description - Modify existing file with specific changes
+   CRITICAL: description is REQUIRED and must be detailed (minimum 10 words)
+   Example: WRITE::index.html::Create a login page with username and password fields, styled with gray colors
+   WRONG: WRITE::index.html (missing description - will cause error!)
+4. MODIFY::path::description - Modify existing file with detailed description of changes
+   CRITICAL: description is REQUIRED and must be specific about what to change
+   Example: MODIFY::index.html::Add responsive CSS media queries for mobile devices
+   WRONG: MODIFY::index.html (missing description - will cause error!)
 5. READ::path - Read file content (ALWAYS do this before MODIFY)
 6. LIST_PATH::path - List all files/dirs recursively
 7. RM::path - Delete file or directory
 8. MV::source::destination - Move/rename file or directory
 9. TREE::path - Show directory tree structure
 10. FINISH::message - Mark task complete with summary
+
+CRITICAL COMMAND RULES (MUST FOLLOW):
+- WRITE and MODIFY MUST have detailed descriptions after second ::
+- Description must be specific and clear (minimum 10 words)
+- Never use WRITE::path or MODIFY::path without description
+- If you forget description, you will get ERROR: "No description provided for file"
+- Always READ before MODIFY to understand current state
+--- END VALID COMMANDS ---
 
 --- CONVERSATION HISTORY (all previous turns) ---
 {context_str}
