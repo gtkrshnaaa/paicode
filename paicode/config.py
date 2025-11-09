@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 import json
 from typing import Optional, Tuple, Dict, Any, List
@@ -19,7 +20,8 @@ def _default_store() -> Dict[str, Any]:
         "default": None,  # key id
         "keys": {},       # {id: api_key}
         "rr_index": 0,    # round-robin cursor
-        "order": []       # stable order of ids for round-robin
+        "order": [],      # stable order of ids for round-robin
+        "blacklist": {}   # {key_id: timestamp_when_to_unblock}
     }
 
 def _load_store() -> Dict[str, Any]:
@@ -41,6 +43,9 @@ def _load_store() -> Dict[str, Any]:
                 data["rr_index"] = 0
             if "version" not in data:
                 data["version"] = 1
+            # Ensure blacklist exists
+            if "blacklist" not in data or not isinstance(data.get("blacklist"), dict):
+                data["blacklist"] = {}
             return data
         except json.JSONDecodeError:
             # Legacy plaintext: single key. Migrate.
@@ -166,7 +171,11 @@ def set_default_api_key(key_id: str) -> None:
     ui.print_success(f"Default API key set to '{key_id}'.")
 
 def next_api_key() -> Optional[Tuple[str, str]]:
-    """Round-robin over available keys. Returns (key_id, key_value)."""
+    """Round-robin over available keys. Returns (key_id, key_value).
+    
+    DEPRECATED: Use get_next_available_key() instead for smart blacklist support.
+    This function is kept for backward compatibility only.
+    """
     store = _load_store()
     order = store.get("order", [])
     if not order:
@@ -178,3 +187,88 @@ def next_api_key() -> Optional[Tuple[str, str]]:
     store["rr_index"] = (idx + 1) % len(order)
     _save_store(store)
     return (key_id, key_val)
+
+def get_next_available_key() -> Optional[Tuple[str, str]]:
+    """Get next available key that's not blacklisted (smart rotation).
+    
+    This function automatically skips keys that are temporarily blacklisted
+    due to rate limiting. Blacklist entries expire after 10 minutes.
+    
+    Returns:
+        Tuple of (key_id, key_value) if available, None if all keys are blacklisted.
+    """
+    store = _load_store()
+    order = store.get("order", [])
+    if not order:
+        return None
+    
+    blacklist = store.get("blacklist", {})
+    current_time = time.time()
+    
+    # Clean expired blacklist entries (older than 10 minutes = 600 seconds)
+    expired_keys = [k for k, v in blacklist.items() if v <= current_time]
+    for k in expired_keys:
+        del blacklist[k]
+    
+    store["blacklist"] = blacklist
+    
+    # Try to find non-blacklisted key (max attempts = number of keys)
+    attempts = 0
+    max_attempts = len(order)
+    
+    while attempts < max_attempts:
+        idx = store.get("rr_index", 0) % len(order)
+        key_id = order[idx]
+        
+        # Advance cursor for next call
+        store["rr_index"] = (idx + 1) % len(order)
+        
+        # Check if this key is blacklisted
+        if key_id not in blacklist:
+            # Found available key, save state and return
+            _save_store(store)
+            key_val = store.get("keys", {}).get(key_id)
+            return (key_id, key_val)
+        
+        attempts += 1
+    
+    # All keys are blacklisted
+    _save_store(store)
+    return None
+
+def blacklist_key(key_id: str, duration_seconds: int = 600) -> None:
+    """Temporarily blacklist a key due to rate limiting.
+    
+    Args:
+        key_id: The ID of the key to blacklist
+        duration_seconds: How long to blacklist (default: 600 = 10 minutes)
+    """
+    store = _load_store()
+    if "blacklist" not in store:
+        store["blacklist"] = {}
+    
+    unblock_time = time.time() + duration_seconds
+    store["blacklist"][key_id] = unblock_time
+    _save_store(store)
+    
+    # Convert seconds to minutes for user-friendly message
+    minutes = duration_seconds / 60
+    ui.print_warning(f"⚠ API key '{key_id}' temporarily disabled for {minutes:.0f} minutes due to rate limit.")
+
+def get_blacklist_status() -> Dict[str, float]:
+    """Get current blacklist status with remaining time.
+    
+    Returns:
+        Dict mapping key_id to remaining seconds until unblock.
+    """
+    store = _load_store()
+    blacklist = store.get("blacklist", {})
+    current_time = time.time()
+    
+    status = {}
+    for key_id, unblock_time in blacklist.items():
+        remaining = unblock_time - current_time
+        if remaining > 0:
+            status[key_id] = remaining
+    
+    return status

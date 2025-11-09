@@ -70,11 +70,11 @@ The setup process uses pip and Make.
     pip install --user .
     ```
 
-3.  **Configure Your API Keys (Multi-Key Support)**
-    Pai Code includes a secure, built‑in configuration manager with multi-key support. Keys are stored under your home config and can be switched via an explicit default.
+3.  **Configure Your API Keys (Multi-Key Support with Smart Rotation)**
+    Pai Code includes a secure, built‑in configuration manager with **Smart API Key Rotation**. Keys are stored under your home config and automatically rotate with intelligent rate limit handling.
 
     ```bash
-    # Add keys with IDs (recommended)
+    # Add keys with IDs (recommended: 3+ keys for best failover)
     pai config add g1 YOUR_API_KEY_1
     pai config add g2 YOUR_API_KEY_2
     pai config add g3 YOUR_API_KEY_3
@@ -92,9 +92,21 @@ The setup process uses pip and Make.
     pai config remove g3
     ```
 
+    **Smart Rotation Features:**
+    - **Automatic failover**: If one key hits rate limit, automatically switches to another key
+    - **Temporary blacklist**: Rate-limited keys are disabled for 10 minutes, then auto-recover
+    - **Zero user intervention**: Retries happen transparently in the background
+    - **Intelligent distribution**: Requests are distributed across all available keys
+    
+    **Recommended Setup:**
+    - Minimum 2 keys for basic failover
+    - 3-5 keys optimal for production use
+    - See `API_KEY_ROTATION.md` for detailed documentation
+
     Notes:
     - Legacy flags like `pai config --set/--show/--remove` are still available but DEPRECATED. Prefer the subcommands shown above.
     - Keys are securely stored in your user config directory (not in the repository).
+    - Blacklist state is persisted across sessions for reliable rate limit management.
 
 4.  **Verify the Installation**
 

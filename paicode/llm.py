@@ -65,81 +65,181 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
 # Initialize once on import with defaults
 set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 
-def _prepare_runtime() -> bool:
-    """Configure API key via round-robin and ensure model object exists."""
+def _prepare_runtime() -> tuple[bool, str]:
+    """Configure API key via smart rotation and ensure model object exists.
+    
+    Returns:
+        Tuple of (success: bool, key_id: str). If success is False, key_id is empty.
+    """
     global model
-    # Try round-robin key first
-    pair = config.next_api_key()
-    api_key = None
-    if pair is not None:
-        _, api_key = pair
-    if not api_key:
-        api_key = config.get_api_key()
-    if not api_key:
-        ui.print_error("Error: No API keys configured. Use `pai config add <ID> <API_KEY>`.")
+    
+    # Use smart key selection (skips blacklisted keys)
+    pair = config.get_next_available_key()
+    
+    if pair is None:
+        # Check if all keys are blacklisted
+        blacklist_status = config.get_blacklist_status()
+        if blacklist_status:
+            # All keys are rate limited
+            min_remaining = min(blacklist_status.values())
+            minutes = int(min_remaining / 60)
+            seconds = int(min_remaining % 60)
+            ui.print_error(f"Error: All API keys are rate limited. Retry in {minutes}m {seconds}s.")
+        else:
+            # No keys configured at all
+            ui.print_error("Error: No API keys configured. Use `pai config add <ID> <API_KEY>`.")
         model = None
-        return False
+        return False, ""
+    
+    key_id, api_key = pair
+    
     try:
         genai.configure(api_key=api_key)
         if model is None:
-            # build model using stored runtime prefs
+            # Build model using stored runtime prefs
             name = _runtime.get("name") or DEFAULT_MODEL
             temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
             generation_config = {"temperature": temp}
             model = genai.GenerativeModel(name, generation_config=generation_config)
-        return True
+        return True, key_id
     except Exception as e:
-        ui.print_error(f"Failed to set API key or build model: {e}")
+        ui.print_error(f"Failed to configure API key '{key_id}': {e}")
         model = None
-        return False
+        return False, ""
 
-def generate_text(prompt: str) -> str:
-    """Sends a prompt to the Gemini API and returns the text response."""
-    if not _prepare_runtime():
-        return ""
+def _is_rate_limit_error(error: Exception) -> bool:
+    """Detect if an exception is a rate limit error.
+    
+    Args:
+        error: The exception to check
+        
+    Returns:
+        True if it's a rate limit error, False otherwise
+    """
+    error_msg = str(error).lower()
+    
+    # Common rate limit indicators
+    rate_limit_keywords = [
+        'rate limit', 'rate_limit', 'ratelimit',
+        'quota', 'quota exceeded',
+        'resource exhausted', 'resourceexhausted',
+        '429', 'too many requests',
+        'limit exceeded', 'requests per minute'
+    ]
+    
+    return any(keyword in error_msg for keyword in rate_limit_keywords)
 
-    try:
-        with ui.console.status("[bold yellow]Agent is thinking...", spinner="dots"):
-            response = model.generate_content(prompt)
+def _clean_response_text(text: str) -> str:
+    """Clean markdown artifacts from LLM response.
+    
+    Args:
+        text: Raw response text from LLM
         
-        # Clean the output from markdown code blocks if they exist
-        cleaned_text = response.text.strip()
+    Returns:
+        Cleaned text without markdown code blocks
+    """
+    cleaned_text = text.strip()
+    
+    # Remove all common markdown code block patterns
+    code_block_prefixes = [
+        "```python", "```html", "```css", "```javascript", "```js",
+        "```typescript", "```ts", "```json", "```yaml", "```yml",
+        "```bash", "```sh", "```diff", "```xml", "```sql",
+        "```java", "```cpp", "```c", "```go", "```rust", "```ruby",
+        "```php", "```markdown", "```md", "```text", "```txt", "```"
+    ]
+    
+    for prefix in code_block_prefixes:
+        if cleaned_text.startswith(prefix):
+            cleaned_text = cleaned_text[len(prefix):].strip()
+            break
+    
+    # Remove trailing code block markers
+    if cleaned_text.endswith("```"):
+        cleaned_text = cleaned_text[:-len("```")].strip()
+    
+    # Remove any remaining language tags at the start
+    lines = cleaned_text.split('\n')
+    if lines and len(lines[0].strip()) < 20 and lines[0].strip().lower() in [
+        'html', 'css', 'javascript', 'js', 'python', 'json', 'yaml', 
+        'bash', 'sh', 'diff', 'xml', 'sql', 'java', 'cpp', 'c', 'go', 
+        'rust', 'ruby', 'php', 'markdown', 'md', 'text', 'txt', 'on'
+    ]:
+        cleaned_text = '\n'.join(lines[1:]).strip()
+    
+    return cleaned_text
+
+def generate_text(prompt: str, max_retries: int = 3) -> str:
+    """Sends a prompt to the Gemini API with automatic retry on rate limit.
+    
+    This function implements smart retry logic:
+    1. Tries with current available API key
+    2. If rate limit is hit, blacklists that key for 10 minutes
+    3. Automatically retries with next available key
+    4. Repeats up to max_retries times
+    5. User doesn't need to do anything - it's fully automatic
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        max_retries: Maximum number of retry attempts (default: 3)
         
-        # Remove all common markdown code block patterns
-        # Handle language-specific code blocks
-        code_block_prefixes = [
-            "```python", "```html", "```css", "```javascript", "```js",
-            "```typescript", "```ts", "```json", "```yaml", "```yml",
-            "```bash", "```sh", "```diff", "```xml", "```sql",
-            "```java", "```cpp", "```c", "```go", "```rust", "```ruby",
-            "```php", "```markdown", "```md", "```text", "```txt", "```"
-        ]
+    Returns:
+        The cleaned response text, or empty string if all retries failed
+    """
+    
+    for attempt in range(max_retries):
+        # Prepare runtime with next available key
+        success, current_key_id = _prepare_runtime()
         
-        for prefix in code_block_prefixes:
-            if cleaned_text.startswith(prefix):
-                cleaned_text = cleaned_text[len(prefix):].strip()
-                break
+        if not success:
+            # No keys available (all blacklisted or not configured)
+            return ""
         
-        # Remove trailing code block markers
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-len("```")].strip()
-        
-        # Remove any remaining language tags at the start (e.g., "html", "json")
-        lines = cleaned_text.split('\n')
-        if lines and len(lines[0].strip()) < 20 and lines[0].strip().lower() in [
-            'html', 'css', 'javascript', 'js', 'python', 'json', 'yaml', 
-            'bash', 'sh', 'diff', 'xml', 'sql', 'java', 'cpp', 'c', 'go', 
-            'rust', 'ruby', 'php', 'markdown', 'md', 'text', 'txt', 'on'
-        ]:
-            cleaned_text = '\n'.join(lines[1:]).strip()
-        
-        # Additional cleanup for markdown formatting in text
-        # Remove markdown bold/italic markers if they appear to be artifacts
-        if cleaned_text.count('**') > 0 or cleaned_text.count('*') > 10:
-            # This might be markdown formatting, but only clean if it looks excessive
-            pass  # Keep for now, as some legitimate content uses these
+        try:
+            # Show status with current attempt info
+            status_msg = "[bold yellow]Agent is thinking..."
+            if attempt > 0:
+                status_msg = f"[bold yellow]Retrying with different API key... (attempt {attempt + 1}/{max_retries})"
             
-        return cleaned_text
-    except Exception as e:
-        ui.print_error(f"Error: An issue occurred with the LLM API: {e}")
-        return ""
+            with ui.console.status(status_msg, spinner="dots"):
+                response = model.generate_content(prompt)
+            
+            # Success! Clean and return the response
+            cleaned_text = _clean_response_text(response.text)
+            
+            # If this was a retry, show success message
+            if attempt > 0:
+                ui.print_success(f"✓ Successfully switched to backup API key and completed request.")
+            
+            return cleaned_text
+            
+        except Exception as e:
+            # Check if it's a rate limit error
+            is_rate_limit = _is_rate_limit_error(e)
+            
+            if is_rate_limit:
+                # Blacklist this key for 10 minutes
+                config.blacklist_key(current_key_id, duration_seconds=600)
+                
+                if attempt < max_retries - 1:
+                    # Try next key
+                    ui.print_warning(f"⚠ Rate limit detected on key '{current_key_id}'. Switching to next API key...")
+                    continue
+                else:
+                    # Final attempt failed
+                    ui.print_error(f"Error: All API keys exhausted or rate limited. Please wait 10 minutes.")
+                    return ""
+            else:
+                # Non-rate-limit error (e.g., network issue, invalid prompt)
+                ui.print_error(f"Error: LLM API issue: {e}")
+                
+                # For non-rate-limit errors, retry once more if we have attempts left
+                if attempt < max_retries - 1:
+                    ui.print_warning("Retrying with same key...")
+                    continue
+                else:
+                    return ""
+    
+    # Should not reach here, but just in case
+    ui.print_error("Error: Maximum retry attempts reached.")
+    return ""
