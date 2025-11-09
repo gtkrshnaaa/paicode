@@ -1,11 +1,115 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="0; url=slide1.html">
-    <title>Redirecting...</title>
-  </head>
-  <body>
-    <p>Redirecting to <a href="slide1.html">slide 1</a>…</p>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paicode Presentation - Navigation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { bgdom: '#E4E5FE', primary: '#2C32C5', accent2: '#E9C537', ink: '#252525' },
+        fontFamily: { display: ['Unbounded','system-ui','sans-serif'], sans: ['Inter','ui-sans-serif','system-ui'] }
+      } }
+    }
+  </script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #E4E5FE 0%, #F0F1FF 50%, #E4E5FE 100%);
+      min-height: 100vh;
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="p-8">
+  <div class="max-w-4xl mx-auto">
+    <div class="bg-white/95 backdrop-blur rounded-3xl p-8 shadow-2xl">
+      <h1 class="font-display font-extrabold text-5xl bg-gradient-to-r from-primary to-accent2 bg-clip-text text-transparent mb-4">Paicode Presentation</h1>
+      <p class="text-lg text-ink/70 mb-8">Navigate to any slide</p>
+      
+      <div class="grid gap-4">
+        <a href="slide1.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">1</div>
+            <div>
+              <div class="font-bold text-ink text-lg">Title Slide</div>
+              <div class="text-sm text-ink/60">Opening - PAICODE introduction</div>
+            </div>
+          </div>
+        </a>
+
+        <a href="slide2.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">2</div>
+            <div>
+              <div class="font-bold text-ink text-lg">What is Paicode?</div>
+              <div class="text-sm text-ink/60">Definition, Purpose, Built With, Target Audience</div>
+            </div>
+          </div>
+        </a>
+
+        <a href="slide3.html" class="block p-6 bg-gradient-to-r from-accent2/10 to-accent2/5 rounded-xl border-2 border-accent2/20 hover:border-accent2/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-accent2 text-white grid place-items-center font-bold text-xl">3</div>
+            <div>
+              <div class="font-bold text-ink text-lg">Why Paicode? (Key Features)</div>
+              <div class="text-sm text-ink/60">🔥 HOOK SLIDE - Build excitement!</div>
+            </div>
+          </div>
+        </a>
+
+        <a href="slide4.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">4</div>
+            <div>
+              <div class="font-bold text-ink text-lg">Pai Workflow Part 1</div>
+              <div class="text-sm text-ink/60">📸 Demo - Building modular project (MKDIR, WRITE, TREE)</div>
+            </div>
+          </div>
+        </a>
+
+        <a href="slide5_new.html" class="block p-6 bg-gradient-to-r from-accent2/10 to-accent2/5 rounded-xl border-2 border-accent2/20 hover:border-accent2/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-accent2 text-white grid place-items-center font-bold text-xl">5</div>
+            <div>
+              <div class="font-bold text-ink text-lg">Pai Workflow Part 2</div>
+              <div class="text-sm text-ink/60">📸 Demo - Modifying existing code (READ, MODIFY, INTEGRITY)</div>
+            </div>
+          </div>
+        </a>
+
+        <a href="slide6.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">6</div>
+            <div>
+              <div class="font-bold text-ink text-lg">Market Potential</div>
+              <div class="text-sm text-ink/60">Target markets, revenue models, $25B+ opportunity</div>
+            </div>
+          </div>
+        </a>
+
+        <a href="slide7.html" class="block p-6 bg-gradient-to-r from-accent2/10 to-accent2/5 rounded-xl border-2 border-accent2/20 hover:border-accent2/40 transition">
+          <div class="flex items-center gap-4">
+            <div class="h-12 w-12 rounded-xl bg-accent2 text-white grid place-items-center font-bold text-xl">7</div>
+            <div>
+              <div class="font-bold text-ink text-lg">Future Development</div>
+              <div class="text-sm text-ink/60">Roadmap, vision, call to action</div>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <div class="mt-8 p-6 bg-ink/5 rounded-xl">
+        <div class="font-semibold text-ink mb-2">📋 Quick Tips:</div>
+        <ul class="text-sm text-ink/70 space-y-1">
+          <li>• Slide 3 is your HOOK - make it exciting!</li>
+          <li>• Slides 4 & 5 need your screenshots</li>
+          <li>• Total presentation time: ~15 minutes</li>
+          <li>• See PRESENTATION_GUIDE.md for full details</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
 </html>
