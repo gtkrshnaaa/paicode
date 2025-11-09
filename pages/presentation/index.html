@@ -3,111 +3,120 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Paicode Presentation - Navigation</title>
+  <title>Paicode Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: { extend: {
         colors: { bgdom: '#E4E5FE', primary: '#2C32C5', accent2: '#E9C537', ink: '#252525' },
-        fontFamily: { display: ['Unbounded','system-ui','sans-serif'], sans: ['Inter','ui-sans-serif','system-ui'] }
+        fontFamily: { display: ['Unbounded','system-ui','sans-serif'], sans: ['Inter','ui-sans-serif','system-ui'] },
+        boxShadow: { card: '0 10px 30px rgba(0,0,0,0.08)' }
       } }
     }
   </script>
   <style>
     body {
       background: linear-gradient(135deg, #E4E5FE 0%, #F0F1FF 50%, #E4E5FE 100%);
+      background-attachment: fixed;
+      position: relative;
       min-height: 100vh;
-      font-family: 'Inter', sans-serif;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(233,197,55,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(44,50,197,0.06) 1px, transparent 1px),
+        linear-gradient(rgba(233,197,55,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(44,50,197,0.03) 1px, transparent 1px);
+      background-size: 50px 50px, 50px 50px, 100px 100px, 100px 100px;
+      background-position: 0 0, 0 0, 25px 25px, 25px 25px;
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0.7;
+    }
+    .premium-card {
+      background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,255,0.98) 100%);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 25px 50px rgba(44,50,197,0.15), 0 10px 20px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
     }
   </style>
+  <script>(function(){const t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}})();</script>
 </head>
-<body class="p-8">
-  <div class="max-w-4xl mx-auto">
-    <div class="bg-white/95 backdrop-blur rounded-3xl p-8 shadow-2xl">
-      <h1 class="font-display font-extrabold text-5xl bg-gradient-to-r from-primary to-accent2 bg-clip-text text-transparent mb-4">Paicode Presentation</h1>
-      <p class="text-lg text-ink/70 mb-8">Navigate to any slide</p>
-      
-      <div class="grid gap-4">
-        <a href="slide1.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">1</div>
-            <div>
-              <div class="font-bold text-ink text-lg">Title Slide</div>
-              <div class="text-sm text-ink/60">Opening - PAICODE introduction</div>
-            </div>
+<body class="text-ink font-sans antialiased">
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <div class="max-w-4xl w-full">
+      <div class="premium-card rounded-3xl p-12 text-center">
+        <!-- Logo/Icon -->
+        <div class="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-accent2 text-white font-display font-extrabold text-4xl mb-6 shadow-lg">
+          P
+        </div>
+        
+        <!-- Title -->
+        <h1 class="font-display font-extrabold text-6xl lg:text-7xl tracking-tight bg-gradient-to-r from-primary via-accent2 to-ink bg-clip-text text-transparent mb-4">
+          PAICODE
+        </h1>
+        
+        <!-- Subtitle -->
+        <p class="text-2xl text-ink/80 font-semibold mb-3">
+          Agentic AI CLI Tool
+        </p>
+        <p class="text-lg text-ink/60 mb-8 max-w-2xl mx-auto">
+          Your intelligent coding companion in the terminal. Safe, smart, and powerful.
+        </p>
+
+        <!-- Features Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10 max-w-3xl mx-auto">
+          <div class="bg-primary/10 rounded-xl p-3">
+            <div class="text-2xl mb-1">💬</div>
+            <div class="text-xs font-semibold text-ink">Conversational</div>
           </div>
+          <div class="bg-accent2/10 rounded-xl p-3">
+            <div class="text-2xl mb-1">🔒</div>
+            <div class="text-xs font-semibold text-ink">Secure</div>
+          </div>
+          <div class="bg-primary/10 rounded-xl p-3">
+            <div class="text-2xl mb-1">🧠</div>
+            <div class="text-xs font-semibold text-ink">Intelligent</div>
+          </div>
+          <div class="bg-accent2/10 rounded-xl p-3">
+            <div class="text-2xl mb-1">⚡</div>
+            <div class="text-xs font-semibold text-ink">Fast</div>
+          </div>
+        </div>
+
+        <!-- CTA Button -->
+        <a href="slide1.html" class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-primary to-accent2 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300">
+          <i class="uil uil-play-circle text-2xl"></i>
+          Start Presentation
         </a>
 
-        <a href="slide2.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">2</div>
-            <div>
-              <div class="font-bold text-ink text-lg">What is Paicode?</div>
-              <div class="text-sm text-ink/60">Definition, Purpose, Built With, Target Audience</div>
-            </div>
-          </div>
-        </a>
-
-        <a href="slide3.html" class="block p-6 bg-gradient-to-r from-accent2/10 to-accent2/5 rounded-xl border-2 border-accent2/20 hover:border-accent2/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-accent2 text-white grid place-items-center font-bold text-xl">3</div>
-            <div>
-              <div class="font-bold text-ink text-lg">Why Paicode? (Key Features)</div>
-              <div class="text-sm text-ink/60">🔥 HOOK SLIDE - Build excitement!</div>
-            </div>
-          </div>
-        </a>
-
-        <a href="slide4.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">4</div>
-            <div>
-              <div class="font-bold text-ink text-lg">Pai Workflow Part 1</div>
-              <div class="text-sm text-ink/60">📸 Demo - Building modular project (MKDIR, WRITE, TREE)</div>
-            </div>
-          </div>
-        </a>
-
-        <a href="slide5_new.html" class="block p-6 bg-gradient-to-r from-accent2/10 to-accent2/5 rounded-xl border-2 border-accent2/20 hover:border-accent2/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-accent2 text-white grid place-items-center font-bold text-xl">5</div>
-            <div>
-              <div class="font-bold text-ink text-lg">Pai Workflow Part 2</div>
-              <div class="text-sm text-ink/60">📸 Demo - Modifying existing code (READ, MODIFY, INTEGRITY)</div>
-            </div>
-          </div>
-        </a>
-
-        <a href="slide6.html" class="block p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-primary text-white grid place-items-center font-bold text-xl">6</div>
-            <div>
-              <div class="font-bold text-ink text-lg">Market Potential</div>
-              <div class="text-sm text-ink/60">Target markets, revenue models, $25B+ opportunity</div>
-            </div>
-          </div>
-        </a>
-
-        <a href="slide7.html" class="block p-6 bg-gradient-to-r from-accent2/10 to-accent2/5 rounded-xl border-2 border-accent2/20 hover:border-accent2/40 transition">
-          <div class="flex items-center gap-4">
-            <div class="h-12 w-12 rounded-xl bg-accent2 text-white grid place-items-center font-bold text-xl">7</div>
-            <div>
-              <div class="font-bold text-ink text-lg">Future Development</div>
-              <div class="text-sm text-ink/60">Roadmap, vision, call to action</div>
-            </div>
-          </div>
-        </a>
+        <!-- Info -->
+        <div class="mt-8 pt-8 border-t border-ink/10">
+          <p class="text-sm text-ink/50">
+            <i class="uil uil-clock"></i> Duration: ~15 minutes
+            <span class="mx-3">•</span>
+            <i class="uil uil-presentation"></i> 7 slides
+          </p>
+        </div>
       </div>
 
-      <div class="mt-8 p-6 bg-ink/5 rounded-xl">
-        <div class="font-semibold text-ink mb-2">📋 Quick Tips:</div>
-        <ul class="text-sm text-ink/70 space-y-1">
-          <li>• Slide 3 is your HOOK - make it exciting!</li>
-          <li>• Slides 4 & 5 need your screenshots</li>
-          <li>• Total presentation time: ~15 minutes</li>
-          <li>• See PRESENTATION_GUIDE.md for full details</li>
-        </ul>
+      <!-- Quick Links -->
+      <div class="mt-6 text-center">
+        <a href="../../index.html" class="inline-flex items-center gap-2 text-ink/60 hover:text-ink transition">
+          <i class="uil uil-arrow-left"></i>
+          <span class="text-sm">Back to Home</span>
+        </a>
       </div>
     </div>
   </div>
