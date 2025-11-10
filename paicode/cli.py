@@ -11,7 +11,7 @@ def main():
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     parser_auto = subparsers.add_parser('auto', help='Start the interactive AI agent session.')
-    parser_auto.add_argument('--model', type=str, help='LLM model name (e.g., gemini-2.5-flash)')
+    parser_auto.add_argument('--model', type=str, help='LLM model name (e.g., gemini-flash-lite-latest)')
     parser_auto.add_argument('--temperature', type=float, help='LLM sampling temperature (e.g., 0.2)')
 
     parser_config = subparsers.add_parser('config', help='Manage the API key configuration')

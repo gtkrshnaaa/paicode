@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore", message=".*log messages before absl::Initializ
 import google.generativeai as genai
 from . import config, ui
 
-DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-flash-lite-latest")
 try:
     DEFAULT_TEMPERATURE = float(os.getenv("PAI_TEMPERATURE", "0.3"))
     # Clamp temperature to safe range
@@ -49,7 +49,7 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
     global model, _runtime
     # Only update the runtime preferred name/temperature; API key will be injected per call (round-robin)
     try:
-        name = (model_name or DEFAULT_MODEL) or "gemini-2.5-flash"
+        name = (model_name or DEFAULT_MODEL) or "gemini-flash-lite-latest"
         temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
         # Clamp temperature to safe range
         temp = max(0.0, min(2.0, temp))
