@@ -126,10 +126,38 @@
               </div>
             </div>
           </div>
+
+          <div class="premium-card rounded-2xl p-8 mt-6">
+            <h2 class="font-display font-bold text-2xl text-ink mb-4 flex items-center gap-3">
+              <span class="h-10 w-10 rounded-xl bg-accent2/20 grid place-items-center text-accent2">📁</span>
+              Files Created/Modified During Workflow
+            </h2>
+            <div class="relative">
+              <div id="carousel2-files" class="overflow-hidden rounded-xl border-2 border-accent2/20">
+                <div class="flex transition-transform duration-500 ease-in-out" id="carousel2-files-inner">
+                  <img src="../assets/images/pai_workflow/second_prompt/file_created_or_modified_while_prompt2/ss1.png" class="w-full flex-shrink-0" alt="File 1">
+                  <img src="../assets/images/pai_workflow/second_prompt/file_created_or_modified_while_prompt2/ss2.png" class="w-full flex-shrink-0" alt="File 2">
+                  <img src="../assets/images/pai_workflow/second_prompt/file_created_or_modified_while_prompt2/ss3.png" class="w-full flex-shrink-0" alt="File 3">
+                  <img src="../assets/images/pai_workflow/second_prompt/file_created_or_modified_while_prompt2/ss4.png" class="w-full flex-shrink-0" alt="File 4">
+                </div>
+              </div>
+              <button onclick="prevSlideFiles2()" class="absolute left-2 top-1/2 -translate-y-1/2 bg-ink/80 hover:bg-ink text-white rounded-full p-3 shadow-lg transition">
+                <i class="uil uil-angle-left text-2xl"></i>
+              </button>
+              <button onclick="nextSlideFiles2()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-ink/80 hover:bg-ink text-white rounded-full p-3 shadow-lg transition">
+                <i class="uil uil-angle-right text-2xl"></i>
+              </button>
+              <div class="text-center mt-4">
+                <span id="carousel2-files-counter" class="inline-block bg-accent2/10 text-accent2 px-4 py-2 rounded-full font-semibold">1 / 4</span>
+              </div>
+            </div>
+          </div>
           
           <script>
             let currentSlide2 = 0;
             const totalSlides2 = 19;
+            let currentSlideFiles2 = 0;
+            const totalSlidesFiles2 = 4;
             
             function updateCarousel2() {
               const inner = document.getElementById('carousel2-inner');
@@ -148,7 +176,24 @@
               updateCarousel2();
             }
             
-            // Keyboard navigation
+            function updateCarouselFiles2() {
+              const inner = document.getElementById('carousel2-files-inner');
+              const counter = document.getElementById('carousel2-files-counter');
+              inner.style.transform = `translateX(-${currentSlideFiles2 * 100}%)`;
+              counter.textContent = `${currentSlideFiles2 + 1} / ${totalSlidesFiles2}`;
+            }
+            
+            function nextSlideFiles2() {
+              currentSlideFiles2 = (currentSlideFiles2 + 1) % totalSlidesFiles2;
+              updateCarouselFiles2();
+            }
+            
+            function prevSlideFiles2() {
+              currentSlideFiles2 = (currentSlideFiles2 - 1 + totalSlidesFiles2) % totalSlidesFiles2;
+              updateCarouselFiles2();
+            }
+            
+            // Keyboard navigation for main carousel
             document.addEventListener('keydown', (e) => {
               if (e.key === 'ArrowRight') nextSlide2();
               if (e.key === 'ArrowLeft') prevSlide2();

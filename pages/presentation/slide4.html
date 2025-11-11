@@ -119,10 +119,38 @@
               </div>
             </div>
           </div>
+
+          <div class="premium-card rounded-2xl p-8 mt-6">
+            <h2 class="font-display font-bold text-2xl text-ink mb-4 flex items-center gap-3">
+              <span class="h-10 w-10 rounded-xl bg-primary/20 grid place-items-center text-primary">📁</span>
+              Files Created During Workflow
+            </h2>
+            <div class="relative">
+              <div id="carousel1-files" class="overflow-hidden rounded-xl border-2 border-primary/20">
+                <div class="flex transition-transform duration-500 ease-in-out" id="carousel1-files-inner">
+                  <img src="../assets/images/pai_workflow/first_prompt/file_created_while_prompt1/ss1.png" class="w-full flex-shrink-0" alt="File 1">
+                  <img src="../assets/images/pai_workflow/first_prompt/file_created_while_prompt1/ss2.png" class="w-full flex-shrink-0" alt="File 2">
+                  <img src="../assets/images/pai_workflow/first_prompt/file_created_while_prompt1/ss3.png" class="w-full flex-shrink-0" alt="File 3">
+                  <img src="../assets/images/pai_workflow/first_prompt/file_created_while_prompt1/ss4.png" class="w-full flex-shrink-0" alt="File 4">
+                </div>
+              </div>
+              <button onclick="prevSlideFiles1()" class="absolute left-2 top-1/2 -translate-y-1/2 bg-ink/80 hover:bg-ink text-white rounded-full p-3 shadow-lg transition">
+                <i class="uil uil-angle-left text-2xl"></i>
+              </button>
+              <button onclick="nextSlideFiles1()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-ink/80 hover:bg-ink text-white rounded-full p-3 shadow-lg transition">
+                <i class="uil uil-angle-right text-2xl"></i>
+              </button>
+              <div class="text-center mt-4">
+                <span id="carousel1-files-counter" class="inline-block bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold">1 / 4</span>
+              </div>
+            </div>
+          </div>
           
           <script>
             let currentSlide1 = 0;
             const totalSlides1 = 15;
+            let currentSlideFiles1 = 0;
+            const totalSlidesFiles1 = 4;
             
             function updateCarousel1() {
               const inner = document.getElementById('carousel1-inner');
@@ -141,7 +169,24 @@
               updateCarousel1();
             }
             
-            // Keyboard navigation
+            function updateCarouselFiles1() {
+              const inner = document.getElementById('carousel1-files-inner');
+              const counter = document.getElementById('carousel1-files-counter');
+              inner.style.transform = `translateX(-${currentSlideFiles1 * 100}%)`;
+              counter.textContent = `${currentSlideFiles1 + 1} / ${totalSlidesFiles1}`;
+            }
+            
+            function nextSlideFiles1() {
+              currentSlideFiles1 = (currentSlideFiles1 + 1) % totalSlidesFiles1;
+              updateCarouselFiles1();
+            }
+            
+            function prevSlideFiles1() {
+              currentSlideFiles1 = (currentSlideFiles1 - 1 + totalSlidesFiles1) % totalSlidesFiles1;
+              updateCarouselFiles1();
+            }
+
+            // Keyboard navigation for main carousel
             document.addEventListener('keydown', (e) => {
               if (e.key === 'ArrowRight') nextSlide1();
               if (e.key === 'ArrowLeft') prevSlide1();
