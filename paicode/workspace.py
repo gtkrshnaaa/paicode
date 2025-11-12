@@ -44,8 +44,8 @@ def _is_path_safe(path: str) -> bool:
         # 1. Normalize the path for consistency and strip whitespace
         norm_path = os.path.normpath(path.strip())
         
-        # 2. Reject empty paths after normalization
-        if not norm_path or norm_path in {'.', '..'}:
+        # 2. Reject empty paths after normalization, but allow '.' for current directory
+        if not norm_path or norm_path == '..':
             return False
         
         # 3. Check if the path tries to escape the root directory

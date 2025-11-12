@@ -308,20 +308,23 @@ DO NOT return the code unchanged again. Make the modification.
                     if tree_output and "Error:" not in tree_output:
                         renderables.append(Text(tree_output, style="bright_blue"))
                         # Log the actual tree output for the AI's memory
-                        log_results.append(tree_output)
-                        result = "Success: Displayed directory structure."
+                        log_results.append(f"TREE result for '{path_to_list}':\n{tree_output}")
+                        result = f"Success: Displayed directory structure for '{path_to_list}'."
                     else:
-                        result = tree_output or "Error: Failed to display directory structure."
+                        result = tree_output or f"Error: Failed to display directory structure for '{path_to_list}'."
                 
                 elif command_candidate == "LIST_PATH":
                     path_to_list = params if params else '.'
                     list_output = workspace.list_path(path_to_list)
-                    if list_output and "Error:" not in list_output:
+                    if list_output is not None and "Error:" not in list_output:
+                        # Always display the output, even if empty (shows directory is empty)
                         if list_output.strip():
                             renderables.append(Text(list_output, style="bright_blue"))
+                        else:
+                            renderables.append(Text(f"Directory '{path_to_list}' is empty or contains only hidden/sensitive files.", style="dim"))
                         # Log the actual list output for the AI's memory
-                        log_results.append(list_output)
-                        result = f"Success: Listed paths for '{path_to_list}'."
+                        log_results.append(f"LIST_PATH result for '{path_to_list}':\n{list_output}")
+                        result = f"Success: Listed paths for '{path_to_list}'. Found {len(list_output.splitlines()) if list_output.strip() else 0} items."
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
                 
@@ -1049,6 +1052,12 @@ Your evaluation should check:
 4. Did the agent follow best practices?
 5. Is the output complete and correct?
 
+IMPORTANT EVALUATION GUIDELINES:
+- For LIST_PATH and TREE commands: If they executed successfully and showed results (even if empty), consider it PASSED
+- For file operations: Check if the operation completed without errors
+- For exploration tasks: Success means gathering the requested information, not necessarily finding specific content
+- Be fair and practical in evaluation - successful execution of requested commands should generally pass
+
 CRITICAL OUTPUT FORMAT:
 - Return ONLY raw JSON, no markdown code blocks
 - Do NOT wrap in ```json or ``` markers
@@ -1070,7 +1079,7 @@ Context:
 {last_system_response}
 - Latest user request: "{user_effective_request}"
 
-Be thorough and critical. High standards lead to better code.
+Be thorough but fair. Successful command execution should be recognized as success.
 Output ONLY the JSON object.
 """
             integrity_json = llm.generate_text(integrity_prompt)

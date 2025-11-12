@@ -1,5 +1,6 @@
 import os
 import warnings
+import time
 
 # Reduce noisy STDERR logs from gRPC/absl before importing Google SDKs.
 # These settings aim to suppress INFO/WARNING/ERROR logs emitted by native libs
@@ -222,8 +223,10 @@ def generate_text(prompt: str, max_retries: int = 3) -> str:
                 config.blacklist_key(current_key_id, duration_seconds=600)
                 
                 if attempt < max_retries - 1:
-                    # Try next key
+                    # Try next key with delay to avoid cascade blacklisting
                     ui.print_warning(f"⚠ Rate limit detected on key '{current_key_id}'. Switching to next API key...")
+                    ui.print_info("⏳ Waiting 3 seconds to avoid cascade rate limiting...")
+                    time.sleep(3)  # Delay to prevent cascade blacklisting
                     continue
                 else:
                     # Final attempt failed
