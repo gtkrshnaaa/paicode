@@ -28,7 +28,7 @@ SENSITIVE_PATTERNS = {
     '.git', 
     'venv', 
     '__pycache__', 
-    '.pai_history', 
+    '.pai_history',  # Pai cannot access this directly - only for LLM context
     '.idea', 
     '.vscode'
 }
