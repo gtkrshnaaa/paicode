@@ -1,44 +1,49 @@
+#!/usr/bin/env python
+
 import os
 import json
 import signal
 import threading
 from datetime import datetime
-from rich.prompt import Prompt
+from pathlib import Path
+from typing import Optional
+
+from rich.console import Console
 from rich.panel import Panel
-from rich.console import Group
 from rich.text import Text
 from rich.syntax import Syntax
-from rich.box import ROUNDED
 from rich.table import Table
-from . import llm, workspace, ui
-
+from rich.box import ROUNDED
 from pygments.lexers import get_lexer_for_filename
 from pygments.util import ClassNotFound
 
-# Try to import prompt_toolkit for better input experience
 try:
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.keys import Keys
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
-HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY"]
+from . import llm, workspace, ui
 
-# Global flag for interrupt handling
+# History directory
+HISTORY_DIR = os.path.expanduser("~/.config/pai-code/history")
+
+# Valid commands for execution
+VALID_COMMANDS = {
+    "READ", "WRITE", "MODIFY", "TREE", "LIST_PATH", 
+    "MKDIR", "TOUCH", "RM", "MV", "FINISH"
+}
+
+# Global interrupt handling
 _interrupt_requested = False
 _interrupt_lock = threading.Lock()
 
 def request_interrupt():
-    """Request interruption of current AI response."""
     global _interrupt_requested
     with _interrupt_lock:
         _interrupt_requested = True
 
 def check_interrupt():
-    """Check if interrupt was requested and reset flag."""
     global _interrupt_requested
     with _interrupt_lock:
         if _interrupt_requested:
@@ -47,485 +52,9 @@ def check_interrupt():
         return False
 
 def reset_interrupt():
-    """Reset interrupt flag."""
     global _interrupt_requested
     with _interrupt_lock:
-        _interrupt_requested = False 
-
-def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
-    """
-    Executes the plan, generates Rich renderables for display, and creates a detailed log string.
-    """
-    if not plan:
-        msg = "Agent did not produce an action plan."
-        return Group(Text(msg, style="warning")), msg
-
-    # Additional cleanup: remove any markdown artifacts that slipped through
-    plan = plan.strip()
-    # Remove code block markers
-    if plan.startswith('```'):
-        lines = plan.split('\n')
-        # Remove first line if it's a code block marker
-        if lines[0].startswith('```'):
-            lines = lines[1:]
-        # Remove last line if it's a closing marker
-        if lines and lines[-1].strip() == '```':
-            lines = lines[:-1]
-        plan = '\n'.join(lines)
-    
-    all_lines = [line.strip() for line in plan.strip().split('\n') if line.strip()]
-    renderables = []
-    log_results = []
-    execution_header_added = False
-
-    # Split lines into conversational response vs actionable plan lines
-    response_lines: list[str] = []
-    plan_lines: list[str] = []
-    unknown_command_lines: list[str] = []
-    for line in all_lines:
-        cmd_candidate, _, _ = line.partition('::')
-        if cmd_candidate.upper().strip() in VALID_COMMANDS:
-            plan_lines.append(line)
-        else:
-            # If it looks like a command pattern but is not valid (e.g., RUN::...), collect it
-            if '::' in line and cmd_candidate.upper().strip() not in VALID_COMMANDS:
-                unknown_command_lines.append(line)
-            response_lines.append(line)
-
-    # Render Agent Response section (if any)
-    if response_lines:
-        renderables.append(Text("Agent Response:", style="bold underline"))
-        for line in response_lines:
-            renderables.append(Text(f"{line}", style="plan"))
-        log_results.append("\n".join(response_lines))
-
-    # Render Agent Plan section (if any)
-    if plan_lines:
-        renderables.append(Text("Agent Plan:", style="bold underline"))
-        for line in plan_lines:
-            renderables.append(Text(f"{line}", style="plan"))
-        log_results.append("\n".join(plan_lines))
-
-    # Warn about unknown pseudo-commands (e.g., RUN:: ...)
-    if unknown_command_lines:
-        renderables.append(Text("\nWarning: Ignored unknown commands (only VALID_COMMANDS are allowed in action steps):", style="warning"))
-        for u in unknown_command_lines[:3]:
-            renderables.append(Text(f"- {u}", style="warning"))
-        if len(unknown_command_lines) > 3:
-            renderables.append(Text(f"... and {len(unknown_command_lines) - 3} more", style="warning"))
-        log_results.append("Ignored unknown commands: " + "; ".join(unknown_command_lines))
-
-    # If there are many commands in a single step, cap execution to a safe maximum
-    try:
-        MAX_COMMANDS_PER_STEP = int(os.getenv("PAI_MAX_CMDS_PER_STEP", "15"))
-        if MAX_COMMANDS_PER_STEP < 1:
-            MAX_COMMANDS_PER_STEP = 1
-        if MAX_COMMANDS_PER_STEP > 50:
-            MAX_COMMANDS_PER_STEP = 50
-    except ValueError:
-        MAX_COMMANDS_PER_STEP = 15
-    if len(plan_lines) > MAX_COMMANDS_PER_STEP:
-        renderables.append(Text(f"\nWarning: Too many commands in a single step (>{MAX_COMMANDS_PER_STEP}). Only the first {MAX_COMMANDS_PER_STEP} will be executed.", style="warning"))
-        plan_lines = plan_lines[:MAX_COMMANDS_PER_STEP]
-
-    for action in plan_lines:
-        try:
-            command_candidate, _, params = action.partition('::')
-            command_candidate = command_candidate.upper().strip()
-            
-            if command_candidate in VALID_COMMANDS:
-                result = ""
-                # Add Execution Results header lazily when first execution item appears
-                if not execution_header_added:
-                    renderables.append(Text("\nExecution Results:", style="bold underline"))
-                    execution_header_added = True
-                action_text = Text(f"-> {action}", style="action")
-                renderables.append(action_text)
-
-                if command_candidate == "WRITE":
-                    file_path, _, _ = params.partition('::')
-                    result = handle_write(file_path, params)
-                
-                elif command_candidate == "READ":
-                    path_to_read = params
-                    content = workspace.read_file(path_to_read)
-                    if content is not None:
-                        try:
-                            lexer = get_lexer_for_filename(path_to_read)
-                            lang = lexer.aliases[0]
-                        except ClassNotFound:
-                            lang = "text"
-                        
-                        syntax_panel = Panel(
-                            Syntax(content, lang, theme="monokai", line_numbers=True, word_wrap=True),
-                            title=f"Content of {path_to_read}",
-                            border_style="grey50",
-                            expand=False
-                        )
-                        renderables.append(syntax_panel)
-                        # Log the actual content for the AI's memory
-                        log_results.append(f"Content of {path_to_read}:\n---\n{content}\n---")
-                        result = f"Success: Read and displayed {path_to_read}"
-                    else:
-                        result = f"Error: Failed to read file: {path_to_read}"
-                
-                elif command_candidate == "MODIFY":
-                    file_path, _, description = params.partition('::')
-                    
-                    original_content = workspace.read_file(file_path)
-                    if original_content is None:
-                        result = f"Error: Cannot modify '{file_path}' because it does not exist or cannot be read."
-                        renderables.append(Text(f"✗ {result}", style="error"))
-                        log_results.append(result)
-                        continue
-
-                    modification_prompt_1 = f"""
-You are an expert code modifier with deep understanding of software engineering best practices.
-
-CURRENT FILE: `{file_path}`
---- START OF FILE ---
-{original_content}
---- END OF FILE ---
-
-MODIFICATION REQUEST: "{description}"
-
-CRITICAL INSTRUCTIONS:
-1. Analyze the current code structure carefully
-2. Identify EXACTLY what needs to change to fulfill the request
-3. Make ONLY the necessary changes - do not refactor unrelated code
-4. Preserve existing code style, formatting, and conventions
-5. Ensure the modification is correct and complete
-6. Consider edge cases and potential bugs
-7. Maintain backward compatibility unless explicitly asked to break it
-
-SAFETY CONSTRAINTS - VERY IMPORTANT:
-- HARD LIMIT: Maximum 500 changed lines per modification
-- BEST PRACTICE: Even though limit is 500, prefer smaller focused modifications (100-200 lines)
-- Think like a senior developer: make surgical, targeted changes
-- Focus on ONE specific area at a time (e.g., one section, one function, one feature)
-- Example of EXCELLENT incremental approach (like Cascade):
-  * Modification 1: Update function signature and add type hints (30 lines)
-  * Modification 2: Add input validation logic (50 lines)
-  * Modification 3: Enhance error handling (40 lines)
-  * Modification 4: Add comprehensive docstrings (30 lines)
-- Example: If adding CSS, do it in logical sections:
-  * Part 1: Add basic layout styles (body, container, main structure)
-  * Part 2: Add form element styles (inputs, labels, form-group)
-  * Part 3: Add button and interactive styles (hover, focus, active states)
-- NEVER try to apply all changes at once if they can be logically separated
-- Quality over quantity: smaller, focused changes are easier to verify and safer
-
-OUTPUT REQUIREMENTS:
-- Provide the ENTIRE, complete file content with modifications applied
-- Output ONLY raw code without explanations, markdown, or comments about changes
-- Do NOT use markdown code blocks (no ```)
-- Do NOT include language tags or diff format
-- Do NOT show before/after comparisons
-- Start directly with the complete modified file content
-- Ensure the code is syntactically correct and will run without errors
-
-Example of CORRECT output:
-<!DOCTYPE html>
-<html>
-... (complete file with modifications)
-
-Example of WRONG output (DO NOT DO THIS):
-```html
-<!DOCTYPE html>
-...
-```
-
-OR
-
-```diff
-- old line
-+ new line
-```
-
-Think carefully before modifying. Quality over speed.
-"""
-                    new_content_1 = llm.generate_text(modification_prompt_1)
-
-                    if new_content_1:
-                        success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_1)
-                        
-                        # Check if modification was rejected due to size
-                        if not success and "exceeds" in message.lower():
-                            renderables.append(Text(f"! Modification rejected: too large. {message}", style="warning"))
-                            renderables.append(Text("! Think like Cascade: Break into focused, surgical modifications.", style="warning"))
-                            renderables.append(Text("! Ideal: 100-200 lines (very focused), Acceptable: 200-500 lines (one area)", style="info"))
-                            result = f"Error: {message}\nSuggestion: Use Cascade-style approach - split into focused modifications targeting one specific area at a time."
-                            renderables.append(Text(f"✗ {result}", style="error"))
-                            log_results.append(result)
-                            continue
-                        
-                        if success and "No changes detected" in message:
-                            renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
-                            
-                            modification_prompt_2 = f"""
-CRITICAL: First attempt returned unchanged code. You MUST make the requested modification now.
-
-FILE: `{file_path}`
-ORIGINAL CONTENT:
----
-{original_content}
----
-
-EXPLICIT INSTRUCTION: "{description}"
-
-WHAT WENT WRONG:
-The previous attempt returned the code unchanged. This means you need to:
-1. Re-read the instruction more carefully
-2. Identify the EXACT location that needs modification
-3. Make the specific change requested
-4. Ensure the change is actually applied
-
-REQUIREMENTS:
-- This is a critical modification - it MUST be applied
-- Be very literal and precise about the change
-- Return the COMPLETE file with the modification applied
-- Output ONLY raw code without explanations or markdown
-- Maximum 120 changed lines
-
-DO NOT return the code unchanged again. Make the modification.
-"""
-                            
-                            new_content_2 = llm.generate_text(modification_prompt_2)
-                            
-                            if new_content_2:
-                                success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_2)
-                        
-                        result = message
-                        style = "success" if success else "warning"
-                        icon = "✓ " if success else "! "
-                    else:
-                        result = f"Error: LLM failed to generate content for modification of '{file_path}'."
-                        style = "error"; icon = "✗ "
-
-                elif command_candidate == "TREE":
-                    path_to_list = params if params else '.'
-                    tree_output = workspace.tree_directory(path_to_list)
-                    if tree_output and "Error:" not in tree_output:
-                        renderables.append(Text(tree_output, style="bright_blue"))
-                        # Log the actual tree output for the AI's memory
-                        log_results.append(f"TREE result for '{path_to_list}':\n{tree_output}")
-                        result = f"Success: Displayed directory structure for '{path_to_list}'."
-                    else:
-                        result = tree_output or f"Error: Failed to display directory structure for '{path_to_list}'."
-                
-                elif command_candidate == "LIST_PATH":
-                    path_to_list = params if params else '.'
-                    list_output = workspace.list_path(path_to_list)
-                    if list_output is not None and "Error:" not in list_output:
-                        # Always display the output, even if empty (shows directory is empty)
-                        if list_output.strip():
-                            renderables.append(Text(list_output, style="bright_blue"))
-                        else:
-                            renderables.append(Text(f"Directory '{path_to_list}' is empty or contains only hidden/sensitive files.", style="dim"))
-                        # Log the actual list output for the AI's memory
-                        log_results.append(f"LIST_PATH result for '{path_to_list}':\n{list_output}")
-                        result = f"Success: Listed paths for '{path_to_list}'. Found {len(list_output.splitlines()) if list_output.strip() else 0} items."
-                    else:
-                        result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
-                
-                elif command_candidate == "FINISH":
-                    result = params if params else "Task is considered complete."
-                    log_results.append(result)
-                    renderables.append(Text(f"✓ Agent: {result}", style="success"))
-                    break 
-
-                else: # Other commands: MKDIR, TOUCH, RM, MV
-                    if command_candidate == "MKDIR": result = workspace.create_directory(params)
-                    elif command_candidate == "TOUCH": result = workspace.create_file(params)
-                    elif command_candidate == "RM": result = workspace.delete_item(params)
-                    elif command_candidate == "MV":
-                        source, _, dest = params.partition('::')
-                        result = workspace.move_item(source, dest)
-                
-                if result:
-                    if "Success" in result: style = "success"; icon = "✓ "
-                    elif "Error" in result: style = "error"; icon = "✗ "
-                    elif "Warning" in result: style = "warning"; icon = "! "
-                    else: style = "info"; icon = "i "
-                    renderables.append(Text(f"{icon}{result}", style=style))
-                    # Log the simple success/error message for non-data commands
-                    if command_candidate not in ["READ", "TREE", "LIST_PATH"]:
-                        log_results.append(result)
-
-        except Exception as e:
-            msg = f"An exception occurred while processing '{action}': {e}"
-            renderables.append(Text(f"✗ {msg}", style="error"))
-            log_results.append(msg)
-
-    return Group(*renderables), "\n".join(log_results)
-
-def _classify_intent(user_request: str, context: str) -> tuple[str, str, str]:
-    """Classify user's intent into ('chat'|'task', 'simple'|'normal'|'complex', optional_reply_for_chat)."""
-    try:
-        # Quick heuristic first: if request contains a known command pattern, treat as task
-        upper_req = user_request.upper()
-        if any(cmd + "::" in upper_req for cmd in VALID_COMMANDS):
-            return ("task", "simple", "")
-
-        prompt = (
-            "You are an intent classifier for a coding assistant. Analyze the user's message and classify it.\n\n"
-            "CLASSIFICATION CRITERIA:\n"
-            "- 'chat' mode: Questions, greetings, clarifications, discussions (no file operations needed)\n"
-            "- 'task' mode: Requests to create, modify, read, or manage files/code\n\n"
-            "COMPLEXITY LEVELS:\n"
-            "- 'simple': Single file operation or basic task (1-2 steps)\n"
-            "- 'normal': Multiple related operations or moderate complexity (3-5 steps)\n"
-            "- 'complex': Large-scale changes, architecture work, or many dependencies (6+ steps)\n\n"
-            "Return ONLY raw JSON with this schema:\n"
-            "{\"mode\": \"chat\"|\"task\", \"complexity\": \"simple\"|\"normal\"|\"complex\", \"reply\": string|null}\n\n"
-            "If mode is 'chat', provide a helpful reply. If mode is 'task', set 'reply' to null."
-        )
-        classifier_input = f"""
-{prompt}
-
-User's message: "{user_request}"
-
-Context from conversation:
-{context[-500:] if context else "No prior context"}
-
-Classify accurately based on the actual intent.
-"""
-        result = llm.generate_text(classifier_input)
-        mode = "task"; complexity = "normal"; reply = ""
-        try:
-            data = json.loads(result)
-            if isinstance(data, dict):
-                if data.get("mode") in {"chat", "task"}:
-                    mode = data["mode"]
-                comp = data.get("complexity")
-                if isinstance(comp, str) and comp.lower() in {"simple", "normal", "complex"}:
-                    complexity = comp.lower()
-                r = data.get("reply")
-                if isinstance(r, str):
-                    reply = r.strip()
-        except Exception:
-            pass
-        return (mode, complexity, reply)
-    except Exception:
-        return ("task", "normal", "")
-
-def _has_valid_command(plan_text: str) -> bool:
-    """Check if plan text contains at least one VALID_COMMANDS line."""
-    try:
-        for line in (plan_text or "").splitlines():
-            cmd_candidate, _, _ = line.partition('::')
-            if cmd_candidate.upper().strip() in VALID_COMMANDS:
-                return True
-        return False
-    except Exception:
-        return False
-
-def handle_write(file_path: str, params: str) -> str:
-    """Invokes the LLM to create content and write it to a file."""
-    _, _, description = params.partition('::')
-    
-    if not description.strip():
-        return f"Error: No description provided for file: {file_path}"
-    
-    # Infer file type and provide context
-    file_ext = os.path.splitext(file_path)[1].lower()
-    lang_hints = {
-        '.py': 'Python',
-        '.js': 'JavaScript',
-        '.ts': 'TypeScript',
-        '.java': 'Java',
-        '.cpp': 'C++',
-        '.c': 'C',
-        '.go': 'Go',
-        '.rs': 'Rust',
-        '.rb': 'Ruby',
-        '.php': 'PHP',
-        '.html': 'HTML',
-        '.css': 'CSS',
-        '.json': 'JSON',
-        '.yaml': 'YAML',
-        '.yml': 'YAML',
-        '.md': 'Markdown',
-        '.txt': 'Plain Text'
-    }
-    language = lang_hints.get(file_ext, 'code')
-    
-    prompt = f"""You are an expert programming assistant with deep knowledge of software engineering best practices.
-
-TARGET FILE: {file_path}
-LANGUAGE: {language}
-DESCRIPTION: {description}
-
-CRITICAL REQUIREMENTS:
-1. Write complete, production-quality code
-2. Follow {language} best practices and conventions
-3. Include appropriate error handling
-4. Add clear, concise comments for complex logic
-5. Use meaningful variable and function names
-6. Ensure code is syntactically correct and will run without errors
-7. Consider edge cases and potential issues
-8. Make the code maintainable and readable
-
-CRITICAL OUTPUT FORMAT:
-- Output ONLY the raw code, nothing else
-- Do NOT use markdown code blocks (no ```)
-- Do NOT include language tags (no "html", "python", etc. on first line)
-- Do NOT add explanations before or after the code
-- Start directly with the code content
-- Ensure proper indentation and formatting
-
-Example of CORRECT output for HTML:
-<!DOCTYPE html>
-<html>
-...
-
-Example of WRONG output (DO NOT DO THIS):
-```html
-<!DOCTYPE html>
-...
-```
-
-Write high-quality code that you would be proud to ship.
-"""
-    
-    code_content = llm.generate_text(prompt)
-    
-    if code_content and code_content.strip():
-        return workspace.write_to_file(file_path, code_content)
-    else:
-        return f"Error: Failed to generate content from LLM for file: {file_path}"
-
-def _compress_context(context: list[str], max_items: int = 10) -> str:
-    """Compress context to keep only the most recent and relevant items."""
-    if len(context) <= max_items:
-        return "\n".join(context)
-    
-    # Keep first 2 items (initial context) and last max_items-2 items (recent context)
-    compressed = context[:2] + ["... [earlier context omitted for brevity] ..."] + context[-(max_items-2):]
-    return "\n".join(compressed)
-
-def _clean_markdown_formatting(text: str) -> str:
-    """Remove markdown formatting artifacts from text."""
-    if not text:
-        return text
-    
-    # Remove markdown bullet points at line start
-    lines = text.split('\n')
-    cleaned_lines = []
-    for line in lines:
-        stripped = line.strip()
-        # Remove markdown list markers (*, -, +) at the start
-        if stripped.startswith('* '):
-            stripped = stripped[2:]
-        elif stripped.startswith('- '):
-            stripped = stripped[2:]
-        elif stripped.startswith('+ '):
-            stripped = stripped[2:]
-        # Remove bold markers but keep content
-        stripped = stripped.replace('**', '')
-        cleaned_lines.append(stripped)
-    
-    return '\n'.join(cleaned_lines)
+        _interrupt_requested = False
 
 def start_interactive_session():
     """Start the revolutionary single-shot intelligent session."""
@@ -538,18 +67,18 @@ def start_interactive_session():
     session_context = []
     
     welcome_message = (
-        "Welcome to Paicode Single-Shot Intelligence!\n"
-        "Revolutionary 2-call architecture: Maximum intelligence, minimal API usage.\n"
+        "Welcome! I'm Pai, your agentic AI coding companion. ✨\n"
+        "Now powered by Single-Shot Intelligence for maximum efficiency.\n"
         "[info]Type 'exit' or 'quit' to leave.[/info]\n"
-        "[info]Each request uses exactly 2 API calls for optimal efficiency.[/info]"
+        "[info]Each request uses exactly 2 API calls for optimal performance.[/info]"
     )
 
     ui.console.print(
         Panel(
             Text(welcome_message, justify="center"),
-            title="[bold]Single-Shot Intelligence Mode[/bold]",
+            title="[bold]Interactive Auto Mode[/bold]",
             box=ROUNDED,
-            border_style="blue",
+            border_style="grey50",
             padding=(1, 2)
         )
     )
@@ -561,7 +90,7 @@ def start_interactive_session():
     # Setup signal handler for graceful interrupt
     def signal_handler(signum, frame):
         if check_interrupt():
-            # Second Ctrl+C, actually exit
+            # Second Ctrl+C → Exit
             ui.console.print("\n[warning]Session terminated.[/warning]")
             os._exit(0)
         else:
@@ -576,7 +105,7 @@ def start_interactive_session():
             if PROMPT_TOOLKIT_AVAILABLE:
                 user_input = prompt_session.prompt("\nuser> ").strip()
             else:
-                user_input = Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
+                user_input = ui.Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
         except (EOFError, KeyboardInterrupt):
             ui.console.print("\n[warning]Session terminated.[/warning]")
             break
@@ -619,35 +148,35 @@ def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
             Text("Deep Analysis & Planning", style="bold"),
             title="[bold blue]Call 1/2: Intelligence Planning[/bold blue]",
             box=ROUNDED,
-            border_style="blue"
+            border_style="grey50"
         )
     )
     
     planning_result = execute_planning_call(user_request, context)
     if not planning_result:
-        ui.print_error("Planning phase failed. Cannot proceed.")
+        ui.print_error("✗ Planning phase failed. Cannot proceed.")
         return False
     
     # === CALL 2: EXECUTION PHASE ===
     ui.console.print(
         Panel(
-            Text("⚡ Intelligent Execution", style="bold"),
+            Text("Intelligent Execution", style="bold"),
             title="[bold green]Call 2/2: Smart Execution[/bold green]",
             box=ROUNDED,
-            border_style="green"
+            border_style="grey50"
         )
     )
     
     execution_success = execute_execution_call(user_request, planning_result, context)
     
-    # Show final status
+    # Show final status with original Paicode styling
     if execution_success:
         ui.console.print(
             Panel(
                 Text("Single-Shot Intelligence: SUCCESS", style="bold green"),
                 title="[bold]Mission Accomplished[/bold]",
                 box=ROUNDED,
-                border_style="green"
+                border_style="grey50"
             )
         )
     else:
@@ -656,7 +185,7 @@ def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
                 Text("Single-Shot Intelligence: PARTIAL SUCCESS", style="bold yellow"),
                 title="[bold]Mission Status[/bold]",
                 box=ROUNDED,
-                border_style="yellow"
+                border_style="grey50"
             )
         )
     
@@ -673,7 +202,7 @@ def execute_planning_call(user_request: str, context: list) -> dict | None:
     if context:
         context_str = "Previous interactions:\n"
         for item in context[-3:]:  # Last 3 interactions
-            context_str += f"- {item['timestamp']}: {item['user_request']} ({'s' if item['success'] else 'e'})\n"
+            context_str += f"- {item['timestamp']}: {item['user_request']} ({'✅' if item['success'] else '❌'})\n"
     
     # Get current directory context
     current_files = workspace.list_path('.')
@@ -778,32 +307,32 @@ Output ONLY the JSON object, no additional text.
         # Parse JSON response
         planning_data = json.loads(planning_response)
         
-        # Display planning results
+        # Display planning results with original Paicode styling
         display_planning_results(planning_data)
         
         return planning_data
         
     except json.JSONDecodeError as e:
-        ui.print_error(f"Failed to parse planning response: {e}")
+        ui.print_error(f"✗ Failed to parse planning response: {e}")
         ui.print_info("Raw response:")
         ui.console.print(planning_response[:500] + "..." if len(planning_response) > 500 else planning_response)
         return None
 
 def display_planning_results(planning_data: dict):
-    """Display the planning results in a beautiful format."""
+    """Display the planning results in original Paicode style."""
     
     # Analysis section
     analysis = planning_data.get("analysis", {})
     ui.console.print("\n[bold]Deep Analysis Results:[/bold]")
-    ui.console.print(f"Intent: {analysis.get('user_intent', 'Unknown')}")
-    ui.console.print(f"Files to read: {len(analysis.get('files_to_read', []))}")
-    ui.console.print(f"Files to create: {len(analysis.get('files_to_create', []))}")
-    ui.console.print(f"Files to modify: {len(analysis.get('files_to_modify', []))}")
+    ui.console.print(f"   Intent: {analysis.get('user_intent', 'Unknown')}")
+    ui.console.print(f"   Files to read: {len(analysis.get('files_to_read', []))}")
+    ui.console.print(f"   Files to create: {len(analysis.get('files_to_create', []))}")
+    ui.console.print(f"   Files to modify: {len(analysis.get('files_to_modify', []))}")
     
     # Execution plan
     execution_plan = planning_data.get("execution_plan", {})
     steps = execution_plan.get("steps", [])
-    ui.console.print(f"\n⚡ [bold]Execution Plan: {len(steps)} steps[/bold]")
+    ui.console.print(f"\n[bold]Execution Plan: {len(steps)} steps[/bold]")
     
     for i, step in enumerate(steps[:3], 1):  # Show first 3 steps
         action = step.get("action", "Unknown")
@@ -818,8 +347,8 @@ def display_planning_results(planning_data: dict):
     intelligence = planning_data.get("intelligence_notes", {})
     complexity = intelligence.get("complexity_assessment", "unknown")
     ui.console.print(f"\n[bold]Intelligence Assessment:[/bold]")
-    ui.console.print(f"Complexity: {complexity}")
-    ui.console.print(f"Estimated time: {intelligence.get('estimated_time', 'unknown')}")
+    ui.console.print(f"   Complexity: {complexity}")
+    ui.console.print(f"   Estimated time: {intelligence.get('estimated_time', 'unknown')}")
 
 def execute_execution_call(user_request: str, planning_data: dict, context: list) -> bool:
     """
@@ -943,7 +472,7 @@ def execute_command_sequence(command_sequence: str) -> bool:
         if command == "FINISH":
             break
     
-    # Show execution summary
+    # Show execution summary with original styling
     success_rate = (successful_commands / total_commands) * 100 if total_commands > 0 else 0
     ui.console.print(f"\n[bold]Execution Summary:[/bold]")
     ui.console.print(f"   Successful: {successful_commands}/{total_commands} ({success_rate:.1f}%)")
@@ -973,7 +502,7 @@ def execute_single_command(command: str, param1: str, param2: str) -> bool:
                 syntax_panel = Panel(
                     Syntax(display_content, lang, theme="monokai", line_numbers=True),
                     title=f"{param1}",
-                    border_style="blue",
+                    border_style="grey50",
                     expand=False
                 )
                 ui.console.print(syntax_panel)
@@ -982,13 +511,13 @@ def execute_single_command(command: str, param1: str, param2: str) -> bool:
         
         elif command == "WRITE":
             if not param2:
-                ui.print_error("WRITE command requires description")
+                ui.print_error("✗ WRITE command requires description")
                 return False
             return handle_write_command(param1, param2)
         
         elif command == "MODIFY":
             if not param2:
-                ui.print_error("MODIFY command requires description")
+                ui.print_error("✗ MODIFY command requires description")
                 return False
             return handle_modify_command(param1, param2)
         
@@ -1037,7 +566,7 @@ def execute_single_command(command: str, param1: str, param2: str) -> bool:
                 Panel(
                     Text(f"{message}", style="bold green"),
                     title="[bold]Task Completed[/bold]",
-                    border_style="green"
+                    border_style="grey50"
                 )
             )
             return True
@@ -1045,7 +574,7 @@ def execute_single_command(command: str, param1: str, param2: str) -> bool:
         return False
         
     except Exception as e:
-        ui.print_error(f"Command execution error: {e}")
+        ui.print_error(f"✗ Command execution error: {e}")
         return False
 
 def handle_write_command(filepath: str, description: str) -> bool:
@@ -1085,7 +614,7 @@ def handle_modify_command(filepath: str, description: str) -> bool:
     # Read existing content
     existing_content = workspace.read_file(filepath)
     if existing_content is None:
-        ui.print_error(f"Cannot modify '{filepath}' - file not found")
+        ui.print_error(f"✗ Cannot modify '{filepath}' - file not found")
         return False
     
     # Generate modification

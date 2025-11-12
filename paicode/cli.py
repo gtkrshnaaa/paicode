@@ -49,9 +49,9 @@ def main():
         elif args.config_cmd == 'validate':
             is_valid, message = config.validate_api_key()
             if is_valid:
-                ui.print_success(f"s: {message}")
+                ui.print_success(f"✓ {message}")
             else:
-                ui.print_error(f"e: {message}")
+                ui.print_error(f"✗ {message}")
             return
         else:
             parser_config.print_help()
@@ -70,8 +70,8 @@ def main():
     # Default: start agent
     # Check API key before starting
     if not config.is_configured():
-        ui.print_error("No API key configured.")
-        ui.print_info("💡 Use 'pai config set <API_KEY>' to set your Google Gemini API key.")
+        ui.print_error("✗ No API key configured.")
+        ui.print_info("Use 'pai config set <API_KEY>' to set your Google Gemini API key.")
         return 1
 
     # Configure LLM runtime if flags provided

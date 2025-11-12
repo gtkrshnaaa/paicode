@@ -42,29 +42,24 @@ _runtime = {
 }
 
 def set_runtime_model(model_name: str | None = None, temperature: float | None = None):
-    """Configure or reconfigure the GenerativeModel at runtime.
-
-    This reads the API key from config and constructs a new GenerativeModel
-    using the provided (or default) model name and temperature.
-    """
+    """Set the runtime model configuration."""
     global model, _runtime
-    # Only update the runtime preferred name/temperature; API key will be injected per call (round-robin)
-    try:
-        name = (model_name or DEFAULT_MODEL) or "gemini-2.5-flash-lite"
-        temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
-        # Clamp temperature to safe range
-        temp = max(0.0, min(2.0, temp))
-        _runtime["name"] = name
-        _runtime["temperature"] = temp
-        # (Re)build model object shell; API key is configured on each request
-        generation_config = {"temperature": temp}
-        model = genai.GenerativeModel(name, generation_config=generation_config)
-    except Exception as e:
-        ui.print_error(f"Failed to configure the generative AI model: {e}")
-        model = None
+    
+    # Update runtime settings
+    if model_name is not None:
+        _runtime["name"] = model_name
+    if temperature is not None:
+        temperature = max(0.0, min(2.0, temperature))
+        _runtime["temperature"] = temperature
+    
+    # Reset model so it gets recreated with new settings on next use
+    model = None
 
-# Initialize once on import with defaults
-set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
+# Initialize runtime settings (model will be created when needed)
+_runtime = {
+    "name": DEFAULT_MODEL,
+    "temperature": DEFAULT_TEMPERATURE
+}
 
 def _prepare_runtime() -> bool:
     """Configure API key and ensure model object exists.
@@ -197,10 +192,10 @@ def generate_text(prompt: str, call_purpose: str = "thinking") -> str:
         is_rate_limit = _is_rate_limit_error(e)
         
         if is_rate_limit:
-            ui.print_error("Rate limit reached. Please wait a few minutes before trying again.")
-            ui.print_info("💡 Consider using a different API key if available.")
+            ui.print_error("✗ Rate limit reached. Please wait a few minutes before trying again.")
+            ui.print_info("Consider using a different API key if available.")
         else:
-            ui.print_error(f"LLM API error: {e}")
+            ui.print_error(f"✗ LLM API error: {e}")
         
         return ""
 

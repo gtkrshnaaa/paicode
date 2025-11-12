@@ -80,7 +80,7 @@ def set_api_key(api_key: str) -> None:
     _save_config(config)
     
     masked_key = mask_api_key(api_key)
-    ui.print_success(f"API key set successfully: {masked_key}")
+    ui.print_success(f"✓ API key set successfully: {masked_key}")
 
 def get_api_key() -> Optional[str]:
     """Get the current API key."""
@@ -101,7 +101,7 @@ def remove_api_key() -> None:
     
     config["api_key"] = None
     _save_config(config)
-    ui.print_success("API key removed successfully.")
+    ui.print_success("✓ API key removed successfully.")
 
 def show_api_key() -> None:
     """Show the current API key (masked)."""
@@ -109,7 +109,7 @@ def show_api_key() -> None:
     
     if not api_key:
         ui.print_info("No API key is currently set.")
-        ui.print_info("💡 Use 'pai config set <API_KEY>' to set one.")
+        ui.print_info("Use 'pai config set <API_KEY>' to set one.")
         return
     
     masked_key = mask_api_key(api_key)
@@ -194,7 +194,7 @@ def show_api_key():
     
     if not api_key:
         ui.print_info("No API key is currently configured.")
-        ui.print_info("💡 Use 'pai config set <API_KEY>' to set your Google Gemini API key.")
+        ui.print_info("Use 'pai config set <API_KEY>' to set your Google Gemini API key.")
         return
     
     masked_key = mask_api_key(api_key)
