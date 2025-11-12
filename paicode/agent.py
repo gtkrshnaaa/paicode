@@ -79,7 +79,8 @@ def start_interactive_session():
             title="[bold]Interactive Auto Mode[/bold]",
             box=ROUNDED,
             border_style="grey50",
-            padding=(1, 2)
+            padding=(1, 2),
+            width=80
         )
     )
     
@@ -117,8 +118,15 @@ def start_interactive_session():
         if not user_input:
             continue
 
-        # Execute single-shot intelligence
-        success = execute_single_shot_intelligence(user_input, session_context)
+        # Classify user intent: conversation vs task
+        intent = classify_user_intent(user_input)
+        
+        if intent == "conversation":
+            # Simple conversation mode
+            success = execute_conversation_mode(user_input, session_context)
+        else:
+            # Task execution mode (planning + execution)
+            success = execute_single_shot_intelligence(user_input, session_context)
         
         # Add to session context for future reference
         session_context.append({
@@ -130,6 +138,95 @@ def start_interactive_session():
         # Keep context manageable (last 5 interactions)
         if len(session_context) > 5:
             session_context = session_context[-5:]
+
+def classify_user_intent(user_input: str) -> str:
+    """
+    Use AI intelligence to classify user intent as either 'conversation' or 'task'.
+    Let the AI decide based on context and understanding.
+    
+    Returns:
+        str: 'conversation' for casual chat, 'task' for work requests
+    """
+    
+    classification_prompt = f"""
+You are an intelligent intent classifier. Analyze the user's message and determine if they want:
+
+1. CONVERSATION: Casual chat, greetings, questions about you, general discussion, or just talking
+2. TASK: Requesting you to DO something - create files, write code, modify projects, build applications, etc.
+
+USER MESSAGE: "{user_input}"
+
+ANALYSIS GUIDELINES:
+- If user is greeting, asking about you, or just chatting → CONVERSATION
+- If user wants you to create, modify, build, fix, or do any work → TASK
+- If user is asking "how to" without wanting you to do it → CONVERSATION  
+- If user is asking you to actually do something → TASK
+- Use your intelligence to understand the intent behind the words
+
+OUTPUT: Respond with exactly one word: "conversation" or "task"
+"""
+    
+    response = llm.generate_text(classification_prompt, "intent classification")
+    
+    if response:
+        intent = response.strip().lower()
+        if intent in ["conversation", "task"]:
+            return intent
+    
+    # Fallback: if AI response is unclear, default to conversation for safety
+    return "conversation"
+
+def execute_conversation_mode(user_input: str, context: list) -> bool:
+    """
+    Handle casual conversation with the user.
+    Simple, friendly responses without task execution.
+    """
+    
+    # Build context for conversation
+    context_str = ""
+    if context:
+        recent_context = context[-2:]  # Last 2 interactions
+        context_str = "Recent conversation:\n"
+        for item in recent_context:
+            context_str += f"User: {item['user_request']}\n"
+    
+    conversation_prompt = f"""
+You are Pai, a friendly and helpful AI coding companion. The user is having a casual conversation with you.
+
+CONVERSATION CONTEXT:
+{context_str}
+
+USER MESSAGE: "{user_input}"
+
+RESPONSE GUIDELINES:
+1. Be friendly, helpful, and conversational
+2. Keep responses concise (1-3 sentences max)
+3. If asked about your capabilities, mention you can help with coding tasks
+4. If user seems to want to start a task, gently suggest they can ask you to create/modify files
+5. Be natural and engaging, but professional
+6. Use a warm, approachable tone
+
+Respond naturally to the user's message:
+"""
+    
+    response = llm.generate_text(conversation_prompt, "conversation")
+    
+    if response:
+        # Display conversation response with clean UI
+        ui.console.print(
+            Panel(
+                Text(response.strip(), style="bright_white"),
+                title="[bold]Pai[/bold]",
+                box=ROUNDED,
+                border_style="grey50",
+                padding=(1, 2),
+                width=80
+            )
+        )
+        return True
+    else:
+        ui.print_error("Sorry, I couldn't process your message right now.")
+        return False
 
 def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
     """
@@ -145,10 +242,12 @@ def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
     # === CALL 1: PLANNING PHASE ===
     ui.console.print(
         Panel(
-            Text("Deep Analysis & Planning", style="bold"),
-            title="[bold blue]Call 1/2: Intelligence Planning[/bold blue]",
+            Text("Deep Analysis & Planning", style="bold", justify="center"),
+            title="[bold]Call 1/2: Intelligence Planning[/bold]",
             box=ROUNDED,
-            border_style="grey50"
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
         )
     )
     
@@ -160,10 +259,12 @@ def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
     # === CALL 2: EXECUTION PHASE ===
     ui.console.print(
         Panel(
-            Text("Intelligent Execution", style="bold"),
-            title="[bold green]Call 2/2: Smart Execution[/bold green]",
+            Text("Intelligent Execution", style="bold", justify="center"),
+            title="[bold]Call 2/2: Smart Execution[/bold]",
             box=ROUNDED,
-            border_style="grey50"
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
         )
     )
     
@@ -173,19 +274,23 @@ def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
     if execution_success:
         ui.console.print(
             Panel(
-                Text("Single-Shot Intelligence: SUCCESS", style="bold green"),
+                Text("Single-Shot Intelligence: SUCCESS", style="bold green", justify="center"),
                 title="[bold]Mission Accomplished[/bold]",
                 box=ROUNDED,
-                border_style="grey50"
+                border_style="grey50",
+                padding=(1, 2),
+                width=80
             )
         )
     else:
         ui.console.print(
             Panel(
-                Text("Single-Shot Intelligence: PARTIAL SUCCESS", style="bold yellow"),
+                Text("Single-Shot Intelligence: PARTIAL SUCCESS", style="bold yellow", justify="center"),
                 title="[bold]Mission Status[/bold]",
                 box=ROUNDED,
-                border_style="grey50"
+                border_style="grey50",
+                padding=(1, 2),
+                width=80
             )
         )
     
