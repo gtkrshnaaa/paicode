@@ -451,11 +451,23 @@ def display_planning_results(planning_data: dict):
     content_lines.append(f"Complexity: {complexity}")
     content_lines.append(f"Estimated time: {intelligence.get('estimated_time', 'unknown')}")
     
-    # Display all content in a single panel
-    content_text = "\n".join(content_lines)
+    # Display all content in a single panel with proper rich formatting
+    from rich.console import Group
+    from rich.text import Text as RichText
+    
+    # Convert content to rich renderables
+    rich_content = []
+    for line in content_lines:
+        if line.startswith("[bold]") and line.endswith("[/bold]"):
+            # Handle bold text
+            text = line[6:-7]  # Remove [bold] tags
+            rich_content.append(RichText(text, style="bold bright_white"))
+        else:
+            rich_content.append(RichText(line, style="bright_white"))
+    
     ui.console.print(
         Panel(
-            Text(content_text, style="bright_white"),
+            Group(*rich_content),
             title="[bold]Planning Results[/bold]",
             box=ROUNDED,
             border_style="grey50",
@@ -565,7 +577,7 @@ def execute_command_sequence(command_sequence: str) -> bool:
     
     # Build execution content
     content_lines = []
-    content_lines.append(f"[bold]Executing {total_commands} intelligent actions...[/bold]")
+    content_lines.append(("bold", f"Executing {total_commands} intelligent actions..."))
     content_lines.append("")
     
     for i, command_line in enumerate(commands, 1):
@@ -582,20 +594,24 @@ def execute_command_sequence(command_sequence: str) -> bool:
         param2 = parts[2].strip() if len(parts) > 2 else ""
         
         if command not in VALID_COMMANDS:
-            content_lines.append(f"⚠ Unknown command: {command}")
+            content_lines.append(("warning", f"⚠ Unknown command: {command}"))
             continue
         
         # Display current action
-        content_lines.append(f"[{i}/{total_commands}] {command} {param1}")
+        content_lines.append(("normal", f"[{i}/{total_commands}] {command} {param1}"))
         
         # Execute command
-        success = execute_single_command(command, param1, param2)
+        success, command_output = execute_single_command(command, param1, param2)
+        
+        # Add command output to content if any
+        if command_output:
+            content_lines.append(("ai_output", command_output))
         
         if success:
             successful_commands += 1
-            content_lines.append("Success")
+            content_lines.append(("success", "Success"))
         else:
-            content_lines.append("Failed")
+            content_lines.append(("error", "Failed"))
         
         content_lines.append("")
         
@@ -605,14 +621,37 @@ def execute_command_sequence(command_sequence: str) -> bool:
     
     # Show execution summary
     success_rate = (successful_commands / total_commands) * 100 if total_commands > 0 else 0
-    content_lines.append("[bold]Execution Summary:[/bold]")
-    content_lines.append(f"Successful: {successful_commands}/{total_commands} ({success_rate:.1f}%)")
+    content_lines.append(("bold", "Execution Summary:"))
+    content_lines.append(("normal", f"Successful: {successful_commands}/{total_commands} ({success_rate:.1f}%)"))
     
-    # Display all content in a single panel
-    content_text = "\n".join(content_lines)
+    # Display all content in a single panel with proper styling
+    from rich.console import Group
+    from rich.text import Text as RichText
+    
+    # Convert content to rich renderables with colors
+    rich_content = []
+    for item in content_lines:
+        if isinstance(item, tuple):
+            style_type, text = item
+            if style_type == "bold":
+                rich_content.append(RichText(text, style="bold bright_white"))
+            elif style_type == "warning":
+                rich_content.append(RichText(text, style="bold yellow"))
+            elif style_type == "ai_output":
+                rich_content.append(RichText(text, style="bright_cyan"))
+            elif style_type == "success":
+                rich_content.append(RichText(text, style="bold green"))
+            elif style_type == "error":
+                rich_content.append(RichText(text, style="bold red"))
+            else:  # normal
+                rich_content.append(RichText(text, style="bright_white"))
+        else:
+            # Handle empty strings
+            rich_content.append(RichText(str(item), style="bright_white"))
+    
     ui.console.print(
         Panel(
-            Text(content_text, style="bright_white"),
+            Group(*rich_content),
             title="[bold]Execution Results[/bold]",
             box=ROUNDED,
             border_style="grey50",
@@ -623,103 +662,79 @@ def execute_command_sequence(command_sequence: str) -> bool:
     
     return success_rate >= 80  # Consider successful if 80%+ commands succeeded
 
-def execute_single_command(command: str, param1: str, param2: str) -> bool:
-    """Execute a single command and return success status."""
+def execute_single_command(command: str, param1: str, param2: str) -> tuple[bool, str]:
+    """Execute a single command and return success status and output."""
     
     try:
         if command == "READ":
             content = workspace.read_file(param1)
             if content is not None:
-                # Display file content with syntax highlighting
-                try:
-                    lexer = get_lexer_for_filename(param1)
-                    lang = lexer.aliases[0]
-                except ClassNotFound:
-                    lang = "text"
-                
                 # Show first 20 lines for brevity
                 lines = content.split('\n')
                 display_content = '\n'.join(lines[:20])
                 if len(lines) > 20:
                     display_content += f"\n... ({len(lines) - 20} more lines)"
                 
-                syntax_panel = Panel(
-                    Syntax(display_content, lang, theme="monokai", line_numbers=True),
-                    title=f"{param1}",
-                    border_style="grey50",
-                    expand=False
-                )
-                ui.console.print(syntax_panel)
-                return True
-            return False
+                return True, f"File content of {param1}:\n{display_content}"
+            return False, f"Could not read file: {param1}"
         
         elif command == "WRITE":
             if not param2:
-                ui.print_error("✗ WRITE command requires description")
-                return False
-            return handle_write_command(param1, param2)
+                return False, "WRITE command requires description"
+            success = handle_write_command(param1, param2)
+            return success, f"Created file: {param1}" if success else f"Failed to create file: {param1}"
         
         elif command == "MODIFY":
             if not param2:
-                ui.print_error("✗ MODIFY command requires description")
-                return False
-            return handle_modify_command(param1, param2)
+                return False, "MODIFY command requires description"
+            success = handle_modify_command(param1, param2)
+            return success, f"Modified file: {param1}" if success else f"Failed to modify file: {param1}"
         
         elif command == "TREE":
             path = param1 if param1 else '.'
             tree_output = workspace.tree_directory(path)
             if tree_output and "Error:" not in tree_output:
-                ui.console.print(Text(tree_output, style="bright_blue"))
-                return True
-            return False
+                return True, f"Directory tree for {path}:\n{tree_output}"
+            return False, f"Could not get directory tree for: {path}"
         
         elif command == "LIST_PATH":
             path = param1 if param1 else '.'
             list_output = workspace.list_path(path)
             if list_output is not None and "Error:" not in list_output:
                 if list_output.strip():
-                    ui.console.print(Text(list_output, style="bright_blue"))
+                    return True, list_output
                 else:
-                    ui.console.print(Text(f"Directory '{path}' is empty", style="dim"))
-                return True
-            return False
+                    return True, f"Directory '{path}' is empty"
+            return False, f"Could not list directory: {path}"
         
         elif command == "MKDIR":
             result = workspace.create_directory(param1)
-            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
-            return "Success" in result
+            success = "Success" in result
+            return success, result
         
         elif command == "TOUCH":
             result = workspace.create_file(param1)
-            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
-            return "Success" in result
+            success = "Success" in result
+            return success, result
         
         elif command == "RM":
             result = workspace.delete_item(param1)
-            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
-            return "Success" in result
+            success = "Success" in result
+            return success, result
         
         elif command == "MV":
             result = workspace.move_item(param1, param2)
-            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
-            return "Success" in result
+            success = "Success" in result
+            return success, result
         
         elif command == "FINISH":
             message = param1 if param1 else "Task completed successfully"
-            ui.console.print(
-                Panel(
-                    Text(f"{message}", style="bold green"),
-                    title="[bold]Task Completed[/bold]",
-                    border_style="grey50"
-                )
-            )
-            return True
+            return True, f"✓ {message}"
         
-        return False
+        return False, f"Unknown command: {command}"
         
     except Exception as e:
-        ui.print_error(f"✗ Command execution error: {e}")
-        return False
+        return False, f"Command execution error: {e}"
 
 def handle_write_command(filepath: str, description: str) -> bool:
     """Handle WRITE command with intelligent content generation."""
