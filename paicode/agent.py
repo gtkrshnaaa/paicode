@@ -206,22 +206,35 @@ def execute_conversation_mode(user_input: str, context: list, log_file_path: str
             context_str += f"User: {item['user_request']}\n"
     
     conversation_prompt = f"""
-You are Pai, a friendly and helpful AI coding companion. The user is having a casual conversation with you.
-
-CONVERSATION CONTEXT:
-{context_str}
+You are Pai, an intelligent AI coding companion built into Paicode - you ARE the AI inside Paicode.
 
 USER MESSAGE: "{user_input}"
 
-RESPONSE GUIDELINES:
-1. Be friendly, helpful, and conversational
-2. Keep responses concise (1-3 sentences max)
-3. If asked about your capabilities, mention you can help with coding tasks
-4. If user seems to want to start a task, gently suggest they can ask you to create/modify files
-5. Be natural and engaging, but professional
-6. Use a warm, approachable tone
+CONTEXT:
+{context_str}
 
-Respond naturally to the user's message:
+You are having a casual conversation with the user. Be helpful, friendly, and informative.
+
+PAICODE KNOWLEDGE (you must know this perfectly):
+- Paicode is an agentic AI CLI tool for software development
+- Uses single-shot intelligence with 2-phase execution (planning + adaptive execution)
+- Has DIFF-AWARE modification system - preserves existing content intelligently
+- CRITICAL RULES: WRITE = new files only, MODIFY = existing files only
+- Path security prevents access to sensitive files (.env, .git, etc.)
+- Multi-phase execution: 1-3 phases based on task complexity
+- Rich terminal UI with beautiful formatting
+- Session history in .pai_history (blocked from direct AI access)
+- Uses Google Gemini API with smart token management
+
+GUIDELINES:
+- Keep responses conversational and warm
+- Be concise but helpful
+- If asked about coding, provide useful insights
+- If asked about Paicode, explain capabilities with confidence (you live inside it!)
+- Show personality while being professional
+- NEVER be uncertain about Paicode features - you ARE Paicode's AI
+
+Respond naturally:
 """
     
     response = llm.generate_text(conversation_prompt, "conversation")
@@ -295,14 +308,30 @@ def execute_single_shot_intelligence(user_request: str, context: list, log_file_
     # === CALL 2: EXECUTION PHASE ===
     execution_success = execute_execution_call(user_request, planning_result, context, log_file_path)
     
-    # Analyze what actually happened vs what was planned
-    actual_results = analyze_execution_vs_plan(planning_result, execution_success)
+    # Skip complex analysis to save tokens - focus on execution success only
     
-    # Generate intelligent next step suggestions based on ACTUAL results
-    next_steps = generate_next_step_suggestions(user_request, planning_result, execution_success, context, actual_results)
+    # Generate intelligent next step suggestions only if execution failed
+    if not execution_success:
+        next_steps = generate_next_step_suggestions(user_request, planning_result, execution_success, context, None)
+        
+        if next_steps:
+            # Log next steps
+            if log_file_path:
+                log_session_event(log_file_path, "NEXT_STEPS", {"suggestion": next_steps})
+            
+            ui.console.print(
+                Panel(
+                    Text(next_steps, style="bright_white"),
+                    title="[bold]💡 Next Steps Suggestion[/bold]",
+                    box=ROUNDED,
+                    border_style="grey50",
+                    padding=(1, 2),
+                    width=80
+                )
+            )
     
-    # Show final status with HONEST assessment
-    if execution_success and actual_results.get("plan_fulfilled", False):
+    # Show final status - SIMPLIFIED for efficiency
+    if execution_success:
         status_msg = "Single-Shot Intelligence: SUCCESS"
         ui.console.print(
             Panel(
@@ -316,37 +345,11 @@ def execute_single_shot_intelligence(user_request: str, context: list, log_file_
         )
         if log_file_path:
             log_session_event(log_file_path, "FINAL_STATUS", {"status": status_msg, "success": True})
-    elif execution_success and not actual_results.get("plan_fulfilled", False):
-        status_msg = "Single-Shot Intelligence: INCOMPLETE"
-        ui.console.print(
-            Panel(
-                Text(status_msg, style="bold yellow", justify="center"),
-                title="[bold]Mission Status[/bold]",
-                box=ROUNDED,
-                border_style="grey50",
-                padding=(1, 2),
-                width=80
-            )
-        )
-        # Show what actually happened vs what was planned
-        ui.console.print(
-            Panel(
-                Text(f"Planned: {actual_results.get('planned_actions', 'Unknown')}\nActual: {actual_results.get('actual_actions', 'Unknown')}", 
-                     style="bright_white", justify="left"),
-                title="[bold]Reality Check[/bold]",
-                box=ROUNDED,
-                border_style="grey50",
-                padding=(1, 2),
-                width=80
-            )
-        )
-        if log_file_path:
-            log_session_event(log_file_path, "FINAL_STATUS", {"status": status_msg, "success": False, "reality_check": actual_results})
     else:
-        status_msg = "Single-Shot Intelligence: PARTIAL SUCCESS"
+        status_msg = "Single-Shot Intelligence: FAILED"
         ui.console.print(
             Panel(
-                Text(status_msg, style="bold yellow", justify="center"),
+                Text(status_msg, style="bold red", justify="center"),
                 title="[bold]Mission Status[/bold]",
                 box=ROUNDED,
                 border_style="grey50",
@@ -357,11 +360,13 @@ def execute_single_shot_intelligence(user_request: str, context: list, log_file_
         if log_file_path:
             log_session_event(log_file_path, "FINAL_STATUS", {"status": status_msg, "success": False})
     
-    # Show next step suggestions if any
+    # ALWAYS generate next step suggestions for better continuity and context
+    next_steps = generate_next_step_suggestions(user_request, planning_result, execution_success, context, None)
+    
     if next_steps:
         ui.console.print(
             Panel(
-                Text(next_steps, style="bright_white", justify="left"),
+                Text(next_steps, style="bright_white"),
                 title="[bold]💡 Next Steps Suggestion[/bold]",
                 box=ROUNDED,
                 border_style="grey50",
@@ -383,96 +388,53 @@ def analyze_execution_vs_plan(planning_data: dict, execution_success: bool) -> d
     execution_plan = planning_data.get("execution_plan", {})
     planned_steps = execution_plan.get("steps", [])
     
-    # Analyze planned vs actual actions
+    # Reality check - compare planned vs actual actions (simplified for efficiency)
     planned_actions = []
-    modification_planned = False
-    creation_planned = False
+    actual_actions = []
     
-    for step in planned_steps:
-        action = step.get("action", "").upper()
-        target = step.get("target", "")
-        planned_actions.append(f"{action} {target}".strip())
-        
-        if action in ["WRITE", "MODIFY"]:
-            if action == "WRITE":
-                creation_planned = True
-            elif action == "MODIFY":
-                modification_planned = True
+    # Extract planned actions from planning data
+    if 'execution_plan' in planning_data and 'steps' in planning_data['execution_plan']:
+        for step in planning_data['execution_plan']['steps']:
+            action = step.get('action', 'Unknown')
+            target = step.get('target', '')
+            planned_actions.append(f"{action} {target}".strip())
     
-    # Check analysis section for intended modifications
-    analysis = planning_data.get("analysis", {})
-    files_to_create = analysis.get("files_to_create", [])
-    files_to_modify = analysis.get("files_to_modify", [])
+    # Simplified actual actions tracking - focus on success rather than detailed comparison
+    if execution_success:
+        actual_actions.append("All planned actions executed successfully")
+    else:
+        actual_actions.append("Some actions failed or incomplete")
     
-    if files_to_create:
-        creation_planned = True
-    if files_to_modify:
-        modification_planned = True
-    
-    # Determine if plan was actually fulfilled
-    plan_fulfilled = True
-    
-    # If modifications or creations were planned but execution only shows READ commands
-    if (modification_planned or creation_planned) and execution_success:
-        # This suggests the AI might be hallucinating success
-        plan_fulfilled = False
+    planned_str = ", ".join(planned_actions[:3]) if planned_actions else "No specific actions planned"  # Limit to 3 for brevity
+    actual_str = ", ".join(actual_actions) if actual_actions else "No actions completed"
     
     return {
-        "plan_fulfilled": plan_fulfilled,
-        "planned_actions": ", ".join(planned_actions) if planned_actions else "No specific actions",
-        "actual_actions": "READ operations only" if not plan_fulfilled else "As planned",
-        "modification_planned": modification_planned,
-        "creation_planned": creation_planned
+        "plan_fulfilled": execution_success,
+        "planned_actions": planned_str,
+        "actual_actions": actual_str
     }
 
 def generate_next_step_suggestions(user_request: str, planning_data: dict, execution_success: bool, context: list, actual_results: dict = None) -> str:
     """
-    Generate intelligent next step suggestions for the user based on the current task.
+    Generate intelligent next step suggestions for better continuity and context.
     """
     
-    # Build context for suggestion generation
-    context_str = ""
-    if context:
-        context_str = "Recent interactions:\n"
-        for item in context[-2:]:
-            context_str += f"- {item['user_request']} ({'✅' if item['success'] else '❌'})\n"
+    # Generate suggestions for both success and failure for better continuity
+    status = "SUCCESS" if execution_success else "FAILED"
     
-    # Include actual results analysis
-    actual_analysis = ""
-    if actual_results:
-        actual_analysis = f"""
-REALITY CHECK:
-- Plan fulfilled: {actual_results.get('plan_fulfilled', False)}
-- Planned actions: {actual_results.get('planned_actions', 'Unknown')}
-- Actual actions: {actual_results.get('actual_actions', 'Unknown')}
-- Modifications planned: {actual_results.get('modification_planned', False)}
-- Creations planned: {actual_results.get('creation_planned', False)}
-"""
-
     suggestion_prompt = f"""
-You are an intelligent programming assistant. Based on the user's request and ACTUAL execution results, suggest logical next steps.
+TASK COMPLETED: "{user_request}"
+STATUS: {status}
 
-CURRENT REQUEST: "{user_request}"
-EXECUTION SUCCESS: {execution_success}
-PLANNING DATA: {json.dumps(planning_data, indent=2)}
-{actual_analysis}
+CONTEXT: Based on what was just accomplished, provide a brief, intelligent next step suggestion.
 
-CONTEXT:
-{context_str}
+GUIDELINES:
+- If SUCCESS: Suggest logical next actions, improvements, or related tasks
+- If FAILED: Suggest how to fix the issue or alternative approaches
+- Keep it conversational and helpful (1-2 sentences max)
+- Make it relevant to the current project context
 
-CRITICAL GUIDELINES FOR HONEST SUGGESTIONS:
-1. NEVER suggest based on hallucinated success - only suggest based on what ACTUALLY happened
-2. If only READ operations occurred but modifications were planned, suggest completing the modifications
-3. If files were just read, suggest the logical next action (modify, create, etc.)
-4. If the task is genuinely complete, suggest related enhancements
-5. If there were failures, suggest fixes or alternative approaches
-6. Be specific and actionable based on REALITY, not assumptions
-7. Keep suggestions concise (2-3 sentences max)
-8. Only suggest if there's a clear logical next step
-
-IMPORTANT: Base suggestions on ACTUAL results, not planned results. If there's no clear next step, return empty string.
-
-Provide a helpful next step suggestion based on what ACTUALLY happened, or return empty string:
+BRIEF SUGGESTION:
 """
     
     response = llm.generate_text(suggestion_prompt, "next step suggestion")
@@ -708,15 +670,15 @@ def display_planning_results(planning_data: dict):
 
 def execute_execution_call(user_request: str, planning_data: dict, context: list, log_file_path: str = None) -> bool:
     """
-    CALL 2: Execute the planned actions with intelligent adaptation.
-    This call focuses on executing the plan while adapting to real-world conditions.
+    CALL 2: Execute with adaptive multi-request system (1-3 requests based on complexity).
+    AI decides how many execution phases needed: simple (1), moderate (2), complex (3).
     """
     
     # Start execution phase panel
     ui.console.print(
         Panel(
-            Text("Intelligent Execution", style="bold", justify="center"),
-            title="[bold]Call 2/2: Smart Execution[/bold]",
+            Text("Adaptive Intelligent Execution", style="bold", justify="center"),
+            title="[bold]Call 2/2: Smart Execution (1-3 phases)[/bold]",
             box=ROUNDED,
             border_style="grey50",
             padding=(1, 2),
@@ -724,85 +686,187 @@ def execute_execution_call(user_request: str, planning_data: dict, context: list
         )
     )
     
-    execution_prompt = f"""
-You are a SENIOR SOFTWARE ENGINEER executing a carefully planned solution.
+    # PHASE 1: Decide execution strategy
+    strategy_prompt = f"""
+You are a SENIOR SOFTWARE ENGINEER deciding the optimal execution strategy.
 
 ORIGINAL USER REQUEST: "{user_request}"
 
-COMPREHENSIVE PLAN (from previous analysis):
+PLANNED SOLUTION:
 {json.dumps(planning_data, indent=2)}
 
-YOUR MISSION: Execute this plan with MAXIMUM INTELLIGENCE and ADAPTABILITY.
+CURRENT CONTEXT:
+{context}
 
-EXECUTION GUIDELINES:
+DECISION REQUIRED: How many execution phases do you need?
 
-1. INTELLIGENT EXECUTION:
-   - Follow the plan but adapt to real conditions
-   - If a file doesn't exist as expected, handle gracefully
-   - If code structure is different than expected, adapt
-   - Make intelligent decisions based on what you discover
+PHASE OPTIONS:
+1. SINGLE PHASE (1 request): Simple tasks, all files can be created/modified directly
+   - Example: Create 1-2 new files with clear requirements
+   - No dependencies, no need to check existing state
+   
+2. TWO PHASES (2 requests): Moderate complexity, need to check then act
+   - Phase 1: READ existing files, analyze current state
+   - Phase 2: CREATE/MODIFY files based on analysis
+   - Example: Modify existing files, need to understand current structure
+   
+3. THREE PHASES (3 requests): Complex tasks with dependencies
+   - Phase 1: READ and analyze existing state
+   - Phase 2: CREATE foundation files/structure
+   - Phase 3: MODIFY and integrate everything
+   - Example: Large refactoring, multiple file dependencies
 
-2. AVAILABLE COMMANDS:
-   - READ::filepath - Read and analyze files
-   - WRITE::filepath::description - Create new files with content
-   - MODIFY::filepath::description - Modify existing files
-   - TREE::path - Show directory structure
-   - LIST_PATH::path - List files in directory
-   - MKDIR::path - Create directories
-   - TOUCH::filepath - Create empty files
-   - RM::path - Remove files/directories
-   - MV::source::destination - Move files
-   - FINISH::message - Complete the task
-
-3. EXECUTION STRATEGY:
-   - Start with information gathering (READ, TREE, LIST_PATH)
-   - Execute planned actions in logical order
-   - Verify each step before proceeding
-   - Adapt plan if you discover unexpected conditions
-   - Always end with FINISH when complete
-
-4. QUALITY STANDARDS:
-   - Write production-quality code
-   - Follow best practices for the language/framework
-   - Include proper error handling
-   - Add meaningful comments where appropriate
-   - Ensure code is readable and maintainable
-
-5. INTELLIGENT ADAPTATION:
-   - If planned file doesn't exist, check alternatives
-   - If code structure is different, adapt accordingly
-   - If you encounter errors, troubleshoot intelligently
-   - Make smart decisions based on real conditions
+CRITICAL PAICODE RULES YOU MUST UNDERSTAND:
+- WRITE = NEW files only (file must NOT exist)
+- MODIFY = EXISTING files only (file must exist) 
+- Paicode has DIFF-AWARE modification system
+- ALWAYS READ first to check file existence
+- Choose the MINIMUM phases needed
+- Don't waste requests if not necessary
+- Consider file dependencies and current state
+- Be efficient but thorough
 
 OUTPUT FORMAT:
-Provide a sequence of commands, one per line, following this format:
-COMMAND::parameter1::parameter2
-
-Example:
-READ::package.json
-TREE::.
-WRITE::src/app.js::Create main application file with Express server setup
-MODIFY::package.json::Add new dependencies for the project
-FINISH::Successfully created the web application with all required components
-
-CRITICAL: Execute the plan intelligently. Adapt as needed. Deliver a complete solution.
-
-Begin execution now:
+PHASES: [1|2|3]
+REASONING: [Brief explanation why this number of phases is optimal]
 """
+
+    strategy_response = llm.generate_text(strategy_prompt, "execution strategy")
     
-    execution_response = llm.generate_text(execution_prompt, "intelligent execution")
-    
-    if not execution_response:
+    if not strategy_response:
         return False
     
-    # Execute the planned commands
-    execution_success, command_results = execute_command_sequence(execution_response, context)
+    # Parse strategy decision
+    phases = 1  # Default
+    if "PHASES: 2" in strategy_response:
+        phases = 2
+    elif "PHASES: 3" in strategy_response:
+        phases = 3
     
-    # Log execution phase
+    ui.console.print(
+        Panel(
+            Text(f"AI Strategy: {phases} execution phase{'s' if phases > 1 else ''} planned", 
+                 style="bright_cyan", justify="center"),
+            title="[bold]Execution Strategy[/bold]",
+            box=ROUNDED,
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
+        )
+    )
+    
+    # Execute phases
+    all_command_results = []
+    overall_success = True
+    
+    for phase_num in range(1, phases + 1):
+        ui.console.print(
+            Panel(
+                Text(f"Phase {phase_num}/{phases}: {'Analysis' if phase_num == 1 and phases > 1 else 'Implementation'}", 
+                     style="bold", justify="center"),
+                title=f"[bold]Execution Phase {phase_num}[/bold]",
+                box=ROUNDED,
+                border_style="grey50",
+                padding=(1, 2),
+                width=80
+            )
+        )
+        
+        phase_success, phase_results = execute_single_phase(
+            user_request, planning_data, context, phase_num, phases
+        )
+        
+        all_command_results.extend(phase_results)
+        if not phase_success:
+            overall_success = False
+            break
+    
+    # Log all execution phases
     if log_file_path:
-        log_session_event(log_file_path, "EXECUTION_PHASE", {"commands": command_results})
+        log_session_event(log_file_path, "EXECUTION_PHASE", {"commands": all_command_results})
 
-    return execution_success
+    return overall_success
+
+def execute_single_phase(user_request: str, planning_data: dict, context: list, phase_num: int, total_phases: int) -> tuple[bool, list]:
+    """Execute a single phase of the adaptive execution system."""
+    
+    phase_prompt = f"""
+You are a SENIOR SOFTWARE ENGINEER executing phase {phase_num} of {total_phases}.
+
+ORIGINAL USER REQUEST: "{user_request}"
+
+PLANNED SOLUTION:
+{json.dumps(planning_data, indent=2)}
+
+PHASE {phase_num} GUIDELINES:
+
+{"ANALYSIS PHASE - Gather information and understand current state" if phase_num == 1 and total_phases > 1 else ""}
+{"IMPLEMENTATION PHASE - Execute the main solution" if (phase_num == 2 and total_phases == 2) or (phase_num == total_phases) else ""}
+{"FOUNDATION PHASE - Create basic structure and files" if phase_num == 2 and total_phases == 3 else ""}
+{"INTEGRATION PHASE - Complete and integrate everything" if phase_num == 3 and total_phases == 3 else ""}
+
+AVAILABLE COMMANDS:
+- READ::filepath - Read file content
+- WRITE::filepath::description - Create NEW file ONLY (file must NOT exist)
+- MODIFY::filepath::description - Modify EXISTING file ONLY (file must exist)
+- TREE::path - Show directory structure
+- LIST_PATH::path - List files
+- MKDIR::dirpath - Create directory
+- TOUCH::filepath - Create empty file
+- RM::path - Remove file/directory
+- MV::source::destination - Move/rename
+- FINISH::message - Mark phase completion
+
+🚨 CRITICAL PAICODE RULES - NEVER VIOLATE THESE:
+1. WRITE = NEW files only. If file exists, you'll get ERROR!
+2. MODIFY = EXISTING files only. If file doesn't exist, you'll get ERROR!
+3. ALWAYS READ first to check if file exists before deciding WRITE vs MODIFY
+4. Paicode has DIFF-AWARE modification - MODIFY preserves existing content intelligently
+5. NEVER use WRITE for existing files - this is a BASIC rule that AI must know!
+
+PHASE STRATEGY:
+{get_phase_strategy(phase_num, total_phases)}
+
+CRITICAL RULES:
+- Keep commands focused for this specific phase
+- Maximum 10-15 commands per phase
+- Use FINISH when phase objectives are met
+- Be efficient and purposeful
+
+OUTPUT FORMAT:
+Provide commands one per line:
+COMMAND::parameter1::parameter2
+
+Begin phase {phase_num} execution:
+"""
+    
+    phase_response = llm.generate_text(phase_prompt, f"execution phase {phase_num}")
+    
+    if not phase_response:
+        return False, []
+    
+    # Execute this phase's commands
+    phase_success, phase_results = execute_command_sequence(phase_response, context)
+    
+    return phase_success, phase_results
+
+def get_phase_strategy(phase_num: int, total_phases: int) -> str:
+    """Get strategy description for specific phase."""
+    
+    if total_phases == 1:
+        return "Single phase: Complete the entire solution efficiently in one go."
+    elif total_phases == 2:
+        if phase_num == 1:
+            return "Phase 1: READ existing files, understand current state, analyze structure."
+        else:
+            return "Phase 2: CREATE/MODIFY files based on analysis, implement the solution."
+    else:  # 3 phases
+        if phase_num == 1:
+            return "Phase 1: READ and analyze existing state, understand dependencies."
+        elif phase_num == 2:
+            return "Phase 2: CREATE foundation files and basic structure."
+        else:
+            return "Phase 3: MODIFY and integrate, complete the solution."
 
 def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool, list]:
     """Execute a sequence of commands from the AI."""
@@ -890,6 +954,13 @@ def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool
             if len(item) == 3 and item[0] == "syntax_highlight":
                 # Handle syntax highlighting
                 _, filename, code_content = item
+                
+                # For terminal display: truncate long files for better UX
+                lines = code_content.split('\n')
+                display_content = code_content
+                if len(lines) > 20:
+                    display_content = '\n'.join(lines[:20]) + f"\n... ({len(lines) - 20} more lines)"
+                
                 try:
                     from pygments.lexers import get_lexer_for_filename
                     from pygments.util import ClassNotFound
@@ -902,7 +973,7 @@ def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool
                         lang = "text"
                     
                     syntax_panel = Panel(
-                        Syntax(code_content, lang, theme="monokai", line_numbers=True),
+                        Syntax(display_content, lang, theme="monokai", line_numbers=True),
                         title=f"📄 {filename}",
                         border_style="grey50",
                         expand=False
@@ -910,7 +981,7 @@ def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool
                     rich_content.append(syntax_panel)
                 except ImportError:
                     # Fallback if pygments not available
-                    rich_content.append(RichText(f"File content of {filename}:\n{code_content}", style="bright_cyan"))
+                    rich_content.append(RichText(f"File content of {filename}:\n{display_content}", style="bright_cyan"))
             else:
                 style_type, text = item[0], item[1]
                 if style_type == "bold":
@@ -949,14 +1020,14 @@ def execute_single_command(command: str, param1: str, param2: str) -> tuple[bool
         if command == "READ":
             content = workspace.read_file(param1)
             if content is not None:
-                # Show first 20 lines for brevity with syntax highlighting
+                # For terminal display: Show first 20 lines for brevity
                 lines = content.split('\n')
                 display_content = '\n'.join(lines[:20])
                 if len(lines) > 20:
                     display_content += f"\n... ({len(lines) - 20} more lines)"
                 
-                # Return with special syntax highlighting marker
-                return True, f"SYNTAX_HIGHLIGHT:{param1}:{display_content}"
+                # Return FULL content for logging (LLM context needs complete code)
+                return True, f"SYNTAX_HIGHLIGHT:{param1}:{content}"
             return False, f"Could not read file: {param1}"
         
         elif command == "WRITE":
@@ -1029,79 +1100,62 @@ def log_session_event(log_file_path: str, event_type: str, data: dict):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if event_type == "SESSION_START":
-            log_line = f"\n{'='*80}\n"
-            log_line += f"[{timestamp}] 🚀 SESSION STARTED\n"
+            log_line = f"\n[{timestamp}] SESSION STARTED\n"
             log_line += f"[{timestamp}] Working Directory: {data.get('working_directory', 'unknown')}\n"
             log_line += f"[{timestamp}] Session ID: {data.get('session_id', 'unknown')}\n"
-            log_line += f"{'='*80}\n\n"
             
         elif event_type == "USER_INPUT":
             request = data.get('user_request', 'unknown')
-            log_line = f"\n{'─'*50} USER INPUT {'─'*50}\n"
-            log_line += f"[{timestamp}] 👤 USER: {request}\n"
-            log_line += f"{'─'*108}\n"
+            log_line = f"\n[{timestamp}] USER: {request}\n"
             
         elif event_type == "PLANNING_PHASE":
-            log_line = f"\n{'▼'*50} AI PLANNING PHASE {'▼'*50}\n"
-            log_line += f"[{timestamp}] 🧠 AI ANALYSIS:\n"
+            log_line = f"\n[{timestamp}] AI PLANNING START\n"
             
             planning_data = data.get('planning_data', {})
             analysis = planning_data.get('analysis', {})
             
-            log_line += f"[{timestamp}]   • Intent: {analysis.get('user_intent', 'Unknown')}\n"
-            log_line += f"[{timestamp}]   • Context Usage: {analysis.get('context_utilization', 'None')}\n"
-            log_line += f"[{timestamp}]   • Files to read: {analysis.get('files_to_read', [])}\n"
-            log_line += f"[{timestamp}]   • Files to create: {analysis.get('files_to_create', [])}\n"
-            log_line += f"[{timestamp}]   • Files to modify: {analysis.get('files_to_modify', [])}\n"
+            log_line += f"[{timestamp}] Intent: {analysis.get('user_intent', 'Unknown')}\n"
+            log_line += f"[{timestamp}] Context Usage: {analysis.get('context_utilization', 'None')}\n"
+            log_line += f"[{timestamp}] Files to read: {analysis.get('files_to_read', [])}\n"
+            log_line += f"[{timestamp}] Files to create: {analysis.get('files_to_create', [])}\n"
+            log_line += f"[{timestamp}] Files to modify: {analysis.get('files_to_modify', [])}\n"
             
             execution_plan = planning_data.get('execution_plan', {})
             steps = execution_plan.get('steps', [])
-            log_line += f"\n[{timestamp}] 📋 AI EXECUTION PLAN ({len(steps)} steps):\n"
+            log_line += f"[{timestamp}] EXECUTION PLAN ({len(steps)} steps):\n"
             for i, step in enumerate(steps, 1):
                 action = step.get('action', 'Unknown')
                 target = step.get('target', '')
                 purpose = step.get('purpose', 'No purpose')
                 log_line += f"[{timestamp}]   {i}. {action} {target} - {purpose}\n"
-            log_line += f"{'▲'*108}\n"
+            log_line += f"[{timestamp}] AI PLANNING END\n"
             
         elif event_type == "EXECUTION_PHASE":
-            log_line = f"\n{'►'*50} AI EXECUTION PHASE {'►'*50}\n"
-            log_line += f"[{timestamp}] ⚡ AI EXECUTING COMMANDS:\n"
+            log_line = f"\n[{timestamp}] AI EXECUTION START\n"
             
             commands = data.get('commands', [])
             for cmd_data in commands:
                 cmd = cmd_data.get('command', 'Unknown')
                 target = cmd_data.get('target', '')
-                success = "✅" if cmd_data.get('success') else "❌"
+                success = "SUCCESS" if cmd_data.get('success') else "FAILED"
                 output = cmd_data.get('output', '')
                 
-                log_line += f"[{timestamp}]   {success} {cmd} {target}\n"
-                if output and len(output) < 200:  # Log short outputs
-                    log_line += f"[{timestamp}]     └─ Output: {output}\n"
-                elif output:
-                    log_line += f"[{timestamp}]     └─ Output: {output[:200]}...\n"
-            log_line += f"{'◄'*108}\n"
+                log_line += f"[{timestamp}] {success}: {cmd} {target}\n"
+                # Log FULL output for complete context window - no trimming!
+                if output:
+                    log_line += f"[{timestamp}] OUTPUT: {output}\n"
+            log_line += f"[{timestamp}] AI EXECUTION END\n"
             
         elif event_type == "FINAL_STATUS":
             status = data.get('status', 'unknown')
-            success_icon = "✅" if data.get('success') else "❌"
+            success_text = "SUCCESS" if data.get('success') else "FAILED"
             
-            log_line = f"\n{'●'*50} AI FINAL RESULT {'●'*50}\n"
-            log_line += f"[{timestamp}] {success_icon} AI RESULT: {status}\n"
-            
-            reality_check = data.get('reality_check')
-            if reality_check:
-                log_line += f"[{timestamp}] 🔍 REALITY CHECK:\n"
-                log_line += f"[{timestamp}]   • Planned: {reality_check.get('planned_actions', 'Unknown')}\n"
-                log_line += f"[{timestamp}]   • Actual: {reality_check.get('actual_actions', 'Unknown')}\n"
-            log_line += f"{'●'*108}\n"
+            log_line = f"\n[{timestamp}] AI FINAL RESULT: {success_text} - {status}\n"
             
         elif event_type == "NEXT_STEPS":
             suggestion = data.get('suggestion', '')
             if suggestion:
-                log_line = f"\n{'💡'*50} AI SUGGESTION {'💡'*50}\n"
-                log_line += f"[{timestamp}] 🤖 AI SUGGESTS: {suggestion}\n"
-                log_line += f"{'💡'*108}\n"
+                log_line = f"\n[{timestamp}] AI SUGGESTION: {suggestion}\n"
             else:
                 log_line = ""
                 
