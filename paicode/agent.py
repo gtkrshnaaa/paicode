@@ -240,34 +240,12 @@ def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
     """
     
     # === CALL 1: PLANNING PHASE ===
-    ui.console.print(
-        Panel(
-            Text("Deep Analysis & Planning", style="bold", justify="center"),
-            title="[bold]Call 1/2: Intelligence Planning[/bold]",
-            box=ROUNDED,
-            border_style="grey50",
-            padding=(1, 2),
-            width=80
-        )
-    )
-    
     planning_result = execute_planning_call(user_request, context)
     if not planning_result:
         ui.print_error("✗ Planning phase failed. Cannot proceed.")
         return False
     
     # === CALL 2: EXECUTION PHASE ===
-    ui.console.print(
-        Panel(
-            Text("Intelligent Execution", style="bold", justify="center"),
-            title="[bold]Call 2/2: Smart Execution[/bold]",
-            box=ROUNDED,
-            border_style="grey50",
-            padding=(1, 2),
-            width=80
-        )
-    )
-    
     execution_success = execute_execution_call(user_request, planning_result, context)
     
     # Show final status with original Paicode styling
@@ -301,6 +279,18 @@ def execute_planning_call(user_request: str, context: list) -> dict | None:
     CALL 1: Execute deep planning and analysis.
     This call focuses on understanding, analyzing, and creating a comprehensive plan.
     """
+    
+    # Start planning phase panel
+    ui.console.print(
+        Panel(
+            Text("Deep Analysis & Planning", style="bold", justify="center"),
+            title="[bold]Call 1/2: Intelligence Planning[/bold]",
+            box=ROUNDED,
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
+        )
+    )
     
     # Build context string
     context_str = ""
@@ -426,40 +416,71 @@ Output ONLY the JSON object, no additional text.
 def display_planning_results(planning_data: dict):
     """Display the planning results in original Paicode style."""
     
+    # Build content for the panel
+    content_lines = []
+    
     # Analysis section
     analysis = planning_data.get("analysis", {})
-    ui.console.print("\n[bold]Deep Analysis Results:[/bold]")
-    ui.console.print(f"   Intent: {analysis.get('user_intent', 'Unknown')}")
-    ui.console.print(f"   Files to read: {len(analysis.get('files_to_read', []))}")
-    ui.console.print(f"   Files to create: {len(analysis.get('files_to_create', []))}")
-    ui.console.print(f"   Files to modify: {len(analysis.get('files_to_modify', []))}")
+    content_lines.append("[bold]Deep Analysis Results:[/bold]")
+    content_lines.append(f"Intent: {analysis.get('user_intent', 'Unknown')}")
+    content_lines.append(f"Files to read: {len(analysis.get('files_to_read', []))}")
+    content_lines.append(f"Files to create: {len(analysis.get('files_to_create', []))}")
+    content_lines.append(f"Files to modify: {len(analysis.get('files_to_modify', []))}")
+    content_lines.append("")
     
     # Execution plan
     execution_plan = planning_data.get("execution_plan", {})
     steps = execution_plan.get("steps", [])
-    ui.console.print(f"\n[bold]Execution Plan: {len(steps)} steps[/bold]")
+    content_lines.append(f"[bold]Execution Plan: {len(steps)} steps[/bold]")
     
     for i, step in enumerate(steps[:3], 1):  # Show first 3 steps
         action = step.get("action", "Unknown")
         target = step.get("target", "Unknown")
         purpose = step.get("purpose", "No purpose specified")
-        ui.console.print(f"   {i}. {action} {target} - {purpose}")
+        content_lines.append(f"{i}. {action} {target} - {purpose}")
     
     if len(steps) > 3:
-        ui.console.print(f"   ... and {len(steps) - 3} more steps")
+        content_lines.append(f"... and {len(steps) - 3} more steps")
+    
+    content_lines.append("")
     
     # Intelligence notes
     intelligence = planning_data.get("intelligence_notes", {})
     complexity = intelligence.get("complexity_assessment", "unknown")
-    ui.console.print(f"\n[bold]Intelligence Assessment:[/bold]")
-    ui.console.print(f"   Complexity: {complexity}")
-    ui.console.print(f"   Estimated time: {intelligence.get('estimated_time', 'unknown')}")
+    content_lines.append("[bold]Intelligence Assessment:[/bold]")
+    content_lines.append(f"Complexity: {complexity}")
+    content_lines.append(f"Estimated time: {intelligence.get('estimated_time', 'unknown')}")
+    
+    # Display all content in a single panel
+    content_text = "\n".join(content_lines)
+    ui.console.print(
+        Panel(
+            Text(content_text, style="bright_white"),
+            title="[bold]Planning Results[/bold]",
+            box=ROUNDED,
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
+        )
+    )
 
 def execute_execution_call(user_request: str, planning_data: dict, context: list) -> bool:
     """
     CALL 2: Execute the planned actions with intelligent adaptation.
     This call focuses on executing the plan while adapting to real-world conditions.
     """
+    
+    # Start execution phase panel
+    ui.console.print(
+        Panel(
+            Text("Intelligent Execution", style="bold", justify="center"),
+            title="[bold]Call 2/2: Smart Execution[/bold]",
+            box=ROUNDED,
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
+        )
+    )
     
     execution_prompt = f"""
 You are a SENIOR SOFTWARE ENGINEER executing a carefully planned solution.
@@ -542,7 +563,10 @@ def execute_command_sequence(command_sequence: str) -> bool:
     total_commands = len(commands)
     successful_commands = 0
     
-    ui.console.print(f"\n[bold]Executing {total_commands} intelligent actions...[/bold]")
+    # Build execution content
+    content_lines = []
+    content_lines.append(f"[bold]Executing {total_commands} intelligent actions...[/bold]")
+    content_lines.append("")
     
     for i, command_line in enumerate(commands, 1):
         if not command_line or '::' not in command_line:
@@ -558,29 +582,44 @@ def execute_command_sequence(command_sequence: str) -> bool:
         param2 = parts[2].strip() if len(parts) > 2 else ""
         
         if command not in VALID_COMMANDS:
-            ui.print_warning(f"Unknown command: {command}")
+            content_lines.append(f"⚠ Unknown command: {command}")
             continue
         
         # Display current action
-        ui.console.print(f"\n[{i}/{total_commands}] {command} {param1}")
+        content_lines.append(f"[{i}/{total_commands}] {command} {param1}")
         
         # Execute command
         success = execute_single_command(command, param1, param2)
         
         if success:
             successful_commands += 1
-            ui.console.print("   Success")
+            content_lines.append("Success")
         else:
-            ui.console.print("   Failed")
+            content_lines.append("Failed")
+        
+        content_lines.append("")
         
         # Break on FINISH command
         if command == "FINISH":
             break
     
-    # Show execution summary with original styling
+    # Show execution summary
     success_rate = (successful_commands / total_commands) * 100 if total_commands > 0 else 0
-    ui.console.print(f"\n[bold]Execution Summary:[/bold]")
-    ui.console.print(f"   Successful: {successful_commands}/{total_commands} ({success_rate:.1f}%)")
+    content_lines.append("[bold]Execution Summary:[/bold]")
+    content_lines.append(f"Successful: {successful_commands}/{total_commands} ({success_rate:.1f}%)")
+    
+    # Display all content in a single panel
+    content_text = "\n".join(content_lines)
+    ui.console.print(
+        Panel(
+            Text(content_text, style="bright_white"),
+            title="[bold]Execution Results[/bold]",
+            box=ROUNDED,
+            border_style="grey50",
+            padding=(1, 2),
+            width=80
+        )
+    )
     
     return success_rate >= 80  # Consider successful if 80%+ commands succeeded
 
