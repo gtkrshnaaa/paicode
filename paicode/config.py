@@ -272,3 +272,30 @@ def get_blacklist_status() -> Dict[str, float]:
             status[key_id] = remaining
     
     return status
+
+def reset_blacklist() -> None:
+    """Reset the API key blacklist, unblocking all keys.
+    
+    This is useful when all keys are rate limited and you want to try again
+    without waiting for the 10-minute timeout.
+    """
+    store = _load_store()
+    
+    # Count how many keys were blacklisted
+    blacklisted_count = len(store.get("blacklist", {}))
+    
+    # Reset blacklist and rotation index
+    store["blacklist"] = {}
+    store["rr_index"] = 0
+    
+    # Save changes
+    _save_store(store)
+    
+    if blacklisted_count > 0:
+        ui.print_success(f"Blacklist reset! Unblocked {blacklisted_count} API key(s).")
+        ui.print_info("Rotation index reset to 0. All keys are now available.")
+    else:
+        ui.print_info("ℹNo keys were blacklisted. Nothing to reset.")
+    
+    # Show current status
+    ui.print_info("💡 You can now use Pai again with all available API keys.")

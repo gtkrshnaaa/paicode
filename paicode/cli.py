@@ -6,7 +6,7 @@ from . import agent, config, llm, ui
 def main():
     parser = argparse.ArgumentParser(
         description="Pai Code: Your Agentic AI Coding Companion.",
-        epilog="Run 'pai config --help' for API key management. Run 'pai' or 'pai auto' to start the agent."
+        epilog="Run 'pai config --help' for API key management. Use 'pai config reset blacklist' to unblock rate-limited keys. Run 'pai' or 'pai auto' to start the agent."
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
@@ -31,6 +31,9 @@ def main():
 
     parser_config_set_default = config_subparsers.add_parser('set-default', help='Set an API key as default')
     parser_config_set_default.add_argument('id', type=str, help='API key ID')
+
+    parser_config_reset = config_subparsers.add_parser('reset', help='Reset API key blacklist')
+    parser_config_reset.add_argument('target', type=str, choices=['blacklist'], help='What to reset (currently only "blacklist")')
 
     config_group = parser_config.add_mutually_exclusive_group(required=False)
     config_group.add_argument('--set', type=str, metavar='API_KEY', help='Set or update the API key (DEPRECATED)')
@@ -64,6 +67,10 @@ def main():
             return
         elif args.config_cmd == 'set-default':
             config.set_default_api_key(args.id)
+            return
+        elif args.config_cmd == 'reset':
+            if args.target == 'blacklist':
+                config.reset_blacklist()
             return
 
         # Legacy flags (kept for compatibility)
