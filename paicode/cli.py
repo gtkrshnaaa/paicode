@@ -5,35 +5,28 @@ from . import agent, config, llm, ui
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Pai Code: Your Agentic AI Coding Companion.",
-        epilog="Run 'pai config --help' for API key management. Use 'pai config reset blacklist' to unblock rate-limited keys. Run 'pai' or 'pai auto' to start the agent."
+        description="Pai Code: Your Single-Shot Agentic AI Coding Companion.",
+        epilog="Use 'pai config set <API_KEY>' to configure. Run 'pai' to start the intelligent agent."
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    parser_auto = subparsers.add_parser('auto', help='Start the interactive AI agent session.')
+    # Main agent command (default)
+    parser_auto = subparsers.add_parser('auto', help='Start the single-shot AI agent session.')
     parser_auto.add_argument('--model', type=str, help='LLM model name (e.g., gemini-2.5-flash-lite)')
     parser_auto.add_argument('--temperature', type=float, help='LLM sampling temperature (e.g., 0.2)')
 
-    parser_config = subparsers.add_parser('config', help='Manage the API key configuration')
-    config_subparsers = parser_config.add_subparsers(dest='config_cmd', help='Available config subcommands')
+    # Simplified config management
+    parser_config = subparsers.add_parser('config', help='Manage API key configuration')
+    config_subparsers = parser_config.add_subparsers(dest='config_cmd', help='Config commands')
 
-    parser_config_add = config_subparsers.add_parser('add', help='Add a new API key')
-    parser_config_add.add_argument('id', type=str, help='API key ID')
-    parser_config_add.add_argument('key', type=str, help='API key')
+    parser_config_set = config_subparsers.add_parser('set', help='Set API key')
+    parser_config_set.add_argument('api_key', type=str, help='Google Gemini API key')
 
-    parser_config_list = config_subparsers.add_parser('list', help='List all API keys')
+    parser_config_show = config_subparsers.add_parser('show', help='Show current API key (masked)')
 
-    parser_config_show = config_subparsers.add_parser('show', help='Show an API key')
-    parser_config_show.add_argument('id', type=str, help='API key ID')
+    parser_config_remove = config_subparsers.add_parser('remove', help='Remove stored API key')
 
-    parser_config_remove = config_subparsers.add_parser('remove', help='Remove an API key')
-    parser_config_remove.add_argument('id', type=str, help='API key ID')
-
-    parser_config_set_default = config_subparsers.add_parser('set-default', help='Set an API key as default')
-    parser_config_set_default.add_argument('id', type=str, help='API key ID')
-
-    parser_config_reset = config_subparsers.add_parser('reset', help='Reset API key blacklist')
-    parser_config_reset.add_argument('target', type=str, choices=['blacklist'], help='What to reset (currently only "blacklist")')
+    parser_config_validate = config_subparsers.add_parser('validate', help='Validate current API key')
 
     config_group = parser_config.add_mutually_exclusive_group(required=False)
     config_group.add_argument('--set', type=str, metavar='API_KEY', help='Set or update the API key (DEPRECATED)')
@@ -42,61 +35,58 @@ def main():
 
     args = parser.parse_args()
 
+    # Handle config commands
     if args.command == 'config':
-        # Handle new subcommands first
-        if args.config_cmd == 'add':
-            config.add_api_key(args.id, args.key)
-            return
-        elif args.config_cmd == 'list':
-            rows = config.list_api_keys()
-            # Pretty table
-            from rich.table import Table
-            table = Table(show_header=True, header_style="bold")
-            table.add_column("ID", style="bold")
-            table.add_column("Masked Key")
-            table.add_column("Default", justify="center")
-            for r in rows:
-                table.add_row(r.get('id',''), r.get('masked',''), r.get('is_default',''))
-            ui.console.print(table)
+        if args.config_cmd == 'set':
+            config.set_api_key(args.api_key)
             return
         elif args.config_cmd == 'show':
-            config.show_api_key(args.id)
+            config.show_api_key()
             return
         elif args.config_cmd == 'remove':
-            config.remove_api_key(args.id)
+            config.remove_api_key()
             return
-        elif args.config_cmd == 'set-default':
-            config.set_default_api_key(args.id)
+        elif args.config_cmd == 'validate':
+            is_valid, message = config.validate_api_key()
+            if is_valid:
+                ui.print_success(f"s: {message}")
+            else:
+                ui.print_error(f"e: {message}")
             return
-        elif args.config_cmd == 'reset':
-            if args.target == 'blacklist':
-                config.reset_blacklist()
+        else:
+            parser_config.print_help()
             return
 
         # Legacy flags (kept for compatibility)
         if getattr(args, 'set', None):
-            config.save_api_key(args.set)
+            config.set_api_key(args.set)
             return
         if getattr(args, 'show', False):
-            config.show_api_key(None)
+            config.show_api_key()
             return
         if getattr(args, 'remove', False):
-            # In multi-key mode, removing legacy means wiping file; but safer to instruct user
-            ui.print_warning("Legacy --remove is deprecated. Use: pai config remove <ID>")
+            config.remove_api_key()
             return
-    else:
-        # Configure LLM runtime if flags provided
-        model = getattr(args, 'model', None)
-        temperature = getattr(args, 'temperature', None)
-        if model is not None or temperature is not None:
-            llm.set_runtime_model(model, temperature)
-        try:
-            agent.start_interactive_session()
-        except KeyboardInterrupt:
-            ui.print_info("\nSession terminated by user.")
-        except Exception as e:
-            ui.print_error(f"An error occurred during the session: {e}")
-            return 1
+    # Default: start agent
+    # Check API key before starting
+    if not config.is_configured():
+        ui.print_error("No API key configured.")
+        ui.print_info("💡 Use 'pai config set <API_KEY>' to set your Google Gemini API key.")
+        return 1
+
+    # Configure LLM runtime if flags provided
+    model = getattr(args, 'model', None)
+    temperature = getattr(args, 'temperature', None)
+    if model is not None or temperature is not None:
+        llm.set_runtime_model(model, temperature)
+
+    try:
+        agent.start_interactive_session()
+    except KeyboardInterrupt:
+        ui.print_info("\nSession terminated by user.")
+    except Exception as e:
+        ui.print_error(f"An error occurred during the session: {e}")
+        return 1
 
 if __name__ == "__main__":
     main()

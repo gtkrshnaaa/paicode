@@ -66,33 +66,21 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
 # Initialize once on import with defaults
 set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 
-def _prepare_runtime() -> tuple[bool, str]:
-    """Configure API key via smart rotation and ensure model object exists.
+def _prepare_runtime() -> bool:
+    """Configure API key and ensure model object exists.
     
     Returns:
-        Tuple of (success: bool, key_id: str). If success is False, key_id is empty.
+        bool: True if successful, False otherwise.
     """
     global model
     
-    # Use smart key selection (skips blacklisted keys)
-    pair = config.get_next_available_key()
+    # Get single API key
+    api_key = config.get_api_key()
     
-    if pair is None:
-        # Check if all keys are blacklisted
-        blacklist_status = config.get_blacklist_status()
-        if blacklist_status:
-            # All keys are rate limited
-            min_remaining = min(blacklist_status.values())
-            minutes = int(min_remaining / 60)
-            seconds = int(min_remaining % 60)
-            ui.print_error(f"Error: All API keys are rate limited. Retry in {minutes}m {seconds}s.")
-        else:
-            # No keys configured at all
-            ui.print_error("Error: No API keys configured. Use `pai config add <ID> <API_KEY>`.")
+    if not api_key:
+        ui.print_error("Error: No API key configured. Use 'pai config set <API_KEY>'.")
         model = None
-        return False, ""
-    
-    key_id, api_key = pair
+        return False
     
     try:
         genai.configure(api_key=api_key)
@@ -102,11 +90,11 @@ def _prepare_runtime() -> tuple[bool, str]:
             temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
             generation_config = {"temperature": temp}
             model = genai.GenerativeModel(name, generation_config=generation_config)
-        return True, key_id
+        return True
     except Exception as e:
-        ui.print_error(f"Failed to configure API key '{key_id}': {e}")
+        ui.print_error(f"Failed to configure API key: {e}")
         model = None
-        return False, ""
+        return False
 
 def _is_rate_limit_error(error: Exception) -> bool:
     """Detect if an exception is a rate limit error.
@@ -170,79 +158,53 @@ def _clean_response_text(text: str) -> str:
     
     return cleaned_text
 
-def generate_text(prompt: str, max_retries: int = 3) -> str:
-    """Sends a prompt to the Gemini API with automatic retry on rate limit.
-    
-    This function implements smart retry logic:
-    1. Tries with current available API key
-    2. If rate limit is hit, blacklists that key for 10 minutes
-    3. Automatically retries with next available key
-    4. Repeats up to max_retries times
-    5. User doesn't need to do anything - it's fully automatic
+def generate_text(prompt: str, call_purpose: str = "thinking") -> str:
+    """
+    Generate text with single API key - optimized for 2-call system.
     
     Args:
         prompt: The prompt to send to the LLM
-        max_retries: Maximum number of retry attempts (default: 3)
+        call_purpose: Purpose of the call for logging (e.g., "planning", "execution")
         
     Returns:
-        The cleaned response text, or empty string if all retries failed
+        The cleaned response text, or empty string if failed
     """
+    global model
     
-    for attempt in range(max_retries):
-        # Prepare runtime with next available key
-        success, current_key_id = _prepare_runtime()
-        
-        if not success:
-            # No keys available (all blacklisted or not configured)
+    # Ensure model is configured
+    if model is None:
+        if not _prepare_runtime():
             return ""
-        
-        try:
-            # Show status with current attempt info
-            status_msg = "[bold yellow]Agent is thinking..."
-            if attempt > 0:
-                status_msg = f"[bold yellow]Retrying with different API key... (attempt {attempt + 1}/{max_retries})"
-            
-            with ui.console.status(status_msg, spinner="dots"):
-                response = model.generate_content(prompt)
-            
-            # Success! Clean and return the response
-            cleaned_text = _clean_response_text(response.text)
-            
-            # If this was a retry, show success message
-            if attempt > 0:
-                ui.print_success(f"✓ Successfully switched to backup API key and completed request.")
-            
-            return cleaned_text
-            
-        except Exception as e:
-            # Check if it's a rate limit error
-            is_rate_limit = _is_rate_limit_error(e)
-            
-            if is_rate_limit:
-                # Blacklist this key for 10 minutes
-                config.blacklist_key(current_key_id, duration_seconds=600)
-                
-                if attempt < max_retries - 1:
-                    # Try next key with delay to avoid cascade blacklisting
-                    ui.print_warning(f"⚠ Rate limit detected on key '{current_key_id}'. Switching to next API key...")
-                    ui.print_info("⏳ Waiting 3 seconds to avoid cascade rate limiting...")
-                    time.sleep(3)  # Delay to prevent cascade blacklisting
-                    continue
-                else:
-                    # Final attempt failed
-                    ui.print_error(f"Error: All API keys exhausted or rate limited. Please wait 10 minutes.")
-                    return ""
-            else:
-                # Non-rate-limit error (e.g., network issue, invalid prompt)
-                ui.print_error(f"Error: LLM API issue: {e}")
-                
-                # For non-rate-limit errors, retry once more if we have attempts left
-                if attempt < max_retries - 1:
-                    ui.print_warning("Retrying with same key...")
-                    continue
-                else:
-                    return ""
     
-    # Should not reach here, but just in case
-    ui.print_error("Error: Maximum retry attempts reached.")
-    return ""
+    try:
+        # Show status with purpose
+        status_msg = f"[bold yellow]Agent {call_purpose}..."
+        
+        with ui.console.status(status_msg, spinner="dots"):
+            response = model.generate_content(prompt)
+        
+        # Success! Clean and return the response
+        cleaned_text = _clean_response_text(response.text)
+        
+        # Log token usage if available (for optimization)
+        if hasattr(response, 'usage_metadata'):
+            usage = response.usage_metadata
+            ui.print_info(f"Tokens: {usage.prompt_token_count} → {usage.candidates_token_count}")
+        
+        return cleaned_text
+        
+    except Exception as e:
+        is_rate_limit = _is_rate_limit_error(e)
+        
+        if is_rate_limit:
+            ui.print_error("Rate limit reached. Please wait a few minutes before trying again.")
+            ui.print_info("💡 Consider using a different API key if available.")
+        else:
+            ui.print_error(f"LLM API error: {e}")
+        
+        return ""
+
+def test_api_connection() -> bool:
+    """Test if API connection works."""
+    test_response = generate_text("Say 'Hello' if you can hear me.", "connection test")
+    return len(test_response) > 0

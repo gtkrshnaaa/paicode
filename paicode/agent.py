@@ -528,28 +528,28 @@ def _clean_markdown_formatting(text: str) -> str:
     return '\n'.join(cleaned_lines)
 
 def start_interactive_session():
-    """Starts an interactive session with the agent."""
+    """Start the revolutionary single-shot intelligent session."""
     if not os.path.exists(HISTORY_DIR):
         os.makedirs(HISTORY_DIR)
+    
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file_path = os.path.join(HISTORY_DIR, f"session_{session_id}.log")
-
+    
     session_context = []
-    pending_followup_suggestions = ""
     
     welcome_message = (
-        "Welcome! I'm Pai, your agentic AI coding companion. Let's build something amazing together. ✨\n"
+        "Welcome to Paicode Single-Shot Intelligence!\n"
+        "Revolutionary 2-call architecture: Maximum intelligence, minimal API usage.\n"
         "[info]Type 'exit' or 'quit' to leave.[/info]\n"
-        "[info]Press Ctrl+C once during AI response to interrupt (keeps session alive).[/info]\n"
-        "[info]Press Ctrl+C twice to exit completely.[/info]"
+        "[info]Each request uses exactly 2 API calls for optimal efficiency.[/info]"
     )
 
     ui.console.print(
         Panel(
             Text(welcome_message, justify="center"),
-            title="[bold]Interactive Auto Mode[/bold]",
+            title="[bold]Single-Shot Intelligence Mode[/bold]",
             box=ROUNDED,
-            border_style="grey50",
+            border_style="blue",
             padding=(1, 2)
         )
     )
@@ -572,618 +572,551 @@ def start_interactive_session():
     signal.signal(signal.SIGINT, signal_handler)
     
     while True:
-        reset_interrupt()  # Reset interrupt flag at start of each loop
         try:
             if PROMPT_TOOLKIT_AVAILABLE:
-                # Use prompt_toolkit for better multiline editing
                 user_input = prompt_session.prompt("\nuser> ").strip()
             else:
-                # Fallback to rich Prompt
                 user_input = Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
         except (EOFError, KeyboardInterrupt):
             ui.console.print("\n[warning]Session terminated.[/warning]")
             break
+            
         if user_input.lower() in ['exit', 'quit']:
             ui.print_info("Session ended.")
             break
         
-        if not user_input: continue
-
-        # Detect short affirmative to auto-continue previous suggestions
-        affirmative_tokens = {"y", "ya", "yes", "yup", "lanjut", "continue", "ok", "oke", "go", "go on", "proceed"}
-        auto_continue = False
-        if pending_followup_suggestions and user_input.lower() in affirmative_tokens:
-            auto_continue = True
-            synthesized_followup = (
-                "User confirmed to proceed. Execute your previously suggested next steps in order. "
-                "Start with the first actionable step."
-            )
-            # Treat this as the effective request for the next loop
-            user_effective_request = f"{synthesized_followup}\n\nSuggested steps (for reference):\n{pending_followup_suggestions}"
-        else:
-            user_effective_request = user_input
-
-        # Compress context to avoid token overflow
-        context_str = _compress_context(session_context, max_items=12)
-
-        last_system_response = ""
-        finished_early = False
-
-        # Intent classification: decide chat vs task mode
-        mode, complexity, classifier_reply = _classify_intent(user_effective_request, context_str)
-        if mode == "chat":
-            response_guidance = (
-                "Provide a brief, helpful, and senior-level explanation or follow-up answer to the user's message. "
-                "Do NOT include any actionable commands or tool calls."
-            )
-            # If classifier already provided a reply, use it to avoid extra LLM call
-            if classifier_reply:
-                response_text = classifier_reply
-            else:
-                response_prompt = f"""
-You are an expert senior software engineer. {response_guidance}
-
---- CONVERSATION HISTORY (all previous turns) ---
-{context_str}
---- END HISTORY ---
-
---- LATEST USER MESSAGE ---
-"{user_effective_request}"
---- END ---
-"""
-                response_text = llm.generate_text(response_prompt)
-            response_group, response_log = _generate_execution_renderables(response_text)
-            ui.console.print(
-                Panel(
-                    response_group,
-                    title=f"[bold]Agent Discussion[/bold]",
-                    box=ROUNDED,
-                    border_style="grey50",
-                    padding=(1, 2)
-                )
-            )
-            interaction_log = f"User: {user_input}\nMode: chat\nAI Plan:\n{response_text}\nSystem Response:\n{response_log}"
-            session_context.append(interaction_log)
-            with open(log_file_path, 'a') as f:
-                f.write(interaction_log + "\n-------------------\n")
-            # Go to next user turn (no scheduler, no actions)
+        if not user_input:
             continue
 
-        #
-        # New 8-step flow per user request:
-        # 1) Agent Response (no commands)
-        # 2) Task Scheduler (high-level plan; no commands)
-        # 3-7) Action steps (exactly one command per step)
-        # 8) Final Summary (no commands; suggestions + confirmation question)
-        #
-
-        # Track actual steps executed (for proper numbering)
-        current_step = 0
-        max_steps = 8  # Maximum steps to show user the limit
+        # Execute single-shot intelligence
+        success = execute_single_shot_intelligence(user_input, session_context)
         
-        # Step 1: Agent Response (no commands allowed)
-        current_step += 1
-        response_guidance = (
-            "Provide a VERY brief (1-2 sentences max) acknowledgment of the user's request. "
-            "Show understanding but be concise. "
-            "If the request is ambiguous, state your assumption in one sentence. "
-            "Do NOT include any actionable commands or tool calls. "
-            "Keep it short and professional."
+        # Add to session context for future reference
+        session_context.append({
+            "timestamp": datetime.now().isoformat(),
+            "user_request": user_input,
+            "success": success
+        })
+        
+        # Keep context manageable (last 5 interactions)
+        if len(session_context) > 5:
+            session_context = session_context[-5:]
+
+def execute_single_shot_intelligence(user_request: str, context: list) -> bool:
+    """
+    Execute the revolutionary 2-call single-shot intelligence system.
+    
+    Call 1: PLANNING - Deep analysis and comprehensive planning
+    Call 2: EXECUTION - Intelligent execution with adaptation
+    
+    Returns:
+        bool: Success status
+    """
+    
+    # === CALL 1: PLANNING PHASE ===
+    ui.console.print(
+        Panel(
+            Text("Deep Analysis & Planning", style="bold"),
+            title="[bold blue]Call 1/2: Intelligence Planning[/bold blue]",
+            box=ROUNDED,
+            border_style="blue"
         )
-        response_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI with deep understanding of:
-- Software architecture and design patterns
-- Best practices for clean, maintainable code
-- Common pitfalls and how to avoid them
-- Context from previous interactions
-
-{response_guidance}
-
---- CONVERSATION HISTORY (all previous turns) ---
-{context_str}
---- END HISTORY ---
-
---- LATEST USER REQUEST ---
-"{user_effective_request}"
---- END USER REQUEST ---
-
-Analyze the request carefully. If anything is unclear, state your assumptions.
-"""
-        # Show interrupt hint before AI starts working
-        ui.console.print("[dim]💡 Tip: Press Ctrl+C to interrupt AI response[/dim]")
-        
-        response_text = llm.generate_text(response_prompt)
-        response_group, response_log = _generate_execution_renderables(response_text)
+    )
+    
+    planning_result = execute_planning_call(user_request, context)
+    if not planning_result:
+        ui.print_error("Planning phase failed. Cannot proceed.")
+        return False
+    
+    # === CALL 2: EXECUTION PHASE ===
+    ui.console.print(
+        Panel(
+            Text("⚡ Intelligent Execution", style="bold"),
+            title="[bold green]Call 2/2: Smart Execution[/bold green]",
+            box=ROUNDED,
+            border_style="green"
+        )
+    )
+    
+    execution_success = execute_execution_call(user_request, planning_result, context)
+    
+    # Show final status
+    if execution_success:
         ui.console.print(
             Panel(
-                response_group,
-                title=f"[bold]Agent Response[/bold] (step {current_step}/{max_steps})",
+                Text("Single-Shot Intelligence: SUCCESS", style="bold green"),
+                title="[bold]Mission Accomplished[/bold]",
                 box=ROUNDED,
-                border_style="grey50",
-                padding=(1, 2)
+                border_style="green"
             )
         )
-        interaction_log = f"User: {user_input}\nIteration: {current_step}\nAI Plan:\n{response_text}\nSystem Response:\n{response_log}"
-        session_context.append(interaction_log)
-        with open(log_file_path, 'a') as f:
-            f.write(interaction_log + "\n-------------------\n")
-        last_system_response = response_log
-
-        # Always use the Task Scheduler for 'task' mode to outline steps first
-
-        # Step 2: Task Scheduler (no commands; outline steps) for normal/complex tasks
-        current_step += 1
-        scheduler_guidance = (
-            "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
-            "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
-            "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
-            "Steps should describe meaningful sub-goals (each may require executing multiple file operations). "
-            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
-            "Each step should be atomic and verifiable. "
-            "IMPORTANT: If a task involves large modifications (e.g., adding extensive CSS/HTML), break it into smaller incremental steps. "
-            "Example: Instead of 'Add all CSS styling', break into 'Add basic layout CSS', 'Add form styling CSS', 'Add interactive CSS'."
-        )
-        scheduler_prompt = f"""
-You are Pai, an expert planner and developer AI with strong analytical skills.
-
-Your task planning should:
-1. Break down complex tasks into logical, sequential steps
-2. Consider dependencies between steps
-3. Anticipate potential issues and plan accordingly
-4. Ensure each step has a clear, verifiable outcome
-5. Follow software engineering best practices
-6. Think like Cascade: make focused, surgical modifications
-7. BEST PRACTICE: Keep each step focused on one specific area (100-200 lines ideal)
-8. Maximum 500 lines per modification, but prefer smaller when possible
-
-Example of EXCELLENT planning (Cascade-style, incremental and focused):
-- Step 1: Create basic HTML structure (semantic elements only)
-- Step 2: Add core layout CSS (body, container, flexbox centering)
-- Step 3: Add form structure CSS (form-group, spacing, alignment)
-- Step 4: Add input field styling (borders, padding, focus states)
-- Step 5: Add button styling (colors, hover effects, transitions)
-
-Example of GOOD planning (efficient but still focused):
-- Step 1: Create HTML structure with basic inline comments
-- Step 2: Add layout and form container CSS together
-- Step 3: Add all form element styling (inputs, labels, buttons)
-
-Example of ACCEPTABLE planning (uses higher limit but less ideal):
-- Step 1: Create complete HTML structure
-- Step 2: Add all CSS styling in one go (up to 500 lines)
-
-Example of BAD planning (too monolithic):
-- Step 1: Create everything at once (HTML + all CSS + JavaScript)
-
-{scheduler_guidance}
-
---- CONVERSATION HISTORY (all previous turns) ---
-{context_str}
---- END HISTORY ---
-
---- LATEST USER REQUEST ---
-"{user_effective_request}"
---- END USER REQUEST ---
-"""
-        scheduler_plan = llm.generate_text(scheduler_prompt)
-        # Sanitize accidental language tag prefix like 'json' on its own line
-        sp = scheduler_plan.strip()
-        
-        # Remove common prefixes that might appear before JSON
-        prefixes_to_remove = ['json', 'JSON', 'on', 'ON']
-        for prefix in prefixes_to_remove:
-            if sp.lower().startswith(prefix.lower()):
-                parts = sp.split('\n', 1)
-                if len(parts) == 2:
-                    sp = parts[1].strip()
-                    break
-        
-        # Try to extract JSON if it's wrapped in text
-        if not sp.startswith('{'):
-            # Find first { and last }
-            start_idx = sp.find('{')
-            end_idx = sp.rfind('}')
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                sp = sp[start_idx:end_idx+1]
-        
-        scheduler_plan = sp
-        
-        # Try to render scheduler JSON as a nice table
-        parsed_scheduler = None
-        try:
-            parsed_scheduler = json.loads(scheduler_plan)
-        except Exception:
-            parsed_scheduler = None
-
-        if isinstance(parsed_scheduler, dict) and isinstance(parsed_scheduler.get("steps"), list):
-            steps = parsed_scheduler.get("steps", [])
-            table = Table(show_header=True, header_style="bold", box=ROUNDED)
-            table.add_column("#", justify="right", width=3)
-            table.add_column("Title", overflow="fold")
-            table.add_column("Hint", overflow="fold")
-            for idx, step in enumerate(steps, start=1):
-                title = str(step.get("title", "")).strip()
-                hint = str(step.get("hint", "")).strip()
-                table.add_row(str(idx), title, hint)
-            scheduler_group = Group(Text("Task Plan", style="bold underline"), table)
-            scheduler_log = json.dumps(parsed_scheduler, indent=2)
-        else:
-            scheduler_group, scheduler_log = _generate_execution_renderables(scheduler_plan)
-
+    else:
         ui.console.print(
             Panel(
-                scheduler_group,
-                title=f"[bold]Task Scheduler[/bold] (step {current_step}/{max_steps})",
+                Text("Single-Shot Intelligence: PARTIAL SUCCESS", style="bold yellow"),
+                title="[bold]Mission Status[/bold]",
                 box=ROUNDED,
-                border_style="grey50",
-                padding=(1, 2)
+                border_style="yellow"
             )
         )
-        interaction_log = f"User: {user_input}\nIteration: {current_step}\nAI Plan:\n{scheduler_plan}\nSystem Response:\n{scheduler_log}"
-        session_context.append(interaction_log)
-        with open(log_file_path, 'a') as f:
-            f.write(interaction_log + "\n-------------------\n")
-        last_system_response = scheduler_log
-        pending_followup_suggestions = scheduler_plan
+    
+    return execution_success
 
-        # Parse scheduler hints from JSON; fallback to heuristic if JSON parsing fails
-        scheduler_hints: list[str] = []
-        parsed = parsed_scheduler
-        if isinstance(parsed, dict) and isinstance(parsed.get("steps"), list):
-            for step in parsed["steps"]:
-                title = str(step.get("title", "")).strip()
-                hint = str(step.get("hint", "")).strip()
-                combined = hint or title
-                if combined:
-                    scheduler_hints.append(combined)
-        else:
-            for raw_line in scheduler_plan.splitlines():
-                stripped = raw_line.strip()
-                if stripped[:2].isdigit() and (stripped[1:2] in {'.', ')'}):
-                    hint = stripped[2:].strip(" -:\t")
-                    if hint:
-                        scheduler_hints.append(hint)
-                elif stripped and (stripped[0].isdigit() and (stripped.split(' ', 1)[0].rstrip('.)').isdigit())):
-                    parts = stripped.split(' ', 1)
-                    if len(parts) == 2:
-                        scheduler_hints.append(parts[1].strip())
+def execute_planning_call(user_request: str, context: list) -> dict | None:
+    """
+    CALL 1: Execute deep planning and analysis.
+    This call focuses on understanding, analyzing, and creating a comprehensive plan.
+    """
+    
+    # Build context string
+    context_str = ""
+    if context:
+        context_str = "Previous interactions:\n"
+        for item in context[-3:]:  # Last 3 interactions
+            context_str += f"- {item['timestamp']}: {item['user_request']} ({'s' if item['success'] else 'e'})\n"
+    
+    # Get current directory context
+    current_files = workspace.list_path('.')
+    current_tree = workspace.tree_directory('.')
+    
+    planning_prompt = f"""
+You are a SENIOR SOFTWARE ARCHITECT with deep expertise in all programming languages and development practices.
 
-        # Steps 3+: Action iterations (one or more actionable commands per step when appropriate)
-        # Cap the number of action steps to at most 5 and also to the number of hints
-        action_steps_count = min(5, max(1, len(scheduler_hints) if scheduler_hints else 3))
-        
-        for action_iteration in range(action_steps_count):
-            current_step += 1
-            
-            # Check for interrupt before each step
-            if check_interrupt():
-                ui.console.print("\n[yellow]⚠ AI response interrupted by user. Stopping execution.[/yellow]")
-                session_context.append(f"[SYSTEM] AI response interrupted at step {current_step}")
-                break
-            
-            guidance = (
-                "Execute the next actions towards the user's goal. "
-                "You MAY output MULTIPLE actionable commands (each on its own line) from VALID COMMANDS below when efficient and safe. "
-                "If the step requires several related file operations, group them in this step. "
-                "For MODIFY, keep each modification under 120 changed lines; split larger changes across iterations. "
-                "Do NOT output any other command type (e.g., RUN). "
-                "Keep explanations to 1-2 lines max, then output commands directly."
-            )
+Your task: Create a COMPREHENSIVE INTELLIGENT PLAN for the user's request using MAXIMUM INTELLIGENCE in this single call.
 
-            # Supply a scheduler hint (if available) to make the step focused
-            step_hint = scheduler_hints[action_iteration] if action_iteration < len(scheduler_hints) else ""
-            
-            # Thinking phase (pre-execution): produce a concise internal reasoning summary (no commands)
-            thinking_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI.
-You are a creative problem-solver with deep technical expertise, not just a command executor.
+USER REQUEST: "{user_request}"
 
-Before taking any action, think step-by-step about the best approach. Consider:
-1. What is the exact goal of this step?
-2. What files/directories need to be checked or modified?
-3. What are potential edge cases or issues?
-4. What is the minimal, safest set of actions needed?
-5. How will I verify success?
-6. CRITICAL: Can this modification be focused on one specific area (like Cascade does)?
-7. If modifying a file, estimate the size:
-   - Small (30-100 lines): Perfect, very focused
-   - Medium (100-200 lines): Good, still focused
-   - Large (200-500 lines): Acceptable but consider if it can be split
-   - Very Large (>500 lines): MUST split into multiple modifications
+CURRENT CONTEXT:
+{context_str}
+
+CURRENT DIRECTORY STRUCTURE:
+{current_tree}
+
+CURRENT FILES:
+{current_files}
+
+YOUR MISSION (CRITICAL - This is your ONLY planning opportunity):
+
+1. DEEP ANALYSIS:
+   - What EXACTLY does the user want to achieve?
+   - What are ALL the technical requirements?
+   - What files/directories need to be created/modified?
+   - What are potential edge cases and challenges?
+   - What is the optimal technical approach?
+
+2. COMPREHENSIVE PLANNING:
+   - Break down into logical, executable steps
+   - Consider dependencies between steps
+   - Plan for error handling and edge cases
+   - Identify required file operations (READ, WRITE, MODIFY, etc.)
+   - Consider best practices and code quality
+
+3. INTELLIGENT PREPARATION:
+   - What information needs to be gathered first?
+   - What existing code needs to be analyzed?
+   - What are the success criteria?
+   - How to verify the solution works?
+
+4. EXECUTION STRATEGY:
+   - Sequence of operations for maximum efficiency
+   - Fallback strategies if something fails
+   - How to adapt if unexpected situations arise
 
 CRITICAL OUTPUT FORMAT:
-- Output ONLY plain text bullet points, NO markdown
-- Do NOT use markdown formatting (no *, **, -, etc.)
-- Use simple numbered list or plain text
-- Keep it concise: 3-6 points
-- Focus strictly on the target step hint
-- Think like Cascade: surgical, focused, one area at a time
-- Explicitly state estimated modification size and approach
+Return a JSON object with this EXACT structure:
 
-Target step hint: {step_hint}
+{{
+  "analysis": {{
+    "user_intent": "Clear description of what user wants",
+    "technical_requirements": ["req1", "req2", "req3"],
+    "files_to_read": ["file1", "file2"],
+    "files_to_create": ["file1", "file2"],
+    "files_to_modify": ["file1", "file2"],
+    "edge_cases": ["case1", "case2"],
+    "success_criteria": ["criteria1", "criteria2"]
+  }},
+  "execution_plan": {{
+    "steps": [
+      {{
+        "step_number": 1,
+        "action": "READ",
+        "target": "filename",
+        "purpose": "why this step is needed",
+        "expected_outcome": "what we expect to find/achieve"
+      }},
+      {{
+        "step_number": 2,
+        "action": "WRITE",
+        "target": "filename",
+        "purpose": "why this step is needed",
+        "expected_outcome": "what we expect to achieve"
+      }}
+    ],
+    "fallback_strategies": ["strategy1", "strategy2"],
+    "verification_steps": ["how to verify success"]
+  }},
+  "intelligence_notes": {{
+    "complexity_assessment": "simple|moderate|complex",
+    "estimated_time": "time estimate",
+    "key_challenges": ["challenge1", "challenge2"],
+    "recommendations": ["rec1", "rec2"]
+  }}
+}}
 
---- CONVERSATION HISTORY (all previous turns) ---
-{context_str}
---- END HISTORY ---
+REMEMBER: This is your ONLY chance to plan. Make it COMPREHENSIVE and INTELLIGENT.
+Use your MAXIMUM INTELLIGENCE - think like the world's best software architect.
 
---- LAST SYSTEM RESPONSE ---
-{last_system_response}
---- END LAST SYSTEM RESPONSE ---
-
---- LATEST USER REQUEST ---
-"{user_effective_request}"
---- END USER REQUEST ---
-
-Think carefully and methodically.
+Output ONLY the JSON object, no additional text.
 """
-            thinking_text = llm.generate_text(thinking_prompt)
-            # Clean markdown formatting from thinking output
-            thinking_text = _clean_markdown_formatting(thinking_text)
-            # Render concise thinking summary (no commands expected)
-            thinking_group, thinking_log = _generate_execution_renderables(thinking_text)
+    
+    planning_response = llm.generate_text(planning_prompt, "deep planning")
+    
+    if not planning_response:
+        return None
+    
+    try:
+        # Parse JSON response
+        planning_data = json.loads(planning_response)
+        
+        # Display planning results
+        display_planning_results(planning_data)
+        
+        return planning_data
+        
+    except json.JSONDecodeError as e:
+        ui.print_error(f"Failed to parse planning response: {e}")
+        ui.print_info("Raw response:")
+        ui.console.print(planning_response[:500] + "..." if len(planning_response) > 500 else planning_response)
+        return None
+
+def display_planning_results(planning_data: dict):
+    """Display the planning results in a beautiful format."""
+    
+    # Analysis section
+    analysis = planning_data.get("analysis", {})
+    ui.console.print("\n[bold]Deep Analysis Results:[/bold]")
+    ui.console.print(f"Intent: {analysis.get('user_intent', 'Unknown')}")
+    ui.console.print(f"Files to read: {len(analysis.get('files_to_read', []))}")
+    ui.console.print(f"Files to create: {len(analysis.get('files_to_create', []))}")
+    ui.console.print(f"Files to modify: {len(analysis.get('files_to_modify', []))}")
+    
+    # Execution plan
+    execution_plan = planning_data.get("execution_plan", {})
+    steps = execution_plan.get("steps", [])
+    ui.console.print(f"\n⚡ [bold]Execution Plan: {len(steps)} steps[/bold]")
+    
+    for i, step in enumerate(steps[:3], 1):  # Show first 3 steps
+        action = step.get("action", "Unknown")
+        target = step.get("target", "Unknown")
+        purpose = step.get("purpose", "No purpose specified")
+        ui.console.print(f"   {i}. {action} {target} - {purpose}")
+    
+    if len(steps) > 3:
+        ui.console.print(f"   ... and {len(steps) - 3} more steps")
+    
+    # Intelligence notes
+    intelligence = planning_data.get("intelligence_notes", {})
+    complexity = intelligence.get("complexity_assessment", "unknown")
+    ui.console.print(f"\n[bold]Intelligence Assessment:[/bold]")
+    ui.console.print(f"Complexity: {complexity}")
+    ui.console.print(f"Estimated time: {intelligence.get('estimated_time', 'unknown')}")
+
+def execute_execution_call(user_request: str, planning_data: dict, context: list) -> bool:
+    """
+    CALL 2: Execute the planned actions with intelligent adaptation.
+    This call focuses on executing the plan while adapting to real-world conditions.
+    """
+    
+    execution_prompt = f"""
+You are a SENIOR SOFTWARE ENGINEER executing a carefully planned solution.
+
+ORIGINAL USER REQUEST: "{user_request}"
+
+COMPREHENSIVE PLAN (from previous analysis):
+{json.dumps(planning_data, indent=2)}
+
+YOUR MISSION: Execute this plan with MAXIMUM INTELLIGENCE and ADAPTABILITY.
+
+EXECUTION GUIDELINES:
+
+1. INTELLIGENT EXECUTION:
+   - Follow the plan but adapt to real conditions
+   - If a file doesn't exist as expected, handle gracefully
+   - If code structure is different than expected, adapt
+   - Make intelligent decisions based on what you discover
+
+2. AVAILABLE COMMANDS:
+   - READ::filepath - Read and analyze files
+   - WRITE::filepath::description - Create new files with content
+   - MODIFY::filepath::description - Modify existing files
+   - TREE::path - Show directory structure
+   - LIST_PATH::path - List files in directory
+   - MKDIR::path - Create directories
+   - TOUCH::filepath - Create empty files
+   - RM::path - Remove files/directories
+   - MV::source::destination - Move files
+   - FINISH::message - Complete the task
+
+3. EXECUTION STRATEGY:
+   - Start with information gathering (READ, TREE, LIST_PATH)
+   - Execute planned actions in logical order
+   - Verify each step before proceeding
+   - Adapt plan if you discover unexpected conditions
+   - Always end with FINISH when complete
+
+4. QUALITY STANDARDS:
+   - Write production-quality code
+   - Follow best practices for the language/framework
+   - Include proper error handling
+   - Add meaningful comments where appropriate
+   - Ensure code is readable and maintainable
+
+5. INTELLIGENT ADAPTATION:
+   - If planned file doesn't exist, check alternatives
+   - If code structure is different, adapt accordingly
+   - If you encounter errors, troubleshoot intelligently
+   - Make smart decisions based on real conditions
+
+OUTPUT FORMAT:
+Provide a sequence of commands, one per line, following this format:
+COMMAND::parameter1::parameter2
+
+Example:
+READ::package.json
+TREE::.
+WRITE::src/app.js::Create main application file with Express server setup
+MODIFY::package.json::Add new dependencies for the project
+FINISH::Successfully created the web application with all required components
+
+CRITICAL: Execute the plan intelligently. Adapt as needed. Deliver a complete solution.
+
+Begin execution now:
+"""
+    
+    execution_response = llm.generate_text(execution_prompt, "intelligent execution")
+    
+    if not execution_response:
+        return False
+    
+    # Execute the commands
+    return execute_command_sequence(execution_response)
+
+def execute_command_sequence(command_sequence: str) -> bool:
+    """Execute a sequence of commands from the AI."""
+    
+    commands = [line.strip() for line in command_sequence.split('\n') if line.strip()]
+    total_commands = len(commands)
+    successful_commands = 0
+    
+    ui.console.print(f"\n[bold]Executing {total_commands} intelligent actions...[/bold]")
+    
+    for i, command_line in enumerate(commands, 1):
+        if not command_line or '::' not in command_line:
+            continue
+        
+        # Parse command
+        parts = command_line.split('::', 2)
+        if len(parts) < 2:
+            continue
+        
+        command = parts[0].upper().strip()
+        param1 = parts[1].strip() if len(parts) > 1 else ""
+        param2 = parts[2].strip() if len(parts) > 2 else ""
+        
+        if command not in VALID_COMMANDS:
+            ui.print_warning(f"Unknown command: {command}")
+            continue
+        
+        # Display current action
+        ui.console.print(f"\n[{i}/{total_commands}] {command} {param1}")
+        
+        # Execute command
+        success = execute_single_command(command, param1, param2)
+        
+        if success:
+            successful_commands += 1
+            ui.console.print("   Success")
+        else:
+            ui.console.print("   Failed")
+        
+        # Break on FINISH command
+        if command == "FINISH":
+            break
+    
+    # Show execution summary
+    success_rate = (successful_commands / total_commands) * 100 if total_commands > 0 else 0
+    ui.console.print(f"\n[bold]Execution Summary:[/bold]")
+    ui.console.print(f"   Successful: {successful_commands}/{total_commands} ({success_rate:.1f}%)")
+    
+    return success_rate >= 80  # Consider successful if 80%+ commands succeeded
+
+def execute_single_command(command: str, param1: str, param2: str) -> bool:
+    """Execute a single command and return success status."""
+    
+    try:
+        if command == "READ":
+            content = workspace.read_file(param1)
+            if content is not None:
+                # Display file content with syntax highlighting
+                try:
+                    lexer = get_lexer_for_filename(param1)
+                    lang = lexer.aliases[0]
+                except ClassNotFound:
+                    lang = "text"
+                
+                # Show first 20 lines for brevity
+                lines = content.split('\n')
+                display_content = '\n'.join(lines[:20])
+                if len(lines) > 20:
+                    display_content += f"\n... ({len(lines) - 20} more lines)"
+                
+                syntax_panel = Panel(
+                    Syntax(display_content, lang, theme="monokai", line_numbers=True),
+                    title=f"{param1}",
+                    border_style="blue",
+                    expand=False
+                )
+                ui.console.print(syntax_panel)
+                return True
+            return False
+        
+        elif command == "WRITE":
+            if not param2:
+                ui.print_error("WRITE command requires description")
+                return False
+            return handle_write_command(param1, param2)
+        
+        elif command == "MODIFY":
+            if not param2:
+                ui.print_error("MODIFY command requires description")
+                return False
+            return handle_modify_command(param1, param2)
+        
+        elif command == "TREE":
+            path = param1 if param1 else '.'
+            tree_output = workspace.tree_directory(path)
+            if tree_output and "Error:" not in tree_output:
+                ui.console.print(Text(tree_output, style="bright_blue"))
+                return True
+            return False
+        
+        elif command == "LIST_PATH":
+            path = param1 if param1 else '.'
+            list_output = workspace.list_path(path)
+            if list_output is not None and "Error:" not in list_output:
+                if list_output.strip():
+                    ui.console.print(Text(list_output, style="bright_blue"))
+                else:
+                    ui.console.print(Text(f"Directory '{path}' is empty", style="dim"))
+                return True
+            return False
+        
+        elif command == "MKDIR":
+            result = workspace.create_directory(param1)
+            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+            return "Success" in result
+        
+        elif command == "TOUCH":
+            result = workspace.create_file(param1)
+            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+            return "Success" in result
+        
+        elif command == "RM":
+            result = workspace.delete_item(param1)
+            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+            return "Success" in result
+        
+        elif command == "MV":
+            result = workspace.move_item(param1, param2)
+            ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+            return "Success" in result
+        
+        elif command == "FINISH":
+            message = param1 if param1 else "Task completed successfully"
             ui.console.print(
                 Panel(
-                    thinking_group,
-                    title=f"[bold]Thinking[/bold] (pre-execution for step {current_step}/{max_steps})",
-                    box=ROUNDED,
-                    border_style="grey50",
-                    padding=(1, 2)
+                    Text(f"{message}", style="bold green"),
+                    title="[bold]Task Completed[/bold]",
+                    border_style="green"
                 )
             )
-            session_context.append(f"Pre-Execution Thinking (step {current_step}):\n{thinking_text}")
+            return True
+        
+        return False
+        
+    except Exception as e:
+        ui.print_error(f"Command execution error: {e}")
+        return False
 
-            action_prompt = f"""
-You are Pai, an expert, proactive, and autonomous software developer AI.
-You are a creative problem-solver with deep technical expertise, not just a command executor.
+def handle_write_command(filepath: str, description: str) -> bool:
+    """Handle WRITE command with intelligent content generation."""
+    
+    # Generate content based on file type and description
+    content_prompt = f"""
+Generate high-quality content for a file based on the description.
 
-CRITICAL RULES FOR HIGH-QUALITY OUTPUT:
-1. Always READ files before MODIFY to understand current state
-2. Use TREE or LIST_PATH to explore structure before creating files
-3. For WRITE commands, provide detailed, complete descriptions
-4. For MODIFY commands, be specific about what to change and why
-5. Verify your actions make sense given the context
-6. If uncertain, READ first to gather information
-7. Use descriptive file/directory names following conventions
-8. Consider error cases and edge conditions
+FILE PATH: {filepath}
+DESCRIPTION: {description}
 
-CRITICAL OUTPUT FORMAT RULES:
-- Output ONLY plain text commands, NO markdown code blocks
-- Do NOT wrap commands in ```command``` or ```language``` blocks
-- Do NOT include language tags like "html", "json", "diff" on separate lines
-- Keep explanations brief (max 2 lines) before commands
-- Commands must be on their own lines in format: COMMAND::params
+REQUIREMENTS:
+1. Analyze the file extension to determine the appropriate language/format
+2. Create production-quality, well-structured content
+3. Include appropriate comments and documentation
+4. Follow best practices for the detected language/format
+5. Make the code/content immediately usable
 
-{guidance}
-
-Target step hint: {step_hint}
-
---- YOUR THINKING SUMMARY (use as guidance; do not echo back) ---
-{thinking_text}
---- END THINKING SUMMARY ---
---- VALID COMMANDS ---
-1. MKDIR::path - Create directory (use forward slashes, no spaces in names)
-2. TOUCH::path - Create empty file
-3. WRITE::path::description - Write new file with detailed description of content
-   CRITICAL: description is REQUIRED and must be detailed (minimum 10 words)
-   Example: WRITE::index.html::Create a login page with username and password fields, styled with gray colors
-   WRONG: WRITE::index.html (missing description - will cause error!)
-4. MODIFY::path::description - Modify existing file with detailed description of changes
-   CRITICAL: description is REQUIRED and must be specific about what to change
-   Example: MODIFY::index.html::Add responsive CSS media queries for mobile devices
-   WRONG: MODIFY::index.html (missing description - will cause error!)
-5. READ::path - Read file content (ALWAYS do this before MODIFY)
-6. LIST_PATH::path - List all files/dirs recursively
-7. RM::path - Delete file or directory
-8. MV::source::destination - Move/rename file or directory
-9. TREE::path - Show directory tree structure
-10. FINISH::message - Mark task complete with summary
-
-CRITICAL COMMAND RULES (MUST FOLLOW):
-- WRITE and MODIFY MUST have detailed descriptions after second ::
-- Description must be specific and clear (minimum 10 words)
-- Never use WRITE::path or MODIFY::path without description
-- If you forget description, you will get ERROR: "No description provided for file"
-- Always READ before MODIFY to understand current state
---- END VALID COMMANDS ---
-
---- CONVERSATION HISTORY (all previous turns) ---
-{context_str}
---- END HISTORY ---
-
---- LAST SYSTEM RESPONSE (from previous iteration in this turn) ---
-{last_system_response}
---- END LAST SYSTEM RESPONSE ---
-
---- LATEST USER REQUEST ---
-"{user_effective_request}"
---- END USER REQUEST ---
-
-Execute the target step with precision and care. Double-check your commands before outputting.
+OUTPUT: Return ONLY the file content, no explanations or markdown formatting.
 """
-            plan = llm.generate_text(action_prompt)
+    
+    content = llm.generate_text(content_prompt, "content generation")
+    
+    if not content:
+        return False
+    
+    # Write the file
+    result = workspace.write_file(filepath, content)
+    ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+    
+    return "Success" in result
 
-            # Hard-reprompt once if no valid command is detected
-            if not _has_valid_command(plan):
-                reprompt = f"""
-You did not provide any valid actionable command. You MUST output one or more lines with commands from VALID COMMANDS.
-Repeat with a stricter focus on the target step. Keep it concise and do not include any other command types.
+def handle_modify_command(filepath: str, description: str) -> bool:
+    """Handle MODIFY command with intelligent code modification."""
+    
+    # Read existing content
+    existing_content = workspace.read_file(filepath)
+    if existing_content is None:
+        ui.print_error(f"Cannot modify '{filepath}' - file not found")
+        return False
+    
+    # Generate modification
+    modify_prompt = f"""
+You are an expert code modifier. Modify the existing code based on the description.
 
-Target step hint: {step_hint}
+FILE PATH: {filepath}
+CURRENT CONTENT:
+---
+{existing_content}
+---
 
---- VALID COMMANDS ---
-1. MKDIR::path
-2. TOUCH::path
-3. WRITE::path::description
-4. MODIFY::path::description
-5. READ::path
-6. LIST_PATH::path
-7. RM::path
-8. MV::source::destination
-9. TREE::path
-10. FINISH::message
+MODIFICATION REQUEST: {description}
+
+REQUIREMENTS:
+1. Preserve the existing code structure and style
+2. Make only the necessary changes described
+3. Maintain code quality and best practices
+4. Ensure the modified code is syntactically correct
+5. Add appropriate comments for new functionality
+
+OUTPUT: Return ONLY the complete modified file content, no explanations.
 """
-                plan = llm.generate_text(reprompt)
-            renderable_group, log_string = _generate_execution_renderables(plan)
-            ui.console.print(
-                Panel(
-                    renderable_group,
-                    title=f"[bold]Agent Action[/bold] (step {current_step}/{max_steps})",
-                    box=ROUNDED,
-                    border_style="grey50",
-                    padding=(1, 2)
-                )
-            )
-
-            interaction_log = f"User: {user_input}\nIteration: {current_step}\nAI Plan:\n{plan}\nSystem Response:\n{log_string}"
-            session_context.append(interaction_log)
-            with open(log_file_path, 'a') as f:
-                f.write(interaction_log + "\n-------------------\n")
-
-            last_system_response = log_string
-
-            # Integrity check (post-execution): verify alignment with the step hint and task
-            integrity_prompt = f"""
-You are a senior code reviewer and integrity auditor AI. Evaluate whether the last executed actions align with the target step and user request.
-
-Your evaluation should check:
-1. Did the actions address the target step correctly?
-2. Were the actions safe and appropriate?
-3. Are there any obvious errors or issues?
-4. Did the agent follow best practices?
-5. Is the output complete and correct?
-
-IMPORTANT EVALUATION GUIDELINES:
-- For LIST_PATH and TREE commands: If they executed successfully and showed results (even if empty), consider it PASSED
-- For file operations: Check if the operation completed without errors
-- For exploration tasks: Success means gathering the requested information, not necessarily finding specific content
-- Be fair and practical in evaluation - successful execution of requested commands should generally pass
-
-CRITICAL OUTPUT FORMAT:
-- Return ONLY raw JSON, no markdown code blocks
-- Do NOT wrap in ```json or ``` markers
-- Start directly with {{ and end with }}
-- No explanations before or after JSON
-
-JSON Schema:
-{{"passed": true|false, "reasons": [string..], "next_fix": [string..], "quality_score": 1-10 }}
-
-Where:
-- passed: true if actions correctly addressed the step, false otherwise
-- reasons: list of specific reasons for the verdict (ALWAYS provide at least 1 reason)
-- next_fix: list of specific fixes needed if failed, or improvements if passed
-- quality_score: 1-10 rating of execution quality (10 = perfect)
-
-Context:
-- Target step hint: {step_hint}
-- Latest system response (results of actions):
-{last_system_response}
-- Latest user request: "{user_effective_request}"
-
-Be thorough but fair. Successful command execution should be recognized as success.
-Output ONLY the JSON object.
-"""
-            integrity_json = llm.generate_text(integrity_prompt)
-            # Best-effort parse
-            verdict = {"passed": False, "reasons": [], "next_fix": [], "quality_score": 0}
-            try:
-                parsed = json.loads(integrity_json)
-                if isinstance(parsed, dict):
-                    verdict["passed"] = bool(parsed.get("passed", False))
-                    r = parsed.get("reasons")
-                    if isinstance(r, list): verdict["reasons"] = [str(x) for x in r]
-                    f = parsed.get("next_fix")
-                    if isinstance(f, list): verdict["next_fix"] = [str(x) for x in f]
-                    q = parsed.get("quality_score")
-                    if isinstance(q, (int, float)): verdict["quality_score"] = int(q)
-            except Exception:
-                pass
-
-            table = Table(show_header=True, header_style="bold", box=ROUNDED)
-            table.add_column("Integrity", justify="left", style="bold")
-            table.add_column("Details", overflow="fold")
-            status_text = "PASS" if verdict["passed"] else "FAIL"
-            if verdict["quality_score"] > 0:
-                status_text += f" (Quality: {verdict['quality_score']}/10)"
-            table.add_row("Status", status_text)
-            
-            # Always show reasons and fixes if available
-            if verdict["reasons"] and len(verdict["reasons"]) > 0:
-                reasons_text = "\n".join(verdict["reasons"])
-                table.add_row("Reasons", reasons_text)
-            else:
-                # If no reasons provided but status is FAIL, add default message
-                if not verdict["passed"]:
-                    table.add_row("Reasons", "Integrity check failed. Review the action results above.")
-            
-            if verdict["next_fix"] and len(verdict["next_fix"]) > 0:
-                fix_label = "Improvements" if verdict["passed"] else "Required Fixes"
-                fixes_text = "\n".join(verdict["next_fix"])
-                table.add_row(fix_label, fixes_text)
-            integrity_group = Group(Text("Integrity Check", style="bold underline"), table)
-            ui.console.print(
-                Panel(
-                    integrity_group,
-                    title=f"[bold]Integrity[/bold] (post-execution step {current_step}/{max_steps})",
-                    box=ROUNDED,
-                    border_style="grey50",
-                    padding=(1, 2)
-                )
-            )
-            session_context.append(f"Integrity Check (step {current_step}): {json.dumps(verdict)}")
-
-            # If model indicates finish early, break action loop and proceed to summary
-            if any(line.strip().upper().startswith("FINISH::") for line in plan.splitlines()):
-                finished_early = True
-                break
-
-        # Final Summary step
-        current_step += 1
-        summary_guidance = (
-            "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
-            "followed by 2-3 concrete, actionable suggestions for next steps. "
-            "End with a clear confirmation question asking the user whether you should proceed with those suggestions. "
-            "Do NOT include any actionable commands in this step."
-        )
-        summary_prompt = f"""
-You are Pai, an expert software developer AI providing a comprehensive summary.
-
-TASK: Summarize the work completed and suggest next steps.
-
-SUMMARY REQUIREMENTS:
-1. List what was successfully accomplished (be specific)
-2. Mention any issues encountered and how they were resolved
-3. Provide 2-3 concrete, logical next steps that build on what was done
-4. Make suggestions actionable and prioritized
-5. End with a clear question asking if the user wants to proceed
-
-TONE: Professional, clear, and helpful. Show understanding of the bigger picture.
-
---- ORIGINAL USER REQUEST ---
-"{user_input}"
---- END USER REQUEST ---
-
---- MOST RECENT SYSTEM RESPONSE ---
-{last_system_response}
---- END SYSTEM RESPONSE ---
-
-Provide a summary that demonstrates deep understanding of what was accomplished and what should come next.
-"""
-        summary_plan = llm.generate_text(summary_prompt)
-        summary_group, summary_log = _generate_execution_renderables(summary_plan)
-        ui.console.print(
-            Panel(
-                summary_group,
-                title=f"[bold]Agent Response[/bold] (step {current_step}/{max_steps} - final summary)",
-                box=ROUNDED,
-                border_style="grey50",
-                padding=(1, 2)
-            )
-        )
-        session_context.append(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}")
-        with open(log_file_path, 'a') as f:
-            f.write(f"Final Summary:\n{summary_plan}\nSystem Response:\n{summary_log}\n-------------------\n")
-        pending_followup_suggestions = summary_plan
-
-        # Clear pending follow-up if we just consumed an affirmative input
-        if auto_continue:
-            pending_followup_suggestions = ""
+    
+    modified_content = llm.generate_text(modify_prompt, "code modification")
+    
+    if not modified_content:
+        return False
+    
+    # Write the modified file
+    result = workspace.write_file(filepath, modified_content)
+    ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+    
+    return "Success" in result
