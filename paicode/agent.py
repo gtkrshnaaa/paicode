@@ -627,11 +627,17 @@ Return a JSON object with this EXACT structure:
     "command_format_reminder": "CRITICAL: Use exact command names: READ, WRITE, MODIFY, TREE, LIST_PATH, MKDIR, TOUCH, RM, MV, FINISH",
     "intelligent_command_mapping": {{
       "delete_remove_requests": "RM::filepath (for any delete/remove/hapus requests)",
-      "create_new_file": "WRITE::filepath::content OR TOUCH::filepath",
+      "create_new_file": "WRITE::filepath::content_description OR TOUCH::filepath",
       "modify_existing": "MODIFY::filepath::description",
       "move_rename": "MV::source::destination",
       "list_files": "LIST_PATH::path",
       "show_structure": "TREE::path"
+    }},
+    "critical_content_rules": {{
+      "html_css_js_files": "Use WRITE::filename::description (NOT raw content as commands)",
+      "multi_line_content": "Description parameter handles content creation, not raw output",
+      "example_correct": "WRITE::index.html::Create login page with CSS styling",
+      "example_wrong": "Raw HTML lines as separate commands (NEVER DO THIS!)"
     }},
     "execution_commands": [
       "READ::filepath",
@@ -951,6 +957,13 @@ USER SAYS → USE THIS COMMAND:
 4. Paicode has DIFF-AWARE modification - MODIFY preserves existing content intelligently
 5. NEVER use WRITE for existing files - this is a BASIC rule that AI must know!
 
+🚨 CRITICAL CONTENT HANDLING RULES:
+6. For HTML/CSS/JS/multi-line content: Use WRITE::filename::content_description (NOT raw content as commands!)
+7. NEVER output raw HTML/CSS/JS as separate command lines - they will be treated as invalid commands!
+8. Content goes in the DESCRIPTION parameter, not as separate lines!
+9. Example: WRITE::index.html::Create login page with form and CSS styling
+10. The actual content creation is handled by workspace.py based on your description!
+
 🎯 EXECUTION EXCELLENCE PRINCIPLES:
 - READ ALL potentially relevant files to locate exact targets
 - VERIFY content exists in target file before MODIFY
@@ -988,8 +1001,9 @@ COMMAND_NAME::parameter1::parameter2
 
 VALID COMMAND EXAMPLES:
 READ::main.py
-WRITE::new_file.py::Create a new Python file
-MODIFY::existing_file.py::Update the existing file
+WRITE::new_file.py::Create a new Python file with calculator functions
+WRITE::index.html::Create login page with form and CSS styling
+MODIFY::existing_file.py::Update the existing file to add new features
 RM::unwanted_file.py (DELETE/REMOVE operations)
 RM::unwanted_folder (DELETE entire directories)
 LIST_PATH::/path/to/directory
@@ -1000,6 +1014,14 @@ FINISH::Phase completed successfully
 - User: "remove calculator folder" → RM::calculator
 - User: "hapus file test.py" → RM::test.py
 - User: "delete all .pyc files" → RM::*.pyc (if supported) or individual RM commands
+
+🚨 CRITICAL CONTENT EXAMPLES:
+- CORRECT: WRITE::login.html::Create login page with CSS styling and form validation
+- WRONG: Output raw HTML/CSS lines as separate commands (they become invalid!)
+- CORRECT: MODIFY::style.css::Add responsive design and blue button styling
+- CORRECT: MODIFY::index.html::Update form to include validation and better styling
+- WRONG: Output CSS properties as individual command lines
+- WRONG: Output HTML tags as individual command lines
 
 ⚠️ CRITICAL: Use ONLY these command names: READ, WRITE, MODIFY, TREE, LIST_PATH, MKDIR, TOUCH, RM, MV, FINISH
 ⚠️ DO NOT use generic "COMMAND" - use specific command names!
@@ -1064,6 +1086,17 @@ def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool
         command = parts[0].upper().strip()
         param1 = parts[1].strip() if len(parts) > 1 else ""
         param2 = parts[2].strip() if len(parts) > 2 else ""
+        
+        # Check for common content output mistakes
+        if command_line.strip().startswith(('<', 'body', 'html', 'div', 'style', 'script', 'h1', 'h2', 'form', 'input', 'button')):
+            content_lines.append(("warning", f"⚠ Raw HTML/CSS detected as command: {command_line[:50]}..."))
+            content_lines.append(("info", "Use WRITE::filename::description instead of raw content!"))
+            continue
+        
+        if command_line.strip().startswith(('.', '#', 'margin', 'padding', 'color', 'background', 'font', 'border')):
+            content_lines.append(("warning", f"⚠ Raw CSS detected as command: {command_line[:50]}..."))
+            content_lines.append(("info", "Use WRITE::filename::description instead of raw CSS!"))
+            continue
         
         if command not in VALID_COMMANDS:
             content_lines.append(("warning", f"⚠ Unknown command: {command} (from: {command_line})"))
@@ -1533,6 +1566,13 @@ You are PAI - the revolutionary AI brain inside Paicode. This context window pro
 - MOVE/RENAME requests → Use MV command
 - LIST/SHOW files → Use LIST_PATH or TREE command
 - READ content → Use READ command
+
+### Critical Content Handling Mastery:
+- HTML/CSS/JS files → Use WRITE::filename::description (NOT raw content as commands!)
+- Multi-line content → Description parameter handles content, not raw output
+- NEVER output raw HTML/CSS/JS lines as separate commands - they become invalid!
+- Example: WRITE::index.html::Create login page with CSS styling (CORRECT)
+- Example: Raw HTML tags as command lines (WRONG - causes invalid command errors!)
 
 CRITICAL: Never be confused about which command to use - match user intent directly to command!
 
