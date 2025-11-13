@@ -624,6 +624,21 @@ Return a JSON object with this EXACT structure:
         "expected_outcome": "Target content successfully modified"
       }}
     ],
+    "command_format_reminder": "CRITICAL: Use exact command names: READ, WRITE, MODIFY, TREE, LIST_PATH, MKDIR, TOUCH, RM, MV, FINISH",
+    "intelligent_command_mapping": {{
+      "delete_remove_requests": "RM::filepath (for any delete/remove/hapus requests)",
+      "create_new_file": "WRITE::filepath::content OR TOUCH::filepath",
+      "modify_existing": "MODIFY::filepath::description",
+      "move_rename": "MV::source::destination",
+      "list_files": "LIST_PATH::path",
+      "show_structure": "TREE::path"
+    }},
+    "execution_commands": [
+      "READ::filepath",
+      "RM::filepath (for delete requests)",
+      "MODIFY::filepath::description",
+      "FINISH::completion_message"
+    ],
     "validation_strategy": "How to verify each step before proceeding to next",
     "fallback_strategies": ["If target not found in expected file", "If modification fails"],
     "post_execution_verification": ["How to confirm final success"]
@@ -906,9 +921,28 @@ AVAILABLE COMMANDS:
 - LIST_PATH::path - List files
 - MKDIR::dirpath - Create directory
 - TOUCH::filepath - Create empty file
-- RM::path - Remove file/directory
+- RM::path - Remove file/directory (USE THIS FOR DELETE/REMOVE REQUESTS!)
 - MV::source::destination - Move/rename
 - FINISH::message - Mark phase completion
+
+🎯 INTELLIGENT COMMAND SELECTION GUIDE:
+
+USER SAYS → USE THIS COMMAND:
+- "delete/remove/hapus file" → RM::filepath
+- "delete/remove/hapus folder" → RM::folderpath
+- "create new file" → WRITE::filepath::content OR TOUCH::filepath
+- "modify/edit/update existing file" → MODIFY::filepath::description
+- "move/rename file" → MV::source::destination
+- "show files in directory" → LIST_PATH::path
+- "show directory structure" → TREE::path
+- "create directory/folder" → MKDIR::dirpath
+- "read file content" → READ::filepath
+
+🚨 CRITICAL TASK MAPPING:
+- DELETE/REMOVE requests = RM command (NOT modify, NOT other commands!)
+- CREATE requests = WRITE or TOUCH command
+- EDIT/UPDATE requests = MODIFY command
+- MOVE/RENAME requests = MV command
 
 🚨 CRITICAL PAICODE RULES - YOUR CAREER DEPENDS ON THESE:
 1. WRITE = NEW files only. If file exists, you'll get ERROR!
@@ -949,8 +983,26 @@ CRITICAL RULES:
 - Be efficient and purposeful
 
 OUTPUT FORMAT:
-Provide commands one per line:
-COMMAND::parameter1::parameter2
+Provide ONLY valid commands, one per line in this EXACT format:
+COMMAND_NAME::parameter1::parameter2
+
+VALID COMMAND EXAMPLES:
+READ::main.py
+WRITE::new_file.py::Create a new Python file
+MODIFY::existing_file.py::Update the existing file
+RM::unwanted_file.py (DELETE/REMOVE operations)
+RM::unwanted_folder (DELETE entire directories)
+LIST_PATH::/path/to/directory
+FINISH::Phase completed successfully
+
+🎯 SPECIFIC DELETE EXAMPLES:
+- User: "delete main.py" → RM::main.py
+- User: "remove calculator folder" → RM::calculator
+- User: "hapus file test.py" → RM::test.py
+- User: "delete all .pyc files" → RM::*.pyc (if supported) or individual RM commands
+
+⚠️ CRITICAL: Use ONLY these command names: READ, WRITE, MODIFY, TREE, LIST_PATH, MKDIR, TOUCH, RM, MV, FINISH
+⚠️ DO NOT use generic "COMMAND" - use specific command names!
 
 Begin phase {phase_num} execution:
 """
@@ -998,11 +1050,15 @@ def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool
     
     for i, command_line in enumerate(commands, 1):
         if not command_line or '::' not in command_line:
+            # Skip lines that don't contain command format
+            if command_line.strip():  # If not empty, show what was received
+                content_lines.append(("warning", f"⚠ Invalid command format: {command_line}"))
             continue
         
         # Parse command
         parts = command_line.split('::', 2)
         if len(parts) < 2:
+            content_lines.append(("warning", f"⚠ Incomplete command: {command_line}"))
             continue
         
         command = parts[0].upper().strip()
@@ -1010,7 +1066,8 @@ def execute_command_sequence(command_sequence: str, context: list) -> tuple[bool
         param2 = parts[2].strip() if len(parts) > 2 else ""
         
         if command not in VALID_COMMANDS:
-            content_lines.append(("warning", f"⚠ Unknown command: {command}"))
+            content_lines.append(("warning", f"⚠ Unknown command: {command} (from: {command_line})"))
+            content_lines.append(("info", f"Valid commands: {', '.join(VALID_COMMANDS)}"))
             continue
         
         # Display current action
@@ -1468,6 +1525,16 @@ You are PAI - the revolutionary AI brain inside Paicode. This context window pro
 - UI.py: Your beautiful Rich TUI presentation layer
 - LLM.py: Your optimized communication interface
 - All components work in harmony based on YOUR intelligent decisions
+
+### Intelligent Command Selection Mastery:
+- DELETE/REMOVE/HAPUS requests → ALWAYS use RM command
+- CREATE/NEW requests → Use WRITE or TOUCH command
+- MODIFY/EDIT/UPDATE requests → Use MODIFY command
+- MOVE/RENAME requests → Use MV command
+- LIST/SHOW files → Use LIST_PATH or TREE command
+- READ content → Use READ command
+
+CRITICAL: Never be confused about which command to use - match user intent directly to command!
 
 ## COMPETITIVE ADVANTAGE PRINCIPLES
 
