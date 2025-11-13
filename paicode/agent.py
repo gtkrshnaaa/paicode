@@ -1034,13 +1034,13 @@ def execute_single_command(command: str, param1: str, param2: str) -> tuple[bool
             if not param2:
                 return False, "WRITE command requires description"
             success = handle_write_command(param1, param2)
-            return success, f"Created file: {param1}" if success else f"Failed to create file: {param1}"
+            return success, f"New file written: {param1}" if success else f"Failed to write file: {param1}"
         
         elif command == "MODIFY":
             if not param2:
                 return False, "MODIFY command requires description"
             success = handle_modify_command(param1, param2)
-            return success, f"Modified file: {param1}" if success else f"Failed to modify file: {param1}"
+            return success, f"File modified: {param1}" if success else f"Failed to modify file: {param1}"
         
         elif command == "TREE":
             path = param1 if param1 else '.'
@@ -1201,7 +1201,7 @@ OUTPUT: Return ONLY the file content, no explanations or markdown formatting.
     
     # Write the file
     result = workspace.write_to_file(filepath, content)
-    ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+    # Don't print here - let the execution system handle display through Rich panels
     
     return "Success" in result
 
@@ -1241,8 +1241,8 @@ OUTPUT: Return ONLY the complete modified file content, no explanations.
     if not modified_content:
         return False
     
-    # Write the modified file
-    result = workspace.write_to_file(filepath, modified_content)
-    ui.console.print(Text(result, style="green" if "Success" in result else "red"))
+    # Apply diff-aware modification
+    success, result = workspace.apply_modification_with_patch(filepath, existing_content, modified_content)
+    # Don't print here - let the execution system handle display through Rich panels
     
-    return "Success" in result
+    return success
