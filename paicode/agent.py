@@ -82,7 +82,7 @@ def start_interactive_session():
         "Now powered by Single-Shot Intelligence for maximum efficiency.\n"
         "[info]Type 'exit' or 'quit' to leave.[/info]\n"
         "[info]Each request uses exactly 2 API calls for optimal performance.[/info]\n"
-        "[info]💡 Multi-line input: Enter for new line, Alt+Enter to submit.[/info]"
+        "[info]💡 Multi-line input: Alt+Enter for new line, Enter to submit.[/info]"
     )
 
     ui.console.print(
@@ -1514,19 +1514,37 @@ This context window guides your behavior throughout the entire session. You are 
 
 def get_multiline_input(prompt_session) -> str:
     """
-    Get multi-line input from user with natural terminal behavior.
-    Enter/Shift+Enter add new lines, Ctrl+Enter submits the input.
+    Get multi-line input from user with intuitive behavior.
+    Alt+Enter adds new line, Enter submits the input.
     """
     try:
-        # Display helpful hint
-        ui.console.print("[dim]💡 Tip: Use Enter for new line, Alt+Enter to submit[/dim]")
+        from prompt_toolkit.shortcuts import prompt
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.keys import Keys
         
-        # Use prompt_session with multiline enabled
-        # This naturally supports Enter and Shift+Enter for new lines
-        result = prompt_session.prompt(
+        # Create custom key bindings
+        bindings = KeyBindings()
+        
+        @bindings.add(Keys.Enter)
+        def _(event):
+            """Enter submits the input"""
+            event.app.exit(result=event.current_buffer.text)
+        
+        @bindings.add(Keys.Escape, Keys.Enter)  # Alt+Enter for new line
+        def _(event):
+            """Alt+Enter adds new line"""
+            event.current_buffer.insert_text('\n')
+        
+        # Display helpful hint
+        ui.console.print("[dim]💡 Tip: Use Alt+Enter for new line, Enter to submit[/dim]")
+        
+        # Use prompt with custom key bindings
+        result = prompt(
             "\nuser> ",
             multiline=True,
-            wrap_lines=True
+            key_bindings=bindings,
+            wrap_lines=True,
+            mouse_support=False
         )
         return result.strip() if result else ""
         
