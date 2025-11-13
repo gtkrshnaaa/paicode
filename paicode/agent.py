@@ -81,7 +81,8 @@ def start_interactive_session():
         "Welcome! I'm Pai, your agentic AI coding companion. ✨\n"
         "Now powered by Single-Shot Intelligence for maximum efficiency.\n"
         "[info]Type 'exit' or 'quit' to leave.[/info]\n"
-        "[info]Each request uses exactly 2 API calls for optimal performance.[/info]"
+        "[info]Each request uses exactly 2 API calls for optimal performance.[/info]\n"
+        "[info]💡 Multi-line input: Enter for new line, Alt+Enter to submit.[/info]"
     )
 
     ui.console.print(
@@ -115,7 +116,7 @@ def start_interactive_session():
     while True:
         try:
             if PROMPT_TOOLKIT_AVAILABLE:
-                user_input = prompt_session.prompt("\nuser> ").strip()
+                user_input = get_multiline_input(prompt_session)
             else:
                 user_input = ui.Prompt.ask("\n[bold bright_blue]user>[/bold bright_blue]").strip()
         except (EOFError, KeyboardInterrupt):
@@ -1510,3 +1511,26 @@ This context window guides your behavior throughout the entire session. You are 
         "knowledge_loaded": True,
         "workflow_understanding": "complete"
     })
+
+def get_multiline_input(prompt_session) -> str:
+    """
+    Get multi-line input from user with natural terminal behavior.
+    Enter/Shift+Enter add new lines, Ctrl+Enter submits the input.
+    """
+    try:
+        # Display helpful hint
+        ui.console.print("[dim]💡 Tip: Use Enter for new line, Alt+Enter to submit[/dim]")
+        
+        # Use prompt_session with multiline enabled
+        # This naturally supports Enter and Shift+Enter for new lines
+        result = prompt_session.prompt(
+            "\nuser> ",
+            multiline=True,
+            wrap_lines=True
+        )
+        return result.strip() if result else ""
+        
+    except Exception as e:
+        # Fallback to simple prompt if anything fails
+        ui.console.print(f"[dim]Note: Using simple input mode - {str(e)}[/dim]")
+        return prompt_session.prompt("\nuser> ").strip()
