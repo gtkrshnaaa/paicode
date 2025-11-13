@@ -285,10 +285,33 @@ def execute_single_shot_intelligence(user_request: str, context: list, log_file_
         bool: Success status
     """
     
-    # === WARM INTERACTION BEFORE PLANNING ===
+    # === DYNAMIC INTERACTION BEFORE PLANNING ===
+    planning_acknowledgment_prompt = f"""
+You are Pai, responding to the user's request with a brief, natural acknowledgment before starting your planning phase.
+
+USER REQUEST: "{user_request}"
+
+Generate a brief, friendly response (1-2 sentences) that:
+1. Acknowledges their request naturally
+2. Shows you understand what they want
+3. Indicates you're about to create a smart plan
+4. Keep it conversational and warm
+
+Examples:
+- "Got it! Let me analyze your request and create a smart plan for you."
+- "Perfect! I'll work on that right away - let me plan this out intelligently."
+- "Understood! Let me break this down and create an efficient solution for you."
+
+Output ONLY the response text, no quotes or formatting.
+"""
+    
+    acknowledgment = llm.generate_text(planning_acknowledgment_prompt, "planning acknowledgment")
+    if not acknowledgment:
+        acknowledgment = "Got it! Let me analyze your request and create a smart plan for you."
+    
     ui.console.print(
         Panel(
-            Text("Got it! Let me analyze your request and create a smart plan for you.", 
+            Text(acknowledgment.strip(), 
                  style="bright_white", justify="center"),
             title="[bold]Pai[/bold]",
             box=ROUNDED,
@@ -310,10 +333,34 @@ def execute_single_shot_intelligence(user_request: str, context: list, log_file_
     if log_file_path:
         log_session_event(log_file_path, "PLANNING_PHASE", {"planning_data": planning_result})
     
-    # === WARM INTERACTION BEFORE EXECUTION ===
+    # === DYNAMIC INTERACTION BEFORE EXECUTION ===
+    execution_acknowledgment_prompt = f"""
+You are Pai, about to execute your plan. Generate a brief, confident response before starting execution.
+
+USER REQUEST: "{user_request}"
+PLANNING COMPLETED: Successfully analyzed and created execution plan
+
+Generate a brief, confident response (1-2 sentences) that:
+1. Shows confidence in your plan
+2. Indicates you're about to execute intelligently
+3. Keep it natural and engaging
+4. Reflect your AI personality
+
+Examples:
+- "Perfect! Now let me execute this plan intelligently for you."
+- "Excellent! I've got a solid plan - time to make it happen."
+- "Great! My analysis is complete, now let's bring this to life."
+
+Output ONLY the response text, no quotes or formatting.
+"""
+    
+    execution_acknowledgment = llm.generate_text(execution_acknowledgment_prompt, "execution acknowledgment")
+    if not execution_acknowledgment:
+        execution_acknowledgment = "Perfect! Now let me execute this plan intelligently for you."
+    
     ui.console.print(
         Panel(
-            Text("Perfect! Now let me execute this plan intelligently for you.", 
+            Text(execution_acknowledgment.strip(), 
                  style="bright_white", justify="center"),
             title="[bold]Pai[/bold]",
             box=ROUNDED,
