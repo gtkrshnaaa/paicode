@@ -78,13 +78,18 @@ def _prepare_runtime() -> bool:
         return False
     
     try:
+        # CRITICAL FIX: Always reconfigure API key to ensure fresh credential
+        # This prevents caching issues when API key is changed during runtime
         genai.configure(api_key=api_key)
-        if model is None:
-            # Build model using stored runtime prefs
-            name = _runtime.get("name") or DEFAULT_MODEL
-            temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
-            generation_config = {"temperature": temp}
-            model = genai.GenerativeModel(name, generation_config=generation_config)
+        
+        # CRITICAL FIX: Always create a new model instance
+        # This ensures the model object uses the latest API key configuration
+        # Same approach as googleapikeytesting/rolling_test.py for consistency
+        name = _runtime.get("name") or DEFAULT_MODEL
+        temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
+        generation_config = {"temperature": temp}
+        model = genai.GenerativeModel(name, generation_config=generation_config)
+        
         return True
     except Exception as e:
         ui.print_error(f"Failed to configure API key: {e}")
