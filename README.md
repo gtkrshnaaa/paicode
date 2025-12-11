@@ -70,43 +70,33 @@ The setup process uses pip and Make.
     pip install --user .
     ```
 
-3.  **Configure Your API Keys (Multi-Key Support with Smart Rotation)**
-    Pai Code includes a secure, built‑in configuration manager with **Smart API Key Rotation**. Keys are stored under your home config and automatically rotate with intelligent rate limit handling.
+3.  **Configure Your API Key**
+    Pai Code uses a simple, secure single-key configuration system. Your API key is stored in your home config directory with restricted permissions.
 
     ```bash
-    # Add keys with IDs (recommended: 3+ keys for best failover)
-    pai config add g1 YOUR_API_KEY_1
-    pai config add g2 YOUR_API_KEY_2
-    pai config add g3 YOUR_API_KEY_3
+    # Set your Google Gemini API key
+    pai config set YOUR_API_KEY
 
-    # List stored keys (masked)
-    pai config list
+    # Show the current API key (masked for security)
+    pai config show
 
-    # Set the default key to use
-    pai config set-default g1
+    # Remove the stored API key
+    pai config remove
 
-    # Show a specific key (masked)
-    pai config show g1
-
-    # Remove a key by ID
-    pai config remove g3
+    # Validate the current API key
+    pai config validate
     ```
 
-    **Smart Rotation Features:**
-    - **Automatic failover**: If one key hits rate limit, automatically switches to another key
-    - **Temporary blacklist**: Rate-limited keys are disabled for 10 minutes, then auto-recover
-    - **Zero user intervention**: Retries happen transparently in the background
-    - **Intelligent distribution**: Requests are distributed across all available keys
-    
-    **Recommended Setup:**
-    - Minimum 2 keys for basic failover
-    - 3-5 keys optimal for production use
-    - See `API_KEY_ROTATION.md` for detailed documentation
+    **Key Management:**
+    - Keys are securely stored in `~/.config/pai-code/credentials.json` with `600` file permissions
+    - Only your user account can access the stored key
+    - You can change your API key at any time with `pai config set <NEW_KEY>`
+    - The new key will be used immediately on the next request (no restart needed)
 
-    Notes:
-    - Legacy flags like `pai config --set/--show/--remove` are still available but DEPRECATED. Prefer the subcommands shown above.
-    - Keys are securely stored in your user config directory (not in the repository).
-    - Blacklist state is persisted across sessions for reliable rate limit management.
+    **Notes:**
+    - Obtain your Google Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+    - Keep your API key private and never commit it to version control
+    - If you suspect your key is compromised, regenerate it immediately in Google Cloud Console
 
 4.  **Verify the Installation**
 
@@ -115,7 +105,10 @@ The setup process uses pip and Make.
     pai --help
 
     # Verify that the API key is configured
-    pai config --show
+    pai config show
+
+    # Validate the API key format
+    pai config validate
     ```
 
 -----
@@ -135,26 +128,19 @@ All development with Pai happens inside a single, interactive session. You don't
 
 ### **Configuration (One-Time Setup)**
 
-Manage your API keys with the `config` command (multi-key mode):
+Manage your API key with the `config` command:
 
-  * `pai config add <ID> <API_KEY>`: Add a new API key with an identifier.
-  * `pai config list`: List all stored keys (masked) and the current default.
-  * `pai config show <ID>`: Display a masked version of the key by ID.
-  * `pai config remove <ID>`: Remove a stored key by ID.
-  * `pai config set-default <ID>`: Set which key is used by the agent.
-
-Legacy (deprecated) flags retained for compatibility:
-
-  * `pai config --set <API_KEY>`
-  * `pai config --show`
-  * `pai config --remove`
+  * `pai config set <API_KEY>`: Set or update your Google Gemini API key.
+  * `pai config show`: Display the current API key (masked for security).
+  * `pai config remove`: Remove the stored API key.
+  * `pai config validate`: Validate that the current API key is properly configured.
 
 ### **Starting an Agent Session**
 
-To begin coding, simply run `pai` or `pai auto`. This will drop you into an interactive session.
+To begin coding, simply run `pai`. This will drop you into an interactive conversational session.
 
 ```bash
-# Start the agent directly
+# Start the agent
 pai
 ```
 Pai example prompt:
@@ -166,26 +152,45 @@ Include separate functions for loading data, preprocessing, and classification. 
 
 ### **Interacting with the Agent**
 
-The workflow is designed to be intuitive and iterative.
+The workflow uses a single-shot intelligence system with exactly 2 API calls per request:
 
-1.  **Give a High-Level Goal:** Start by asking the agent to observe its surroundings or outlining what you want to build.
-2.  **Let it Observe:** The agent will use its internal tools (like `LIST_PATH` or `TREE`) to understand the project structure.
-3.  **Ask Follow-up Questions:** Based on its observations, you can then ask it to perform specific actions, like reading a file, modifying code, or creating a new module. Because the agent is stateful, it will remember the context from previous steps.
+1.  **Planning Phase (Call 1):** Describe what you want to accomplish. The agent analyzes your request and creates a detailed execution plan.
+2.  **Execution Phase (Call 2):** The agent executes the plan, performing file operations, code modifications, and other tasks as needed.
+3.  **Iterative Refinement:** You can ask follow-up questions or request modifications. The agent maintains context from previous interactions within the session.
+
+**Example Workflow:**
+```
+user> Create a Python script that reads a CSV file and prints the first 10 rows
+
+[Agent analyzes request and creates plan]
+
+[Agent executes: creates script, handles errors, provides feedback]
+
+user> Now add error handling for missing files
+
+[Agent modifies the script based on context from previous interaction]
+```
 
 
 ## **6. Technical Details**
 
-### **Architecture and the Feedback Loop**
+### **Architecture and the Single-Shot Intelligence System**
 
-A typical interaction follows this stateful data flow:
+Pai Code uses a **Single-Shot Intelligence** approach with exactly 2 API calls per user request:
 
+**Call 1 - Planning Phase:**
 1.  **User Input** is captured by `cli.py`.
-2.  `agent.py` constructs a detailed **prompt**, including relevant conversation history.
-3.  `llm.py` sends this prompt to the **Gemini API**.
-4.  The LLM returns a structured **action plan** (a sequence of commands).
-5.  `agent.py` executes this plan, calling functions in `workspace.py`.
-6.  The results (e.g., file contents from `READ`, lists from `LIST_PATH`) are **displayed to the user and recorded in the session log.**
-7.  This enriched log becomes the context for the next turn, creating a **stateful memory loop** that allows the agent to learn from its actions.
+2.  `agent.py` constructs a detailed **planning prompt**, including user request and conversation context.
+3.  `llm.py` sends the planning prompt to the **Gemini API**.
+4.  The LLM returns a comprehensive **execution plan** (analysis, strategy, and step-by-step actions).
+
+**Call 2 - Execution Phase:**
+5.  `agent.py` constructs an **execution prompt** based on the plan.
+6.  `llm.py` sends the execution prompt to the **Gemini API**.
+7.  The LLM returns **executable commands** (READ, WRITE, MODIFY, etc.).
+8.  `agent.py` executes these commands, calling functions in `workspace.py`.
+9.  The results are **displayed to the user and recorded in the session log**.
+10. Session context is maintained for follow-up interactions, allowing the agent to learn from previous actions within the session.
 
 ### **Customization and Extensibility**
 
@@ -205,7 +210,17 @@ As a developer, you can easily extend Pai's internal capabilities:
 
 -----
 
-## **7. Scope and Limitations**
+## **7. Recent Updates and Bug Fixes**
+
+### **API Key Caching Fix (Latest)**
+- **Issue:** When changing API key with `pai config set <NEW_KEY>`, the new key was not used immediately due to model object caching.
+- **Solution:** Model object is now recreated on every `_prepare_runtime()` call, ensuring fresh API key configuration is always used.
+- **Impact:** API key changes now take effect immediately without requiring application restart.
+- **Technical Details:** See `llm.py` `_prepare_runtime()` function for implementation details.
+
+-----
+
+## **8. Scope and Limitations**
 
 To avoid misunderstanding:
 
