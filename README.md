@@ -15,8 +15,9 @@ Ensure you have Python 3.10+ installed.
 git clone https://github.com/gtkrshnaaa/paicode.git
 cd paicode
 
-# Install globally or in a virtual environment
-pip install -e .
+# The easiest way to install is via the provided makefile:
+# This creates a local virtual environment and installs the 'pai' launcher.
+make setup
 ```
 
 After installation, the `pai` command will be available in your terminal.
