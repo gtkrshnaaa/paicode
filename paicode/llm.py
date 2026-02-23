@@ -183,10 +183,10 @@ def generate_text(prompt: str, max_retries: int = 3) -> str:
     """
     
     for attempt in range(max_retries):
-        # Prepare runtime with next available key
-        success, current_key_id = _prepare_runtime()
+        # Prepare runtime with next available key and get a fresh model instance
+        fresh_model, current_key_id = _prepare_runtime()
         
-        if not success:
+        if fresh_model is None:
             # No keys available (all blacklisted or not configured)
             return ""
         
@@ -197,7 +197,7 @@ def generate_text(prompt: str, max_retries: int = 3) -> str:
                 status_msg = f"[bold yellow]Retrying with different API key... (attempt {attempt + 1}/{max_retries})"
             
             with ui.console.status(status_msg, spinner="dots"):
-                response = model.generate_content(prompt)
+                response = fresh_model.generate_content(prompt)
             
             # Success! Clean and return the response
             cleaned_text = _clean_response_text(response.text)
