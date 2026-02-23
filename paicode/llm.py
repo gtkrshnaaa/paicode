@@ -21,6 +21,7 @@ warnings.filterwarnings("ignore", message=".*ALTS.*")
 warnings.filterwarnings("ignore", message=".*log messages before absl::InitializeLog.*")
 
 import google.generativeai as genai
+from typing import Optional
 from . import config, ui
 
 DEFAULT_MODEL = os.getenv("PAI_MODEL", "gemini-2.5-flash-lite")
