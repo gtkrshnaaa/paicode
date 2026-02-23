@@ -518,6 +518,12 @@ def start_interactive_session():
         )
     )
     
+    # Load brain artifact if exists
+    brain_task = workspace.read_brain_artifact("task.md")
+    if brain_task:
+        ui.console.print(Panel(brain_task, title="[bold]Last Known Task Progress[/bold]", border_style="bright_blue"))
+        session_context.append(f"[SYSTEM] Previously known task progress from .pai_brain/task.md:\n{brain_task}")
+
     # Setup prompt session with better input handling
     if PROMPT_TOOLKIT_AVAILABLE:
         prompt_session = PromptSession()
@@ -812,12 +818,17 @@ Example of BAD planning (too monolithic):
                     if len(parts) == 2:
                         scheduler_hints.append(parts[1].strip())
 
+        # Update brain task with initial plan
+        _update_brain_task(scheduler_hints, 0)
+
         # Steps 3+: Action iterations (one or more actionable commands per step when appropriate)
         # Cap the number of action steps to at most 5 and also to the number of hints
         action_steps_count = min(5, max(1, len(scheduler_hints) if scheduler_hints else 3))
         
         for action_iteration in range(action_steps_count):
             current_step += 1
+            # Update brain task progress
+            _update_brain_task(scheduler_hints, action_iteration)
             
             # Check for interrupt before each step
             if check_interrupt():
@@ -1105,6 +1116,21 @@ Output ONLY the JSON object.
 
         # Final Summary step
         current_step += 1
+
+def _update_brain_task(hints: list[str], current_idx: int):
+    """Syncs the current task progress to .pai_brain/task.md."""
+    try:
+        if not hints:
+            return
+            
+        content = "# Active Task Progress\n\n"
+        for i, hint in enumerate(hints):
+            status = "[x]" if i < current_idx else "[/]" if i == current_idx else "[ ]"
+            content += f"- {status} {hint}\n"
+            
+        workspace.write_brain_artifact("task.md", content)
+    except Exception:
+        pass # Best effort sync
         summary_guidance = (
             "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
             "followed by 2-3 concrete, actionable suggestions for next steps. "
