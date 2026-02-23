@@ -2,6 +2,7 @@ import os
 import shutil
 import difflib
 import tempfile
+import re
 from . import ui
 
 """
@@ -305,3 +306,61 @@ def apply_modification_with_patch(file_path: str, original_content: str, new_con
         return True, f"Success: Applied modification to {file_path} ({changed_lines_count} lines changed; +{add_count}/-{del_count})."
     except IOError as e:
         return False, f"Error: Failed to write modification to file: {e}"
+
+def grep_search(pattern: str, path: str = '.') -> str:
+    """
+    Searches for a regex pattern across all readable files in the given directory.
+    """
+    if not _is_path_safe(path):
+        return f"Error: Access to path '{path}' is denied or path is not secure."
+        
+    full_search_root = os.path.join(PROJECT_ROOT, path)
+    if not os.path.isdir(full_search_root):
+        # If it's a file, we could search it, but usually this is used for directories
+        if os.path.isfile(full_search_root):
+            search_files = [full_search_root]
+        else:
+            return f"Error: '{path}' is not a valid directory or file."
+    else:
+        # Collect all safe files recursively
+        search_files = []
+        for root, dirs, files in os.walk(full_search_root):
+            dirs[:] = [d for d in dirs if d not in SENSITIVE_PATTERNS]
+            for name in files:
+                if name not in SENSITIVE_PATTERNS:
+                    search_files.append(os.path.join(root, name))
+
+    results = []
+    max_results = 100 # Safety limit
+    
+    try:
+        regex = re.compile(pattern, re.IGNORECASE) # Default to case-insensitive for better discovery
+    except re.error as e:
+        return f"Error: Invalid regex pattern '{pattern}': {e}"
+
+    for file_path in search_files:
+        if len(results) >= max_results:
+            results.append(f"... and more (capped at {max_results} results)")
+            break
+            
+        try:
+            # Skip binary files by checking for null bytes in the first 1024 bytes
+            with open(file_path, 'rb') as f:
+                if b'\x00' in f.read(1024):
+                    continue
+            
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                for line_num, line in enumerate(f, 1):
+                    if regex.search(line):
+                        rel_path = os.path.relpath(file_path, PROJECT_ROOT).replace('\\', '/')
+                        results.append(f"{rel_path}:{line_num}:{line.strip()}")
+                        if len(results) >= max_results:
+                            break
+        except Exception:
+            # Silently skip files that cannot be read (permissions, etc.)
+            continue
+
+    if not results:
+        return f"No matches found for pattern '{pattern}' in '{path}'."
+    
+    return "\n".join(results)
