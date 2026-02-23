@@ -446,3 +446,87 @@ def apply_surgical_edit(file_path: str, original_content: str, blocks_text: str)
         return True, message
     else:
         return False, write_result
+
+def map_workspace_pulse(path: str = '.') -> str:
+    """
+    Identifies the project's technology stack and maps key architectural points.
+    
+    This command provides high-level "Architectural Awareness" by detecting 
+    frameworks (Laravel, React, Django, etc.) and showing only the most 
+    relevant directories.
+    
+    Returns:
+        A formatted summary of the project's architectural pulse.
+    """
+    if not _is_path_safe(path):
+        return f"Error: Access to path '{path}' is denied."
+
+    root = os.path.join(PROJECT_ROOT, path)
+    if not os.path.isdir(root):
+        return f"Error: '{path}' is not a directory."
+
+    # 1. Detect Stack
+    files_at_root = os.listdir(root)
+    
+    # Framework Identification Signatures
+    signatures = {
+        "Laravel": ["artisan", "composer.json", "app/Providers"],
+        "React/Next.js": ["package.json", "next.config.js", "src/app", "src/pages"],
+        "Django": ["manage.py", "wsgi.py"],
+        "Go": ["go.mod", "main.go"],
+        "Python Package": ["setup.py", "pyproject.toml"],
+        "Rust": ["Cargo.toml", "src/main.rs"]
+    }
+
+    detected_stack = "Unknown / Generic"
+    for stack, sig_files in signatures.items():
+        if any(f in files_at_root or os.path.exists(os.path.join(root, f)) for f in sig_files):
+            detected_stack = stack
+            break
+    # We look for "meaningful" folders and skip common boilerplate/vendor folders
+    important_folders = []
+    skipped_folders = ["node_modules", "vendor", "dist", "build", "venv", ".git", "__pycache__"]
+    
+    potential_meaningful = [
+        "app", "src", "lib", "routes", "database", "resources", "public", 
+        "components", "views", "models", "controllers", "api", "config", "tests"
+    ]
+
+    found_meaningful = []
+    for folder in potential_meaningful:
+        if os.path.isdir(os.path.join(root, folder)):
+            found_meaningful.append(folder)
+
+    # 3. Generate Output
+    output = [
+        f"Project Pulse: {detected_stack}",
+        f"Location: {path}",
+        "-" * 30,
+        "Key Directories Identified:"
+    ]
+    
+    if found_meaningful:
+        for folder in found_meaningful:
+            try:
+                # Show top-level children of each meaningful folder (capped)
+                children = sorted([c for c in os.listdir(os.path.join(root, folder)) 
+                                 if c not in SENSITIVE_PATTERNS and c not in skipped_folders])
+                child_str = ", ".join(children[:5])
+                if len(children) > 5:
+                    child_str += f", ... (+{len(children)-5} more)"
+                output.append(f"  - {folder}/: [{child_str if child_str else 'empty'}]")
+            except Exception:
+                output.append(f"  - {folder}/")
+    else:
+        output.append("  - No standard framework directories identified.")
+
+    # Show root files (excluding sensitive ones)
+    root_files = [f for f in files_at_root if os.path.isfile(os.path.join(root, f)) 
+                  and f not in SENSITIVE_PATTERNS]
+    if root_files:
+        output.append("\nRoot Files of Interest:")
+        output.append("  " + ", ".join(root_files[:10]))
+        if len(root_files) > 10:
+            output[-1] += f", ... (+{len(root_files)-10} more)"
+
+    return "\n".join(output)
