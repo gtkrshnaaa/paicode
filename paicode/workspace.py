@@ -527,7 +527,7 @@ def read_brain_artifact(filename: str) -> str:
 def get_system_capabilities() -> str:
     """Detects available tools and environment info."""
     import shutil
-    tools = ["git", "npm", "npx", "python3", "pytest", "eslint", "docker", "make", "lsof", "netstat", "ps"]
+    tools = ["git", "npm", "npx", "python3", "pytest", "eslint", "docker", "make", "lsof", "netstat", "ps", "bandit", "safety"]
     available = [t for t in tools if shutil.which(t)]
     
     info = [
@@ -591,3 +591,33 @@ def sniff_logs(pattern: str = "error") -> str:
         return f"No matches found for pattern '{pattern}' in common log locations."
         
     return "\n".join(results)
+
+def get_execution_time(command: str) -> str:
+    """Uses the system 'time' command to measure execution speed."""
+    import subprocess
+    try:
+        # We wrap the command in /usr/bin/time -p for portable, easy-to-parse output
+        res = subprocess.run(["/usr/bin/time", "-p", "bash", "-c", command], capture_output=True, text=True, timeout=60)
+        return f"STDOUT:\n{res.stdout}\nBENCHMARK:\n{res.stderr}"
+    except Exception as e:
+        return f"Error: Failed to measure execution time: {e}"
+
+def profile_python_code(script_path: str) -> str:
+    """Profiles a Python script using cProfile and returns summarized results."""
+    import subprocess
+    import shutil
+    import os
+    if not shutil.which("python3"):
+        return "Error: python3 not found."
+    
+    if not os.path.exists(script_path):
+        return f"Error: Script not found: {script_path}"
+
+    cmd = ["python3", "-m", "cProfile", "-s", "cumulative", script_path]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        # Return first 50 lines of profile which usually contain the hotspots
+        profile_data = "\n".join(res.stdout.splitlines()[:50])
+        return f"--- CPROFILE RESULTS (Top Hotspots) ---\n{profile_data}"
+    except Exception as e:
+        return f"Error: Profiling failed: {e}"
