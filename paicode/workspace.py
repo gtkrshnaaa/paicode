@@ -357,10 +357,92 @@ def grep_search(pattern: str, path: str = '.') -> str:
                         if len(results) >= max_results:
                             break
         except Exception:
-            # Silently skip files that cannot be read (permissions, etc.)
             continue
 
     if not results:
         return f"No matches found for pattern '{pattern}' in '{path}'."
     
     return "\n".join(results)
+
+def apply_surgical_edit(file_path: str, original_content: str, blocks_text: str) -> tuple[bool, str]:
+    """
+     Applies one or more Search and Replace blocks to the original content.
+    
+    This is the core of the Surgical-Edit Protocol, designed for high token 
+    efficiency by only sending and receiving changed blocks rather than 
+    the entire file.
+    
+    Format of a block:
+    <<<< SEARCH
+    [exact content to find]
+    ====
+    [content to replace with]
+    >>>>
+    
+    Args:
+        file_path: Relative path of the file being edited.
+        original_content: Current content of the file.
+        blocks_text: Raw string containing one or more S&R blocks.
+        
+    Returns:
+        Tuple (success: bool, message: str).
+    """
+    if not _is_path_safe(file_path):
+        return False, f"Error: Access to path '{file_path}' is denied."
+
+    # Normalize line endings
+    current_content = original_content.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # Split the blocks_text into individual blocks
+    import re
+    block_pattern = re.compile(r'<<<< SEARCH\n(.*?)\n====\n(.*?)\n>>>>', re.DOTALL)
+    blocks = block_pattern.findall(blocks_text)
+
+    if not blocks:
+        # Fallback: check if the model just forgot the newlines after SEARCH/====
+        block_pattern_fallback = re.compile(r'<<<< SEARCH(.*?)\n====\n(.*?)\n>>>>', re.DOTALL)
+        blocks = block_pattern_fallback.findall(blocks_text)
+        if not blocks:
+            return False, "Error: No valid Search & Replace blocks found in the response."
+
+    modified_content = current_content
+    success_count = 0
+    failures = []
+
+    for i, (search_text, replace_text) in enumerate(blocks, 1):
+        # Try exact match first
+        if search_text in modified_content:
+            # Check for multiple occurrences to avoid ambiguity
+            count = modified_content.count(search_text)
+            if count > 1:
+                failures.append(f"Block {i}: Search block is ambiguous (found {count} times).")
+                continue
+            
+            modified_content = modified_content.replace(search_text, replace_text)
+            success_count += 1
+        else:
+            # Try a slightly more relaxed match (ignoring leading/trailing whitespace of the search block)
+            stripped_search = search_text.strip()
+            if stripped_search and stripped_search in modified_content:
+                # Still need to be careful about ambiguity
+                count = modified_content.count(stripped_search)
+                if count == 1:
+                    modified_content = modified_content.replace(stripped_search, replace_text)
+                    success_count += 1
+                else:
+                    failures.append(f"Block {i}: Exact match failed, and stripped match is ambiguous.")
+            else:
+                failures.append(f"Block {i}: Search block not found in file.")
+
+    if success_count == 0:
+        return False, "Error: Failed to apply any Search & Replace blocks.\n" + "\n".join(failures)
+
+    # Save the modified content
+    write_result = write_to_file(file_path, modified_content)
+    if "Success" in write_result:
+        message = f"Success: Applied {success_count} block(s) to '{file_path}'."
+        if failures:
+            message += f" However, {len(failures)} block(s) failed: " + "; ".join(failures)
+        return True, message
+    else:
+        return False, write_result
