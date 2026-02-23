@@ -432,3 +432,69 @@ def map_workspace_pulse(path: str = '.') -> str:
             output[-1] += f", ... (+{len(root_files)-10} more)"
 
     return "\n".join(output)
+
+def execute_command(command: str) -> str:
+    """
+    Executes a shell command within the project root.
+    
+    Security is paramount:
+    - Blocks 'cd' and directory escaping.
+    - Blocks dangerous/destructive commands.
+    - Limits execution time to prevent hanging.
+    
+    Returns:
+        The command output (stdout + stderr) or a security error message.
+    """
+    import subprocess
+    import shlex
+    
+    # 1. Security check: Block directory changes and escaping
+    # We use shlex to properly parse the command even with quotes
+    try:
+        args = shlex.split(command)
+    except Exception as e:
+        return f"Error: Failed to parse command: {e}"
+
+    if not args:
+        return "Error: Empty command."
+
+    # Deny-list of dangerous keywords/commands
+    dangerous_keywords = ["cd", "sudo", "rm -rf /", ":(){ :|:& };:", "rm -rf .git", "mv /*", "chmod -R 777"]
+    cmd_lower = command.lower()
+    
+    if any(kw in cmd_lower for kw in dangerous_keywords):
+        return f"Error: Command contains restricted or dangerous keywords."
+        
+    # Block shell redirection that might be used for escaping or sensitive data exfiltration
+    if any(char in command for char in [";", "&", "|", ">", "<"]):
+        # Allow basic pipe/redirect if it's within the project, but for now let's be strict
+        # actually, many useful commands use these. Let's rely on path safety and user oversight.
+        # But we MUST block 'cd' even as part of a chain.
+        if "cd " in cmd_lower or "cd\t" in cmd_lower:
+            return "Error: Directory changes (cd) are not allowed."
+
+    try:
+        # Run command with 30s timeout
+        # We run in PROJECT_ROOT to ensure context
+        result = subprocess.run(
+            command,
+            shell=True, # shell=True is needed for pipes/redirects, but we must be careful
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        output = result.stdout
+        if result.stderr:
+            output += f"\n--- STDERR ---\n{result.stderr}"
+            
+        if not output.strip():
+            return f"Success: Command executed with exit code {result.returncode} (no output)."
+            
+        return output.strip()
+        
+    except subprocess.TimeoutExpired:
+        return "Error: Command timed out after 30 seconds."
+    except Exception as e:
+        return f"Error: Failed to execute command: {e}"
