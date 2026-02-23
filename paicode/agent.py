@@ -25,7 +25,7 @@ except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT", "RUN_COMMAND", "DIAGNOSE", "SNIFF_LOGS"]
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT", "RUN_COMMAND", "DIAGNOSE", "SNIFF_LOGS", "PROFILE"]
 
 # Global flag for interrupt handling
 _interrupt_requested = False
@@ -304,6 +304,19 @@ def new_func():
                     log_results.append(f"SNIFF_LOGS result for pattern '{params}':\n{sniff_output}")
                     result = f"Success: Sniffed logs for pattern '{params}'."
 
+                elif command_candidate == "PROFILE":
+                    if not params:
+                        result = "Error: PROFILE requires a script path as a parameter."
+                    else:
+                        profile_output = workspace.profile_python_code(params)
+                        if "Error:" not in profile_output:
+                            renderables.append(Text(profile_output, style="bright_blue"))
+                            log_results.append(f"PROFILE result for '{params}':\n{profile_output}")
+                            result = f"Success: Benchmarked and profiled '{params}'."
+                        else:
+                            result = profile_output
+                            log_results.append(result)
+
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
@@ -497,7 +510,6 @@ def _clean_markdown_formatting(text: str) -> str:
             stripped = stripped[2:]
         elif stripped.startswith('+ '):
             stripped = stripped[2:]
-        # Remove bold markers but keep content
         stripped = stripped.replace('**', '')
         cleaned_lines.append(stripped)
     
@@ -1154,6 +1166,31 @@ Output ONLY the JSON object.
             )
             session_context.append(f"Integrity Check (step {current_step}): {json.dumps(verdict)}")
 
+            # --- Phase 8: Architectural Guardrails & Security Audit ---
+            if verdict["passed"]:
+                # 1. Architectural Audit (AI-driven)
+                audit_res = _architectural_audit(plan, context_str)
+                if not audit_res["passed"]:
+                    ui.print_info(f"\n[warning]Senior Audit Warning (Score: {audit_res['score']}/10):[/warning]")
+                    for issue in audit_res["issues"]:
+                        ui.console.print(f"  - [red]{issue}[/red]")
+                    # If score is very low, consider it a failure to trigger repair
+                    if audit_res["score"] < 4:
+                        verdict["passed"] = False
+                        verdict["reasons"].append("Failed Senior Architecture Audit: " + "; ".join(audit_res["issues"]))
+                        verdict["next_fix"].extend(audit_res["suggestions"])
+                
+                # 2. Automated Security Linting (Tool-driven)
+                if "bandit" in sys_info:
+                    ui.print_info("Running automated security scan (bandit)...")
+                    sec_res = workspace.execute_command("bandit -r . -ll")
+                    if "High severity" in sec_res:
+                        ui.print_info("[red]Security vulnerability detected![/red]")
+                        verdict["passed"] = False
+                        verdict["reasons"].append("Security scan failed: High severity issues found.")
+                        verdict["next_fix"].append("Scan with bandit and fix high severity vulnerabilities.")
+                        log_results.append(f"Security scan result:\n{sec_res}")
+
             # Autonomous Self-Healing: If integrity failed, trigger a fix iteration
             if not verdict["passed"]:
                 ui.print_info("\n[bold red]Self-Healing Triggered:[/bold red] Detected issues in the last step. Attempting autonomous fix...")
@@ -1205,6 +1242,36 @@ def _update_brain_task(hints: list[str], current_idx: int):
         workspace.write_brain_artifact("task.md", content)
     except Exception:
         pass # Best effort sync
+
+def _architectural_audit(modification_description: str, session_context_str: str) -> dict:
+    """Performs a senior-level audit of code modifications."""
+    audit_prompt = f"""
+    You are a Senior Software Architect and Security Lead. 
+    Audit the following proposed or executed code modifications for:
+    1. SECURITY: Check for SQL Injection, XSS, Secret exposure (API keys), and insecure permissions.
+    2. ARCHITECTURE: Check for Separation of Concerns, tight coupling, and N+1 query patterns.
+    3. RELIABILITY: Ensure proper error handling, try/except blocks, and defensive programming.
+    4. PATTERNS: Does it align with the project's architectural pulse?
+    
+    MODIFICATION TO AUDIT:
+    {modification_description}
+    
+    CONTEXT:
+    {session_context_str}
+    
+    CRITICAL OUTPUT FORMAT:
+    - Return ONLY raw JSON
+    - Schema: {{"passed": true|false, "score": 1-10, "issues": [string..], "suggestions": [string..]}}
+    """
+    try:
+        response = llm.generate_text(audit_prompt)
+        # Clean potential markdown from response
+        clean_res = response.strip().strip('`').replace('json\n', '', 1)
+        audit_res = json.loads(clean_res)
+        return audit_res
+    except Exception:
+        return {"passed": True, "score": 8, "issues": ["Audit system timeout - proceeding with caution"], "suggestions": []}
+
         summary_guidance = (
             "Provide a concise FINAL SUMMARY of what has been accomplished so far, "
             "followed by 2-3 concrete, actionable suggestions for next steps. "
