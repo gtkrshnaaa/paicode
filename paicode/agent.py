@@ -25,7 +25,7 @@ except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY"]
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT"]
 
 # Global flag for interrupt handling
 _interrupt_requested = False
@@ -179,121 +179,52 @@ def _generate_execution_renderables(plan: str) -> tuple[Group, str]:
                         log_results.append(result)
                         continue
 
-                    modification_prompt_1 = f"""
-You are an expert code modifier with deep understanding of software engineering best practices.
+                    modification_prompt = f"""
+You are an expert code modifier. Your goal is to apply surgical changes to the provided file content.
 
 CURRENT FILE: `{file_path}`
 --- START OF FILE ---
 {original_content}
 --- END OF FILE ---
 
-MODIFICATION REQUEST: "{description}"
+USER REQUEST: "{description}"
 
-CRITICAL INSTRUCTIONS:
-1. Analyze the current code structure carefully
-2. Identify EXACTLY what needs to change to fulfill the request
-3. Make ONLY the necessary changes - do not refactor unrelated code
-4. Preserve existing code style, formatting, and conventions
-5. Ensure the modification is correct and complete
-6. Consider edge cases and potential bugs
-7. Maintain backward compatibility unless explicitly asked to break it
+INSTRUCTIONS:
+1. Identify the exact sections of the code that need to be changed.
+2. Use one or more Search & Replace blocks to apply the changes.
+3. Each block must follow this EXACT format:
+<<<< SEARCH
+[exact code from the file to be replaced]
+====
+[the new code to replace it with]
+>>>>
 
-SAFETY CONSTRAINTS - VERY IMPORTANT:
-- HARD LIMIT: Maximum 500 changed lines per modification
-- BEST PRACTICE: Even though limit is 500, prefer smaller focused modifications (100-200 lines)
-- Think like a senior developer: make surgical, targeted changes
-- Focus on ONE specific area at a time (e.g., one section, one function, one feature)
-- Example of EXCELLENT incremental approach (like Cascade):
-  * Modification 1: Update function signature and add type hints (30 lines)
-  * Modification 2: Add input validation logic (50 lines)
-  * Modification 3: Enhance error handling (40 lines)
-  * Modification 4: Add comprehensive docstrings (30 lines)
-- Example: If adding CSS, do it in logical sections:
-  * Part 1: Add basic layout styles (body, container, main structure)
-  * Part 2: Add form element styles (inputs, labels, form-group)
-  * Part 3: Add button and interactive styles (hover, focus, active states)
-- NEVER try to apply all changes at once if they can be logically separated
-- Quality over quantity: smaller, focused changes are easier to verify and safer
+CRITICAL RULES:
+- The content between `<<<< SEARCH` and `====` must match the file content EXACTLY, including indentation and spacing.
+- Keep the SEARCH blocks as small as possible while remaining unique.
+- Do NOT include any explanations, markdown code blocks, or preamble. Just provide the blocks.
+- If you need to add something at the top or bottom, include a unique context in the SEARCH block.
 
-OUTPUT REQUIREMENTS:
-- Provide the ENTIRE, complete file content with modifications applied
-- Output ONLY raw code without explanations, markdown, or comments about changes
-- Do NOT use markdown code blocks (no ```)
-- Do NOT include language tags or diff format
-- Do NOT show before/after comparisons
-- Start directly with the complete modified file content
-- Ensure the code is syntactically correct and will run without errors
-
-Example of CORRECT output:
-<!DOCTYPE html>
-<html>
-... (complete file with modifications)
-
-Example of WRONG output (DO NOT DO THIS):
-```html
-<!DOCTYPE html>
-...
-```
-
-OR
-
-```diff
-- old line
-+ new line
-```
-
-Think carefully before modifying. Quality over speed.
+Example:
+<<<< SEARCH
+def old_func():
+    pass
+====
+def new_func():
+    print("Success")
+>>>>
 """
-                    new_content_1 = llm.generate_text(modification_prompt_1)
+                    llm_response = llm.generate_text(modification_prompt)
 
-                    if new_content_1:
-                        success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_1)
+                    if llm_response:
+                        success, message = workspace.apply_surgical_edit(file_path, original_content, llm_response)
                         
-                        # Check if modification was rejected due to size
-                        if not success and "exceeds" in message.lower():
-                            renderables.append(Text(f"! Modification rejected: too large. {message}", style="warning"))
-                            renderables.append(Text("! Think like Cascade: Break into focused, surgical modifications.", style="warning"))
-                            renderables.append(Text("! Ideal: 100-200 lines (very focused), Acceptable: 200-500 lines (one area)", style="info"))
-                            result = f"Error: {message}\nSuggestion: Use Cascade-style approach - split into focused modifications targeting one specific area at a time."
-                            renderables.append(Text(f"✗ {result}", style="error"))
-                            log_results.append(result)
-                            continue
-                        
-                        if success and "No changes detected" in message:
-                            renderables.append(Text("! First attempt made no changes. Retrying with a more specific prompt...", style="warning"))
-                            
-                            modification_prompt_2 = f"""
-CRITICAL: First attempt returned unchanged code. You MUST make the requested modification now.
-
-FILE: `{file_path}`
-ORIGINAL CONTENT:
----
-{original_content}
----
-
-EXPLICIT INSTRUCTION: "{description}"
-
-WHAT WENT WRONG:
-The previous attempt returned the code unchanged. This means you need to:
-1. Re-read the instruction more carefully
-2. Identify the EXACT location that needs modification
-3. Make the specific change requested
-4. Ensure the change is actually applied
-
-REQUIREMENTS:
-- This is a critical modification - it MUST be applied
-- Be very literal and precise about the change
-- Return the COMPLETE file with the modification applied
-- Output ONLY raw code without explanations or markdown
-- Maximum 120 changed lines
-
-DO NOT return the code unchanged again. Make the modification.
-"""
-                            
-                            new_content_2 = llm.generate_text(modification_prompt_2)
-                            
-                            if new_content_2:
-                                success, message = workspace.apply_modification_with_patch(file_path, original_content, new_content_2)
+                        # Simple retry if first attempt failed
+                        if not success:
+                            modification_prompt_retry = f"{modification_prompt}\n\nWHAT WENT WRONG:\n{message}\n\nPlease try again with more precise SEARCH blocks."
+                            llm_response_2 = llm.generate_text(modification_prompt_retry)
+                            if llm_response_2:
+                                success, message = workspace.apply_surgical_edit(file_path, original_content, llm_response_2)
                         
                         result = message
                         style = "success" if success else "warning"
@@ -328,6 +259,29 @@ DO NOT return the code unchanged again. Make the modification.
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
                 
+                elif command_candidate == "SEARCH":
+                    pattern, _, search_path = params.partition('::')
+                    search_path = search_path if search_path else '.'
+                    search_result = workspace.grep_search(pattern, search_path)
+                    if "Error:" not in search_result and "No matches found" not in search_result:
+                        renderables.append(Text(search_result, style="bright_blue"))
+                        log_results.append(f"SEARCH result for '{pattern}' in '{search_path}':\n{search_result}")
+                        result = f"Success: Found matches for '{pattern}' in '{search_path}'."
+                    else:
+                        result = search_result
+                        log_results.append(result)
+
+                elif command_candidate == "MAP_ROOT":
+                    path_to_map = params if params else '.'
+                    map_output = workspace.map_workspace_pulse(path_to_map)
+                    if "Error:" not in map_output:
+                        renderables.append(Text(map_output, style="bright_blue"))
+                        log_results.append(f"MAP_ROOT result for '{path_to_map}':\n{map_output}")
+                        result = f"Success: Mapped architectural pulse for '{path_to_map}'."
+                    else:
+                        result = map_output
+                        log_results.append(result)
+
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
@@ -349,7 +303,7 @@ DO NOT return the code unchanged again. Make the modification.
                     else: style = "info"; icon = "i "
                     renderables.append(Text(f"{icon}{result}", style=style))
                     # Log the simple success/error message for non-data commands
-                    if command_candidate not in ["READ", "TREE", "LIST_PATH"]:
+                    if command_candidate not in ["READ", "TREE", "LIST_PATH", "SEARCH", "MAP_ROOT"]:
                         log_results.append(result)
 
         except Exception as e:
@@ -718,8 +672,9 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
             "Steps should describe meaningful sub-goals (each may require executing multiple file operations). "
-            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
             "Each step should be atomic and verifiable. "
+            "Discovery Tools: Use MAP_ROOT::path for high-level architecture overview, and SEARCH::pattern::path for deep code discovery. "
+            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
             "IMPORTANT: If a task involves large modifications (e.g., adding extensive CSS/HTML), break it into smaller incremental steps. "
             "Example: Instead of 'Add all CSS styling', break into 'Add basic layout CSS', 'Add form styling CSS', 'Add interactive CSS'."
         )

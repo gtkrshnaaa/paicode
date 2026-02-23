@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
 import argparse
-from . import agent, config, llm, ui
+from . import agent, config, llm, ui, __version__
 
 def main():
     parser = argparse.ArgumentParser(
         description="Pai Code: Your Agentic AI Coding Companion.",
         epilog="Run 'pai config --help' for API key management. Use 'pai config reset blacklist' to unblock rate-limited keys. Run 'pai' or 'pai auto' to start the agent."
     )
+    parser.add_argument('-v', '--version', action='version', version=f'Pai Code v{__version__}')
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     parser_auto = subparsers.add_parser('auto', help='Start the interactive AI agent session.')
