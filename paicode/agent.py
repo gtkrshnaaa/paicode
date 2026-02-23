@@ -25,7 +25,7 @@ except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT", "RUN_COMMAND"]
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT", "RUN_COMMAND", "DIAGNOSE", "SNIFF_LOGS"]
 
 # Global flag for interrupt handling
 _interrupt_requested = False
@@ -292,6 +292,18 @@ def new_func():
                         result = command_output
                         log_results.append(result)
 
+                elif command_candidate == "DIAGNOSE":
+                    diag_output = workspace.diagnose_system()
+                    renderables.append(Text(diag_output, style="bright_blue"))
+                    log_results.append(f"DIAGNOSE result:\n{diag_output}")
+                    result = "Success: Performed system diagnostic."
+
+                elif command_candidate == "SNIFF_LOGS":
+                    sniff_output = workspace.sniff_logs(params if params else "error")
+                    renderables.append(Text(sniff_output, style="bright_blue"))
+                    log_results.append(f"SNIFF_LOGS result for pattern '{params}':\n{sniff_output}")
+                    result = f"Success: Sniffed logs for pattern '{params}'."
+
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
@@ -313,7 +325,7 @@ def new_func():
                     else: style = "info"; icon = "i "
                     renderables.append(Text(f"{icon}{result}", style=style))
                     # Log the simple success/error message for non-data commands
-                    if command_candidate not in ["READ", "TREE", "LIST_PATH", "SEARCH", "MAP_ROOT", "RUN_COMMAND"]:
+                    if command_candidate not in ["READ", "TREE", "LIST_PATH", "SEARCH", "MAP_ROOT", "RUN_COMMAND", "DIAGNOSE", "SNIFF_LOGS"]:
                         log_results.append(result)
 
         except Exception as e:
@@ -967,29 +979,29 @@ Target step hint: {step_hint}
 {thinking_text}
 --- END THINKING SUMMARY ---
 --- VALID COMMANDS ---
-1. MKDIR::path - Create directory (use forward slashes, no spaces in names)
+1. MKDIR::path - Create directory
 2. TOUCH::path - Create empty file
---- VALID COMMANDS ---
-1. MKDIR::path
-2. TOUCH::path
-3. WRITE::path::description
-4. MODIFY::path::description
-5. READ::path
-6. LIST_PATH::path
-7. RM::path
-8. MV::source::destination
-9. TREE::path
-10. SEARCH::pattern::path
-11. MAP_ROOT::path
-12. RUN_COMMAND::command
-13. FINISH::message
+3. WRITE::path::description - Write full content replacement
+4. MODIFY::path::description - Multi-chunk surgical edit
+5. READ::path - Read file content
+6. LIST_PATH::path - List children of a directory
+7. RM::path - Remove file/dir
+8. MV::source::destination - Move/Rename
+9. TREE::path - Show file tree
+10. SEARCH::pattern::path - Ripgrep search
+11. MAP_ROOT::path - Architectural pulse mapping
+12. RUN_COMMAND::command - Safe bash execution
+13. DIAGNOSE - Snapshot of live system (processes, ports)
+14. SNIFF_LOGS::pattern - Search for error patterns in logs
+15. FINISH::message - End task iteration
 
 PRINCIPLES OF INTELLIGENCE:
 1. FACT OVER FANCY: Never hallucinate code or paths. If you don't know, use SEARCH or READ.
-2. DISCOVERY-FIRST: Always verify the existence and content of a file before modifying it.
-3. CITE YOUR SOURCES: In your reasoning, refer to specific lines or patterns found during research.
-4. SECURE BASH: Use RUN_COMMAND for non-destructive tasks (tests, environment checks). 'cd' is blocked.
-5. SURGICAL EDITS: Use MODIFY for large files; never rewrite everything.
+2. DISCOVERY-FIRST: Always verify existence and content before modifying.
+3. OBSERVE BEFORE ACT: For debugging or "why" tasks, use DIAGNOSE or SNIFF_LOGS first to see the live system.
+4. CITE YOUR SOURCES: Refer to specific lines or patterns found during research.
+5. SECURE BASH: Use RUN_COMMAND for non-destructive tasks. 'cd' is blocked.
+6. SURGICAL EDITS: Use MODIFY for large files; never rewrite everything.
 --- END VALID COMMANDS ---
 
 --- CONVERSATION HISTORY (all previous turns) ---
@@ -1029,7 +1041,9 @@ Target step hint: {step_hint}
 10. SEARCH::pattern::path
 11. MAP_ROOT::path
 12. RUN_COMMAND::command
-13. FINISH::message
+13. DIAGNOSE
+14. SNIFF_LOGS::pattern
+15. FINISH::message
 """
                 plan = llm.generate_text(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
