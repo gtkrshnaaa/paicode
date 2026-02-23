@@ -25,7 +25,7 @@ except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT"]
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH", "MAP_ROOT", "RUN_COMMAND"]
 
 # Global flag for interrupt handling
 _interrupt_requested = False
@@ -282,6 +282,16 @@ def new_func():
                         result = map_output
                         log_results.append(result)
 
+                elif command_candidate == "RUN_COMMAND":
+                    command_output = workspace.execute_command(params)
+                    if "Error:" not in command_output:
+                        renderables.append(Text(command_output, style="bright_blue"))
+                        log_results.append(f"RUN_COMMAND result for '{params}':\n{command_output}")
+                        result = f"Success: Executed command '{params}'."
+                    else:
+                        result = command_output
+                        log_results.append(result)
+
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
@@ -303,7 +313,7 @@ def new_func():
                     else: style = "info"; icon = "i "
                     renderables.append(Text(f"{icon}{result}", style=style))
                     # Log the simple success/error message for non-data commands
-                    if command_candidate not in ["READ", "TREE", "LIST_PATH", "SEARCH", "MAP_ROOT"]:
+                    if command_candidate not in ["READ", "TREE", "LIST_PATH", "SEARCH", "MAP_ROOT", "RUN_COMMAND"]:
                         log_results.append(result)
 
         except Exception as e:
@@ -671,12 +681,11 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
             "Return a machine-readable task plan in JSON. Provide ONLY raw JSON without any extra text. "
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
-            "Steps should describe meaningful sub-goals (each may require executing multiple file operations). "
-            "Each step should be atomic and verifiable. "
-            "Discovery Tools: Use MAP_ROOT::path for high-level architecture overview, and SEARCH::pattern::path for deep code discovery. "
-            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
-            "IMPORTANT: If a task involves large modifications (e.g., adding extensive CSS/HTML), break it into smaller incremental steps. "
-            "Example: Instead of 'Add all CSS styling', break into 'Add basic layout CSS', 'Add form styling CSS', 'Add interactive CSS'."
+            "Discovery Tools: Use MAP_ROOT::path for architecture overview, SEARCH::pattern::path for grep, and RUN_COMMAND::cmd for shell verification. "
+            "THE DISCOVERY-FIRST PRINCIPLE: Always spend the first 1-2 steps researching the codebase (MAP_ROOT, SEARCH, READ) to gather FACTS. "
+            "NEVER assume file paths or code logic; verify them first. "
+            "Cite your facts: Steps should imply verification (e.g., 'Verify current implementation of X' instead of 'Update X'). "
+            "Think like a senior developer: consider dependencies, order of operations, and potential issues."
         )
         scheduler_prompt = f"""
 You are Pai, an expert planner and developer AI with strong analytical skills.
@@ -918,27 +927,27 @@ Target step hint: {step_hint}
 --- VALID COMMANDS ---
 1. MKDIR::path - Create directory (use forward slashes, no spaces in names)
 2. TOUCH::path - Create empty file
-3. WRITE::path::description - Write new file with detailed description of content
-   CRITICAL: description is REQUIRED and must be detailed (minimum 10 words)
-   Example: WRITE::index.html::Create a login page with username and password fields, styled with gray colors
-   WRONG: WRITE::index.html (missing description - will cause error!)
-4. MODIFY::path::description - Modify existing file with detailed description of changes
-   CRITICAL: description is REQUIRED and must be specific about what to change
-   Example: MODIFY::index.html::Add responsive CSS media queries for mobile devices
-   WRONG: MODIFY::index.html (missing description - will cause error!)
-5. READ::path - Read file content (ALWAYS do this before MODIFY)
-6. LIST_PATH::path - List all files/dirs recursively
-7. RM::path - Delete file or directory
-8. MV::source::destination - Move/rename file or directory
-9. TREE::path - Show directory tree structure
-10. FINISH::message - Mark task complete with summary
+--- VALID COMMANDS ---
+1. MKDIR::path
+2. TOUCH::path
+3. WRITE::path::description
+4. MODIFY::path::description
+5. READ::path
+6. LIST_PATH::path
+7. RM::path
+8. MV::source::destination
+9. TREE::path
+10. SEARCH::pattern::path
+11. MAP_ROOT::path
+12. RUN_COMMAND::command
+13. FINISH::message
 
-CRITICAL COMMAND RULES (MUST FOLLOW):
-- WRITE and MODIFY MUST have detailed descriptions after second ::
-- Description must be specific and clear (minimum 10 words)
-- Never use WRITE::path or MODIFY::path without description
-- If you forget description, you will get ERROR: "No description provided for file"
-- Always READ before MODIFY to understand current state
+PRINCIPLES OF INTELLIGENCE:
+1. FACT OVER FANCY: Never hallucinate code or paths. If you don't know, use SEARCH or READ.
+2. DISCOVERY-FIRST: Always verify the existence and content of a file before modifying it.
+3. CITE YOUR SOURCES: In your reasoning, refer to specific lines or patterns found during research.
+4. SECURE BASH: Use RUN_COMMAND for non-destructive tasks (tests, environment checks). 'cd' is blocked.
+5. SURGICAL EDITS: Use MODIFY for large files; never rewrite everything.
 --- END VALID COMMANDS ---
 
 --- CONVERSATION HISTORY (all previous turns) ---
@@ -975,7 +984,10 @@ Target step hint: {step_hint}
 7. RM::path
 8. MV::source::destination
 9. TREE::path
-10. FINISH::message
+10. SEARCH::pattern::path
+11. MAP_ROOT::path
+12. RUN_COMMAND::command
+13. FINISH::message
 """
                 plan = llm.generate_text(reprompt)
             renderable_group, log_string = _generate_execution_renderables(plan)
