@@ -502,8 +502,12 @@ def execute_command(command: str) -> str:
 BRAIN_DIR = os.path.join(PROJECT_ROOT, ".pai_brain")
 
 def ensure_brain_dir():
-    """Ensures the .pai_brain directory exists."""
+    """Ensures the .pai_brain directory and its .gitignore exist."""
     os.makedirs(BRAIN_DIR, exist_ok=True)
+    gitignore_path = os.path.join(BRAIN_DIR, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        with open(gitignore_path, 'w') as f:
+            f.write("# Ignore all contents of .pai_brain\n*\n")
 
 def write_brain_artifact(filename: str, content: str):
     """Writes an artifact to the .pai_brain directory."""
