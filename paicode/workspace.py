@@ -498,3 +498,24 @@ def execute_command(command: str) -> str:
         return "Error: Command timed out after 30 seconds."
     except Exception as e:
         return f"Error: Failed to execute command: {e}"
+
+BRAIN_DIR = os.path.join(PROJECT_ROOT, ".pai_brain")
+
+def ensure_brain_dir():
+    """Ensures the .pai_brain directory exists."""
+    os.makedirs(BRAIN_DIR, exist_ok=True)
+
+def write_brain_artifact(filename: str, content: str):
+    """Writes an artifact to the .pai_brain directory."""
+    ensure_brain_dir()
+    path = os.path.join(BRAIN_DIR, filename)
+    with open(path, 'w') as f:
+        f.write(content)
+
+def read_brain_artifact(filename: str) -> str:
+    """Reads an artifact from the .pai_brain directory. Returns empty string if not found."""
+    path = os.path.join(BRAIN_DIR, filename)
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            return f.read()
+    return ""
