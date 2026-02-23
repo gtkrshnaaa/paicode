@@ -523,3 +523,71 @@ def read_brain_artifact(filename: str) -> str:
         with open(path, 'r') as f:
             return f.read()
     return ""
+
+def get_system_capabilities() -> str:
+    """Detects available tools and environment info."""
+    import shutil
+    tools = ["git", "npm", "npx", "python3", "pytest", "eslint", "docker", "make", "lsof", "netstat", "ps"]
+    available = [t for t in tools if shutil.which(t)]
+    
+    info = [
+        f"OS: {os.name}",
+        f"Project Root: {PROJECT_ROOT}",
+        f"Available Tools: {', '.join(available)}",
+        f"Python Version: {os.sys.version.split()[0]}"
+    ]
+    return "\n".join(info)
+
+def diagnose_system() -> str:
+    """Runs a broad diagnostic check on the system state."""
+    report = []
+    
+    # Check running processes (top 10 by memory)
+    try:
+        import subprocess
+        ps_res = subprocess.run(["ps", "aux", "--sort=-%mem"], capture_output=True, text=True, timeout=5)
+        if ps_res.returncode == 0:
+            report.append("--- TOP MEMORY PROCESSES ---\n" + "\n".join(ps_res.stdout.splitlines()[:11]))
+    except Exception:
+        report.append("Error: Failed to fetch process list.")
+
+    # Check network ports
+    try:
+        net_res = subprocess.run(["netstat", "-tuln"], capture_output=True, text=True, timeout=5)
+        if net_res.returncode == 0:
+            report.append("\n--- NETWORK PORTS ---\n" + net_res.stdout)
+    except Exception:
+        # Fallback to lsof -i
+        try:
+            lsof_res = subprocess.run(["lsof", "-i", "-P", "-n"], capture_output=True, text=True, timeout=5)
+            if lsof_res.returncode == 0:
+                report.append("\n--- OPEN PORTS (lsof) ---\n" + lsof_res.stdout)
+        except Exception:
+            report.append("\nError: Failed to fetch network state.")
+            
+    return "\n".join(report)
+
+def sniff_logs(pattern: str = "error") -> str:
+    """Searches for patterns in common log locations."""
+    log_dirs = ["logs", "log", "storage/logs", "var/log"]
+    results = []
+    
+    for d in log_dirs:
+        abs_d = os.path.join(PROJECT_ROOT, d)
+        if os.path.isdir(abs_d):
+            import subprocess
+            try:
+                # Search for pattern in .log files
+                grep_res = subprocess.run(
+                    ["grep", "-ri", pattern, abs_d], 
+                    capture_output=True, text=True, timeout=10
+                )
+                if grep_res.stdout:
+                    results.append(f"--- LOGS IN {d} ---\n" + grep_res.stdout[:2000] + "\n...")
+            except Exception:
+                continue
+                
+    if not results:
+        return f"No matches found for pattern '{pattern}' in common log locations."
+        
+    return "\n".join(results)
