@@ -24,13 +24,13 @@ After installation, the `pai` command will be available in your terminal.
 
 ## Requirements
 
-You must set your Gemini API key as an environment variable before running Paicode:
+You must set your Gemini API key before running Paicode. You can easily do this via the CLI:
 
 ```bash
-export GEMINI_API_KEY="your_api_key_here"
+pai set
 ```
 
-You can also place this in a `.env` file in the directory where you run Paicode.
+You will then be prompted to enter your API key securely.
 
 ## Documentation
 
