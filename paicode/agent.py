@@ -25,7 +25,7 @@ except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
 HISTORY_DIR = ".pai_history"
-VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY"]
+VALID_COMMANDS = ["MKDIR", "TOUCH", "WRITE", "READ", "RM", "MV", "TREE", "LIST_PATH", "FINISH", "MODIFY", "SEARCH"]
 
 # Global flag for interrupt handling
 _interrupt_requested = False
@@ -328,6 +328,18 @@ DO NOT return the code unchanged again. Make the modification.
                     else:
                         result = list_output or f"Error: Failed to list paths for '{path_to_list}'."
                 
+                elif command_candidate == "SEARCH":
+                    pattern, _, search_path = params.partition('::')
+                    search_path = search_path if search_path else '.'
+                    search_result = workspace.grep_search(pattern, search_path)
+                    if "Error:" not in search_result and "No matches found" not in search_result:
+                        renderables.append(Text(search_result, style="bright_blue"))
+                        log_results.append(f"SEARCH result for '{pattern}' in '{search_path}':\n{search_result}")
+                        result = f"Success: Found matches for '{pattern}' in '{search_path}'."
+                    else:
+                        result = search_result
+                        log_results.append(result)
+
                 elif command_candidate == "FINISH":
                     result = params if params else "Task is considered complete."
                     log_results.append(result)
@@ -349,7 +361,7 @@ DO NOT return the code unchanged again. Make the modification.
                     else: style = "info"; icon = "i "
                     renderables.append(Text(f"{icon}{result}", style=style))
                     # Log the simple success/error message for non-data commands
-                    if command_candidate not in ["READ", "TREE", "LIST_PATH"]:
+                    if command_candidate not in ["READ", "TREE", "LIST_PATH", "SEARCH"]:
                         log_results.append(result)
 
         except Exception as e:
@@ -718,8 +730,9 @@ Analyze the request carefully. If anything is unclear, state your assumptions.
             "Schema: {\"steps\": [{\"title\": string, \"hint\": string}]}. "
             "Include 2-6 steps that logically lead to the user's goal. Do NOT include any commands from VALID_COMMANDS. "
             "Steps should describe meaningful sub-goals (each may require executing multiple file operations). "
-            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
             "Each step should be atomic and verifiable. "
+            "IMPORTANT: Use SEARCH::pattern::path to find code definitions or usages when you are unsure about the codebase. "
+            "Think like a senior developer: consider dependencies, order of operations, and potential issues. "
             "IMPORTANT: If a task involves large modifications (e.g., adding extensive CSS/HTML), break it into smaller incremental steps. "
             "Example: Instead of 'Add all CSS styling', break into 'Add basic layout CSS', 'Add form styling CSS', 'Add interactive CSS'."
         )
