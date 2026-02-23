@@ -34,21 +34,19 @@ try:
 except ValueError:
     DEFAULT_TEMPERATURE = 0.3
 
-# Global model holder
-model = None
+# Global runtime configuration holder
 _runtime = {
     "name": None,
     "temperature": None,
 }
 
 def set_runtime_model(model_name: str | None = None, temperature: float | None = None):
-    """Configure or reconfigure the GenerativeModel at runtime.
-
-    This reads the API key from config and constructs a new GenerativeModel
-    using the provided (or default) model name and temperature.
+    """Configure preferred model name and temperature at runtime.
+    
+    The API key will be injected and a fresh GenerativeModel will be 
+    constructed per request in _prepare_runtime().
     """
-    global model, _runtime
-    # Only update the runtime preferred name/temperature; API key will be injected per call (round-robin)
+    global _runtime
     try:
         name = (model_name or DEFAULT_MODEL) or "gemini-2.5-flash-lite"
         temp = DEFAULT_TEMPERATURE if temperature is None else float(temperature)
@@ -56,14 +54,10 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
         temp = max(0.0, min(2.0, temp))
         _runtime["name"] = name
         _runtime["temperature"] = temp
-        # (Re)build model object shell; API key is configured on each request
-        generation_config = {"temperature": temp}
-        model = genai.GenerativeModel(name, generation_config=generation_config)
     except Exception as e:
-        ui.print_error(f"Failed to configure the generative AI model: {e}")
-        model = None
+        ui.print_error(f"Failed to set runtime model configuration: {e}")
 
-# Initialize once on import with defaults
+# Set initial defaults
 set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 
 def _prepare_runtime() -> tuple[bool, str]:
