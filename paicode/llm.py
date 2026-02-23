@@ -60,14 +60,13 @@ def set_runtime_model(model_name: str | None = None, temperature: float | None =
 # Set initial defaults
 set_runtime_model(DEFAULT_MODEL, DEFAULT_TEMPERATURE)
 
-def _prepare_runtime() -> tuple[bool, str]:
-    """Configure API key via smart rotation and ensure model object exists.
+def _prepare_runtime() -> tuple[Optional[genai.GenerativeModel], str]:
+    """Configure API key via smart rotation and return a fresh model instance.
     
     Returns:
-        Tuple of (success: bool, key_id: str). If success is False, key_id is empty.
+        Tuple of (model: GenerativeModel | None, key_id: str). 
+        If model is None, key_id is empty or describes why it failed.
     """
-    global model
-    
     # Use smart key selection (skips blacklisted keys)
     pair = config.get_next_available_key()
     
@@ -83,24 +82,25 @@ def _prepare_runtime() -> tuple[bool, str]:
         else:
             # No keys configured at all
             ui.print_error("Error: No API keys configured. Use `pai config add <ID> <API_KEY>`.")
-        model = None
-        return False, ""
+        return None, ""
     
     key_id, api_key = pair
     
     try:
+        # 1. Force fresh configuration of the genai SDK with the selected key
         genai.configure(api_key=api_key)
-        if model is None:
-            # Build model using stored runtime prefs
-            name = _runtime.get("name") or DEFAULT_MODEL
-            temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
-            generation_config = {"temperature": temp}
-            model = genai.GenerativeModel(name, generation_config=generation_config)
-        return True, key_id
+        
+        # 2. Build a COMPLETELY NEW model instance to ensure no internal caching of old keys/state
+        name = _runtime.get("name") or DEFAULT_MODEL
+        temp = _runtime.get("temperature") if _runtime.get("temperature") is not None else DEFAULT_TEMPERATURE
+        generation_config = {"temperature": temp}
+        
+        fresh_model = genai.GenerativeModel(name, generation_config=generation_config)
+        return fresh_model, key_id
+        
     except Exception as e:
         ui.print_error(f"Failed to configure API key '{key_id}': {e}")
-        model = None
-        return False, ""
+        return None, ""
 
 def _is_rate_limit_error(error: Exception) -> bool:
     """Detect if an exception is a rate limit error.
