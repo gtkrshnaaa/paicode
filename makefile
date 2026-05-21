@@ -1,4 +1,4 @@
-.PHONY: run export-all install venv-activate setup install-cli uninstall-cli
+.PHONY: run export-all install venv-activate setup install-cli uninstall-cli list core-list
 
 install:
 	@if [ ! -d .venv ]; then \
@@ -75,3 +75,51 @@ uninstall-cli:
 	@sed -i '/^# Added by pai install-cli$/d' $(HOME)/.bashrc || true
 	@sed -i '/^export PATH="\$HOME\/\.local\/bin:\$PATH"$/d' $(HOME)/.bashrc || true
 	@echo "Launcher removed: $(HOME)/.local/bin/pai"
+
+# Listing Target
+list:
+	@mkdir -p z_listing
+	@echo "================================================================================" > z_listing/listing.txt
+	@echo "PAICODE PROJECT CODEBASE LISTING" >> z_listing/listing.txt
+	@echo "Generated on: $$(date)" >> z_listing/listing.txt
+	@echo "================================================================================" >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@echo "This document contains a comprehensive listing of all tracked source code files" >> z_listing/listing.txt
+	@echo "within the Paicode project, including docs, main application packages, and configs." >> z_listing/listing.txt
+	@echo "Paicode is a command-line based agentic AI tool for software development and automation." >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@echo "Directory Structure Overview:" >> z_listing/listing.txt
+	@echo "1. paicode: Source code for Paicode's agent, CLI, LLM connection, UI, and workspace." >> z_listing/listing.txt
+	@echo "2. docs: Project documentation including architecture, features, and usage." >> z_listing/listing.txt
+	@echo "3. Root files: Build, dependency, licensing, and setup configurations." >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@echo "================================================================================" >> z_listing/listing.txt
+	@echo "" >> z_listing/listing.txt
+	@for f in $$(git ls-files | sort); do \
+		echo "FILE: $$f" >> z_listing/listing.txt; \
+		echo "--------------------------------------------------------------------------------" >> z_listing/listing.txt; \
+		cat "$$f" >> z_listing/listing.txt; \
+		echo -e "\n\n" >> z_listing/listing.txt; \
+	done
+	@echo "Codebase listing generated at z_listing/listing.txt"
+
+# Core Listing Target
+core-list:
+	@mkdir -p z_listing
+	@echo "================================================================================" > z_listing/core_listing.txt
+	@echo "PAICODE CORE CODEBASE LISTING" >> z_listing/core_listing.txt
+	@echo "Generated on: $$(date)" >> z_listing/core_listing.txt
+	@echo "================================================================================" >> z_listing/core_listing.txt
+	@echo "" >> z_listing/core_listing.txt
+	@echo "This document contains a listing of all source code files within the paicode/ directory." >> z_listing/core_listing.txt
+	@echo "Paicode is a command-line based agentic AI tool for software development and automation." >> z_listing/core_listing.txt
+	@echo "" >> z_listing/core_listing.txt
+	@echo "================================================================================" >> z_listing/core_listing.txt
+	@echo "" >> z_listing/core_listing.txt
+	@for f in $$(git ls-files paicode | sort); do \
+		echo "FILE: $$f" >> z_listing/core_listing.txt; \
+		echo "--------------------------------------------------------------------------------" >> z_listing/core_listing.txt; \
+		cat "$$f" >> z_listing/core_listing.txt; \
+		echo -e "\n\n" >> z_listing/core_listing.txt; \
+	done
+	@echo "Core codebase listing generated at z_listing/core_listing.txt"
