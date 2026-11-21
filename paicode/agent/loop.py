@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import threading
 from pathlib import Path
 
 from ..core.errors import PaicodeError
@@ -12,6 +13,7 @@ from ..rules.skills import SkillMeta
 from ..tools.registry import ToolRegistry
 from ..tools.schemas import TOOL_SCHEMAS
 from ..tools.types import ToolResult
+from .attachments import ImageAttachment
 from .events import (
     ErrorEvent,
     Finished,
@@ -53,19 +55,51 @@ def call_signature(name: str, arguments: str) -> str:
     return f"{name}:{normalized}"[:8_000]
 
 
+def _content_size(content) -> int:
+    if isinstance(content, str):
+        return len(content)
+    if isinstance(content, list):
+        total = 0
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                total += len(str(part.get("text", "")))
+            elif isinstance(part, dict) and part.get("type") == "image_url":
+                total += 2_000
+            else:
+                total += len(str(part))
+        return total
+    return len(str(content or ""))
+
+
+def _truncate_content(content, limit: int):
+    if isinstance(content, str):
+        return content[:limit]
+    if isinstance(content, list):
+        truncated = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                copy = dict(part)
+                copy["text"] = str(copy.get("text", ""))[:limit]
+                truncated.append(copy)
+            else:
+                truncated.append(part)
+        return truncated
+    return content
+
+
 def compact_messages(messages: list[dict], max_chars: int | None = None, keep_last: int = 6) -> list[dict]:
     budget = context_budget() if max_chars is None else max_chars
     system = [message for message in messages if message.get("role") == "system"]
     rest = [dict(message) for message in messages if message.get("role") != "system"]
 
     for message in rest:
-        if message.get("role") == "tool" and isinstance(message.get("content"), str):
-            message["content"] = message["content"][:TOOL_CONTENT_CHARS]
-        elif message.get("role") == "assistant" and isinstance(message.get("content"), str):
-            message["content"] = message["content"][:ASSISTANT_CONTENT_CHARS]
+        if message.get("role") == "tool":
+            message["content"] = _truncate_content(message.get("content"), TOOL_CONTENT_CHARS)
+        elif message.get("role") == "assistant":
+            message["content"] = _truncate_content(message.get("content"), ASSISTANT_CONTENT_CHARS)
 
     def size() -> int:
-        return sum(len(str(message.get("content", ""))) for message in rest)
+        return sum(_content_size(message.get("content")) for message in rest)
 
     while size() > budget and len(rest) > keep_last:
         dropped = rest.pop(0)
@@ -98,6 +132,10 @@ class AgentRunner:
         self.registry = ToolRegistry(root, stats, skills)
         self.session = SessionState(root=root)
         self.messages = [{"role": "system", "content": build_system_prompt(root, rules, skills)}]
+        self._stop_event = threading.Event()
+
+    def request_stop(self) -> None:
+        self._stop_event.set()
 
     def _send(self, event) -> None:
         try:
@@ -105,10 +143,21 @@ class AgentRunner:
         except Exception:
             pass
 
-    def run(self, user_text: str) -> str:
+    def run(self, user_text: str, images: list[ImageAttachment] | None = None) -> str:
         self.session.turns += 1
         self.session.last_request = user_text
-        self.messages.append({"role": "user", "content": user_text})
+        if images:
+            content = [{"type": "text", "text": user_text}]
+            for image in images:
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image.data_url},
+                    }
+                )
+        else:
+            content = user_text
+        self.messages.append({"role": "user", "content": content})
 
         steps = 0
         final_text = ""
@@ -116,6 +165,10 @@ class AgentRunner:
         try:
             recent_calls: list[str] = []
             while True:
+                if self._stop_event.is_set():
+                    failed = True
+                    self._send(ErrorEvent("Stopped by user."))
+                    break
                 if self.max_steps > 0 and steps >= self.max_steps:
                     failed = True
                     self._send(ErrorEvent(f"Configured step limit reached after {steps} model turns."))
@@ -134,6 +187,10 @@ class AgentRunner:
                     result.usage.total_tokens,
                 )
                 self._send(UsageUpdated(self.stats))
+                if self._stop_event.is_set():
+                    failed = True
+                    self._send(ErrorEvent("Stopped by user."))
+                    break
                 final_text = result.text or final_text
 
                 assistant_message = {"role": "assistant", "content": result.text or None}
@@ -156,7 +213,13 @@ class AgentRunner:
                     break
 
                 loop_detected = False
+                stop_requested = False
                 for call in result.tool_calls:
+                    if self._stop_event.is_set():
+                        failed = True
+                        stop_requested = True
+                        self._send(ErrorEvent("Stopped by user."))
+                        break
                     signature = call_signature(call.name, call.arguments)
                     recent_calls.append(signature)
                     recent_calls = recent_calls[-8:]
@@ -204,7 +267,7 @@ class AgentRunner:
                         }
                     )
 
-                if loop_detected:
+                if loop_detected or stop_requested:
                     break
 
                 if self.registry.finished:
