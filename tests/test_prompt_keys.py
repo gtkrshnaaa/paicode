@@ -176,6 +176,44 @@ async def test_ctrl_shift_v_replaces_selection(
         assert prompt.cursor_location == (0, 3)
 
 
+async def test_ctrl_shift_v_ignores_image_only_clipboard(
+    project: Path, config_home: Path, monkeypatch
+):
+    monkeypatch.setattr(prompt_module, "read_clipboard_text", lambda: "")
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", PromptInput)
+        prompt.focus()
+        await pilot.press("ctrl+shift+v")
+        await pilot.pause()
+        assert prompt.text == ""
+        _, _, images = prompt.build_submission()
+        assert images == []
+
+
+async def test_clipboard_text_reader_rejects_image_bytes(
+    monkeypatch, tmp_path: Path
+):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    image_file = tmp_path / "image.bin"
+    image_file.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00")
+    script = bin_dir / "wl-paste"
+    script.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *\"--type text/plain;charset=utf-8\"*|*\"--type text/plain\"*|*\"--type UTF8_STRING\"*) exit 1 ;;\n"
+        "esac\n"
+        'cat "$FAKE_IMAGE_FILE"\n',
+        encoding="utf-8",
+    )
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    monkeypatch.setenv("FAKE_IMAGE_FILE", str(image_file))
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    assert prompt_module.read_clipboard_text() == ""
+
+
 async def test_ctrl_shift_v_normalizes_crlf(
     project: Path, config_home: Path, monkeypatch
 ):

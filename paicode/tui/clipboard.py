@@ -3,6 +3,7 @@ import shutil
 import subprocess
 
 IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp")
+TEXT_TYPES = ("text/plain;charset=utf-8", "text/plain", "UTF8_STRING")
 
 
 def _run(command: list[str]) -> bytes:
@@ -20,13 +21,15 @@ def _run(command: list[str]) -> bytes:
 
 def read_clipboard_text() -> str:
     if shutil.which("wl-paste"):
-        data = _run(["wl-paste", "--no-newline"])
-        if data:
-            return data.decode("utf-8", errors="ignore")
+        for mime in TEXT_TYPES:
+            data = _run(["wl-paste", "--no-newline", "--type", mime])
+            if data:
+                return data.decode("utf-8", errors="ignore")
     if shutil.which("xclip") and os.getenv("DISPLAY"):
-        data = _run(["xclip", "-selection", "clipboard", "-o"])
-        if data:
-            return data.decode("utf-8", errors="ignore")
+        for mime in TEXT_TYPES:
+            data = _run(["xclip", "-selection", "clipboard", "-t", mime, "-o"])
+            if data:
+                return data.decode("utf-8", errors="ignore")
     return ""
 
 
