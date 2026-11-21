@@ -121,6 +121,8 @@ Findings are structured with severity, owner, file, line, failing command, expec
 
 The validator message is strict and direct. It is harsh about the defect and the accountability, never about the person. Slurs, personal abuse, and emojis are forbidden.
 
+When validation passes, fails, or the run is stopped, agent 1 writes the final user-facing report. The report covers the summary, delivered files, validation result, defects, and next steps, and it streams into the chat as the lead message. If the report model call fails, a deterministic report is emitted. A stopped run uses the deterministic report without making another model call.
+
 The owning builder fixes only its files, reruns scoped checks, and reports exact command output. The validator reruns full validation. Repeated identical defects earn a strike. After three strikes the lead reassigns the work or fixes it. After five validation rounds without a clean result, the run stops and reports the remaining findings.
 
 ## Persistence

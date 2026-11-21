@@ -125,7 +125,7 @@ The council runs in three stages:
 2. The lead synthesizes a contract with work units, file ownership, interfaces, API shapes, database schema, DOM tree, test plan, commands, and non-goals.
 3. All 22 agents review the contract. The lead resolves objections and freezes it.
 
-Only builders with assigned work units are activated. Active builders start together, not in sequence. Each builder may edit only its owned files. Agent 22 then runs the full test and acceptance matrix, files structured findings against the owning builder, and repeats the repair loop until green, three strikes, or five validation rounds.
+Only builders with assigned work units are activated. Active builders start together, not in sequence. Each builder may edit only its owned files. Agent 22 then runs the full test and acceptance matrix, files structured findings against the owning builder, and repeats the repair loop until green, three strikes, or five validation rounds. The lead always closes with a user-facing report covering the summary, delivered files, validation result, defects, and next steps. If the report model fails or the run is stopped, a deterministic report is emitted instead.
 
 Every model request, from a single prompt to all 22 council calls, builder turns, and validator turns, carries the full global and project `PAICODE.md` rule envelope. Rules are never silently truncated and are placed first for provider prefix caching.
 

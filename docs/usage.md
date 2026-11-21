@@ -56,7 +56,7 @@ Feature requests run through 22 agents by default:
 - Agents 2 to 21 are builders.
 - Agent 22 validates tests and contract conformance.
 
-The council submits 22 proposals in parallel, the lead freezes file ownership and interfaces, and all 22 agents review the contract. Only builders with assigned files activate, and they build in parallel. Agent 22 tests the integrated workspace and sends structured findings to the owning builder. Repair repeats until green, three strikes, or five rounds.
+The council submits 22 proposals in parallel, the lead freezes file ownership and interfaces, and all 22 agents review the contract. Only builders with assigned files activate, and they build in parallel. Agent 22 tests the integrated workspace and sends structured findings to the owning builder. Repair repeats until green, three strikes, or five rounds. The lead closes every run with a report covering the summary, delivered files, validation result, defects, and next steps.
 
 Every model request carries the full global and project `PAICODE.md` rules. This includes single-agent turns, all council calls, builder turns, and validator turns. Rules are never silently truncated by the default limits and are placed first for provider prefix caching.
 

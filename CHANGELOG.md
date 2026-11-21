@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.3 - 2026-11-21
+
+### Fixed
+
+- The lead now writes a user-facing final report after every multi-agent run, including validation success, failure, strike limit, partial build, and stopped runs.
+- The report covers summary, delivered work, files, validation, defects, and next steps.
+- Report generation uses the mandatory PAICODE.md rule envelope.
+- A model report failure falls back to a deterministic report.
+- Stopped runs emit the deterministic report without another model call.
+- Added fake-provider and provider-down report tests.
+
 ## 0.10.2 - 2026-11-21
 
 ### Changed
