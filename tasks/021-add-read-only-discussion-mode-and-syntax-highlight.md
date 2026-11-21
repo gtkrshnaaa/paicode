@@ -24,6 +24,7 @@ Add a `/disscus <prompt>` read-only discussion mode. The discussion runner may r
 - [ ] File preview uses a monochrome syntax theme with line numbers
 - [ ] Each diff has a strong header band and closing rule with generous spacing
 - [ ] Tests cover discussion denial, read-only shell, syntax helpers, and preview theme
+- [ ] Single Esc stops immediately by aborting provider streams and killing shell groups
 - [ ] Visual screenshot reviewed for diff and preview
 - [ ] Full suite green, docs updated, version bumped
 
