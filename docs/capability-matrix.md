@@ -17,6 +17,7 @@ Android application work is intentionally outside this matrix.
 | JSON tooling | Configuration document | `jq` extraction and predicate checks |
 | Git workflow | Repository, branch, commit, status, log | Real `git init`, `add`, `commit`, `switch`, `log` |
 | SQLite data work | Schema, seed, join, aggregate report | Python `sqlite3` execution and query output |
+| TOML and CSV data work | Project metadata, CSV aggregation, JSON report | `tomllib`, `csv`, and JSON output assertions |
 | Backend and static web | JSON health endpoint, HTML page, HTTP client test | Loopback HTTP requests against a real server |
 | Multi-file refactor | Rename a function across module, caller, and tests | `unittest` passes after surgical edits |
 | Debugging loop | Failing statistic test | Failure is captured, source is fixed, rerun passes |
