@@ -25,7 +25,7 @@ def _read_rule(path: Path, scope: str, limit: int) -> RuleFile | None:
     return RuleFile(path=path, scope=scope, content=truncate_text(text, limit))
 
 
-def load_rules(root: Path, per_file_limit: int = 50_000) -> list[RuleFile]:
+def load_rules(root: Path, per_file_limit: int = 80_000) -> list[RuleFile]:
     global_dir = config_dir()
     rules: list[RuleFile] = []
 
