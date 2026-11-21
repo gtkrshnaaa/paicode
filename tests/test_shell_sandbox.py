@@ -34,6 +34,15 @@ def test_sandbox_hides_home_credentials(project: Path, stats):
     assert not result.ok
 
 
+def test_read_only_workspace_overlay_discards_writes(project: Path, stats):
+    (project / "README.md").write_text("# Original\n", encoding="utf-8")
+    tools = ShellTools(project, stats, read_only_workspace=True)
+    result = tools.run("printf 'hacked\\n' > README.md && printf 'new\\n' > new.txt")
+    assert result.ok, result.output
+    assert (project / "README.md").read_text(encoding="utf-8") == "# Original\n"
+    assert not (project / "new.txt").exists()
+
+
 def test_sandbox_cache_is_writable(project: Path, stats, sandbox_cache: Path):
     tools = ShellTools(project, stats)
     result = tools.run("printf 'cached' > /tmp/paicode-cache/probe.txt")

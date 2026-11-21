@@ -125,6 +125,7 @@ class AgentRunner:
         system_prompt: str | None = None,
         allowed_write_paths: set[Path] | None = None,
         stop_event: threading.Event | None = None,
+        read_only_shell: bool = False,
     ):
         self.root = root
         self.provider = provider
@@ -141,6 +142,7 @@ class AgentRunner:
             skills,
             stop_event=self._stop_event,
             allowed_write_paths=allowed_write_paths,
+            read_only_shell=read_only_shell,
         )
         self.session = SessionState(root=root)
         restored = [

@@ -95,7 +95,13 @@ def _env_true(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "on", "yes"}
 
 
-def sandbox_command(root: Path, cwd: Path, command: str, cache: Path) -> list[str]:
+def sandbox_command(
+    root: Path,
+    cwd: Path,
+    command: str,
+    cache: Path,
+    read_only_workspace: bool = False,
+) -> list[str]:
     args = [
         "bwrap",
         "--die-with-parent",
@@ -129,13 +135,12 @@ def sandbox_command(root: Path, cwd: Path, command: str, cache: Path) -> list[st
         "--bind",
         str(cache),
         "/tmp/paicode-cache",
-        "--bind",
-        str(root),
-        str(root),
-        *_optional_binds(),
-        "--chdir",
-        str(cwd),
     ]
+    if read_only_workspace:
+        args.extend(["--overlay-src", str(root), "--tmp-overlay", str(root)])
+    else:
+        args.extend(["--bind", str(root), str(root)])
+    args.extend([*_optional_binds(), "--chdir", str(cwd)])
     network = os.getenv("PAICODE_SANDBOX_NETWORK", "1").strip().lower()
     if network in {"0", "off", "false", "none"}:
         args.extend(["--unshare-net"])

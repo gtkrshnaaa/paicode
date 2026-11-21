@@ -18,6 +18,7 @@ class ToolRegistry:
         skills: list[SkillMeta],
         stop_event=None,
         allowed_write_paths: set[Path] | None = None,
+        read_only_shell: bool = False,
     ):
         self.root = root
         self.stats = stats
@@ -26,7 +27,12 @@ class ToolRegistry:
         self.summary = ""
         self.files = FileTools(root, stats, allowed_write_paths=allowed_write_paths)
         self.search = SearchTools(root, stats)
-        self.shell = ShellTools(root, stats, stop_event=stop_event)
+        self.shell = ShellTools(
+            root,
+            stats,
+            stop_event=stop_event,
+            read_only_workspace=read_only_shell,
+        )
         self.explore_tools = ExploreTools(root, stats)
 
     def execute(self, name: str, arguments: dict | str) -> ToolResult:

@@ -21,11 +21,19 @@ from .types import ToolResult
 
 
 class ShellTools:
-    def __init__(self, root: Path, stats, timeout: int = DEFAULT_TIMEOUT, stop_event=None):
+    def __init__(
+        self,
+        root: Path,
+        stats,
+        timeout: int = DEFAULT_TIMEOUT,
+        stop_event=None,
+        read_only_workspace: bool = False,
+    ):
         self.root = root
         self.stats = stats
         self.default_timeout = timeout
         self.stop_event = stop_event
+        self.read_only_workspace = read_only_workspace
         self.sandboxed = sandbox_available()
         if sandbox_mode() in {"required", "strict"} and not self.sandboxed:
             raise RuntimeError("PAICODE_SHELL_SANDBOX requires bubblewrap, but it is unavailable.")
@@ -41,7 +49,13 @@ class ShellTools:
             raise ValueError("Shell working directory is not a directory.")
         limit = min(max(int(timeout or self.default_timeout), 1), MAX_TIMEOUT)
         argv = (
-            sandbox_command(self.root, cwd_path, command, self.cache)
+            sandbox_command(
+                self.root,
+                cwd_path,
+                command,
+                self.cache,
+                read_only_workspace=self.read_only_workspace,
+            )
             if self.sandboxed
             else ["bash", "-lc", command]
         )

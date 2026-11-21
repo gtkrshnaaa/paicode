@@ -57,7 +57,13 @@ class Validator:
         output = ""
         ok = not findings
         if command:
-            shell = ShellTools(self.root, self.stats, timeout=180, stop_event=self.stop_event)
+            shell = ShellTools(
+                self.root,
+                self.stats,
+                timeout=180,
+                stop_event=self.stop_event,
+                read_only_workspace=True,
+            )
             try:
                 result = shell.run(command, timeout=180)
                 output = f"$ {command}\n{result.output}"
@@ -102,6 +108,7 @@ class Validator:
             system_prompt=prompt,
             allowed_write_paths=set(),
             stop_event=self.stop_event,
+            read_only_shell=True,
         )
         error = ""
         try:
