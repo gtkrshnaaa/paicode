@@ -2,6 +2,7 @@
 
 # Virtual Environment
 venv/
+.venv/
 *.venv
 
 # Python cache
@@ -17,3 +18,6 @@ __pycache__/
 pai_code.egg-info
 z_project_list
 z_listing/
+# Runtime state
+.pai_history/
+.pai_brain/
