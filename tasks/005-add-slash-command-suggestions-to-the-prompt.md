@@ -19,9 +19,8 @@ Show a filtered command palette above the prompt while the user types a slash co
 - [x] Palette is monochrome, capped at a readable window, and keeps prompt focus
 - [x] Tests cover filtering, navigation, completion, and dismissal
 - [x] Documentation updated and version bumped to 0.5.3
+- [x] Scrollbars hidden while wheel and keyboard scrolling remain functional
 
 ## Context / Notes
 - Target files: paicode/tui/commands.py, paicode/tui/widgets/prompt.py, paicode/tui/widgets/suggestions.py, paicode/tui/app.py
 - No provider credentials in any UI or test
-- Target files: 
-- Dependencies: None
