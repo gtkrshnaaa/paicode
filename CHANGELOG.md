@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 - 2026-11-21
+
+### Added
+
+- Persistent sessions stored under `~/.local/state/paicode/sessions`.
+- `pai session-lists` shows every session with ID, workspace, creation time, last-opened time, and title.
+- `pai --session <id>` and `pai --s-xxxx` open a session and its workspace from anywhere.
+- TUI `/sessions`, `/session <id>`, and `/session new` commands.
+- Per-session chat transcript, AI diff history, model messages, and usage stats.
+- Reopening a session restores its chat and diff history. A normal `pai` launch creates a new session.
+
 ## 0.6.1 - 2026-11-21
 
 ### Changed

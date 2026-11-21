@@ -76,7 +76,7 @@ Enter the base URL and API key in the dialog. Paicode stores the provider in `~/
 The interface has four regions:
 
 - Left: project file explorer. Select a file to preview it.
-- Center: AI diff stream. Every create, write, and surgical edit is rendered as a unified diff.
+- Center: AI diff history for the current session. Every create, write, and surgical edit is rendered as a unified diff. The history is restored when the same session is reopened; a new session starts empty.
 - Right: chat, streaming assistant text, and tool activity.
 - Bottom: token usage, request count, file counters, command count, provider, and model.
 
@@ -95,6 +95,8 @@ The interface has four regions:
 | `/skill <name>` | Print a skill. |
 | `/stats` | Show session statistics. |
 | `/limits` | Show step and context limits. |
+| `/sessions` | List every session with workspace and timestamps. |
+| `/session [id or new]` | Show the current session, switch sessions, or start a new one. |
 | `/stop` | Stop the current task after the active step. |
 | `/queue [clear]` | Show or clear queued prompts. |
 | `/config` | Show redacted provider configuration. |
@@ -107,6 +109,27 @@ The interface has four regions:
 Provider presets: `deepseek`, `opencode`, `openai`, `openrouter`, `google`, and `custom`. Any OpenAI-compatible base URL works.
 
 Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
+
+## Sessions
+
+Every `pai` launch creates a new session for the current workspace. Sessions persist their chat transcript, AI diff history, model context, and usage statistics under `~/.local/state/paicode/sessions`.
+
+List every session from anywhere:
+
+```bash
+pai session-lists
+```
+
+Each row includes the session ID, workspace path, creation timestamp, last-opened timestamp, and title.
+
+Open a session and its workspace directly:
+
+```bash
+pai --session s-7f3a9c2d
+pai --s-7f3a9c2d
+```
+
+Inside the TUI, `/sessions` lists all sessions with the current session marked. `/session <id>` switches to another session and restores its workspace, chat, and diff history. `/session new` starts a fresh session in the current workspace. `/session` with no argument shows the current session details.
 
 ## Prompt composer
 
@@ -163,7 +186,7 @@ pai --path /path/to/project run "Summarize this repository"
 
 ## Configuration
 
-Configuration lives in `~/.config/paicode/config.json`. Override the location with `PAICODE_CONFIG_DIR`. Override the project root with `PAICODE_ROOT`.
+Configuration lives in `~/.config/paicode/config.json`. Override the location with `PAICODE_CONFIG_DIR`. Override the project root with `PAICODE_ROOT`. Session state lives in `~/.local/state/paicode/sessions` or `$XDG_STATE_HOME/paicode/sessions`; override it with `PAICODE_STATE_DIR`.
 
 Each provider stores its base URL, API keys, selected model, cached model list, and optional models URL. Multiple keys are rotated automatically when a provider returns an authentication or rate-limit error.
 

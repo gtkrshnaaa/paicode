@@ -38,7 +38,7 @@ The loop compacts old context by truncating tool output and dropping complete to
 
 ### Interface layer
 
-`paicode/tui/` is a Textual application with four regions: explorer, diff stream, chat, and statistics. The agent runs in a worker thread and reports events to the interface through `call_from_thread`, so streaming text, tool updates, and diffs do not block input.
+`paicode/tui/` is a Textual application with four regions: explorer, AI diff history, chat, and statistics. The agent runs in a worker thread and reports events to the interface through `call_from_thread`, so streaming text, tool updates, and diffs do not block input.
 
 The prompt composer stores multiline pastes and clipboard images as local attachments. It displays highlighted `[pasted N lines]` and `[image-N]` markers, expands the paste text on submission, and passes images to the agent as OpenAI-compatible multimodal content.
 
@@ -57,6 +57,12 @@ The agent emits dataclasses from `paicode/agent/events.py`:
 - `ErrorEvent` when the provider or a tool aborts the turn.
 
 The TUI renders diffs from `ToolFinished.diff`, which contains a unified diff generated from the actual file contents. Git is not involved.
+
+## Sessions
+
+`paicode/sessions/` stores one JSON file per session under `~/.local/state/paicode/sessions`, plus an index with session ID, workspace, creation time, last-opened time, and title. A session file contains the sanitized model messages, display transcript, AI diff history, and usage statistics. The store uses atomic writes and a lock on the index.
+
+The CLI creates a new session for a normal `pai` launch, resolves `--session` and `--s-xxxx` to the stored workspace, and lists sessions with `session-lists`. The TUI restores the transcript and diff history on session switch and saves diffs as they are produced. Multimodal image data is replaced with a text marker when messages are persisted, so session files do not retain raw image payloads.
 
 ## Persistence
 
