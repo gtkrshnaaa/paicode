@@ -74,6 +74,16 @@ description: Review API handlers for input validation and error propagation.
 ...
 ```
 
+## Prompt composer
+
+The prompt expands upward with its content. `Ctrl+E` toggles a larger compose area, and `Shift+Enter` inserts a newline.
+
+Multiline paste is replaced with a highlighted `[pasted N lines]` marker. The full text is restored when submitted; the chat history keeps the marker.
+
+Paste an image path or press `Ctrl+G` to attach an image from the clipboard. Images appear as `[image-1]`, `[image-2]`, and are sent as multimodal content. Use a vision-capable model such as `deepseek-flash`.
+
+While the agent works, the bottom of the chat pane shows a moving loading bar, the current action, elapsed time, and the queue count. Press `Esc` three times in quick succession to stop after the current step. A prompt submitted while the agent is busy is queued and starts automatically after the current task. `/queue` lists queued prompts, `/queue clear` removes them, and `/stop` requests a stop.
+
 ## Host exploration
 
 Inside the workspace, Paicode uses `read`, `list`, `glob`, and `grep`. Outside the workspace, it can use the read-only `explore` tool when the task needs host context, installed tools, services, logs, or another project.

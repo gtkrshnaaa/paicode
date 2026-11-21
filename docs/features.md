@@ -36,6 +36,12 @@ Global and project `PAICODE.md` files are injected into the system prompt. Skill
 
 `.pai_brain/session.md` records the last request, summary, changed files, and token totals. On the next launch, Paicode shows the previous session state. `.pai_history` keeps an append-only log.
 
+## Prompt attachments and queueing
+
+The prompt expands upward and supports a larger `Ctrl+E` compose mode. Multiline pastes become highlighted `[pasted N lines]` markers and expand to the full text on submit. Images from a pasted path or `Ctrl+G` become `[image-1]`, `[image-2]` markers and are sent as multimodal content.
+
+The chat pane bottom shows an animated loading bar with the current action, elapsed time, and Esc hint. Three quick Esc presses stop after the active step. Prompts submitted while the agent works are queued and start automatically when the current task finishes.
+
 ## Guarded host exploration
 
 The `explore` tool gives read-only access to the host filesystem outside the current workspace for host configuration, installed tools, services, logs, and other projects. Every call requires a concrete reason. Credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems are blocked. Writes remain confined to the workspace.

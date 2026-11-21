@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0 - 2026-11-21
+
+### Added
+
+- Multiline paste markers: `[pasted N lines]` is highlighted in the prompt and expands to the full text when submitted.
+- Image attachments through a pasted image path or `Ctrl+G`. Images are highlighted as `[image-1]`, `[image-2]`, and sent as OpenAI-compatible multimodal content.
+- `Ctrl+E` toggles a larger upward-expanding prompt composer.
+- Chat-bottom work status with an animated loading bar, current action, elapsed time, Esc hint, and queue count.
+- Triple-Esc cooperative stop for a running task.
+- Prompt queue while Paicode is working. Queued prompts start automatically after the current task.
+- `/stop` and `/queue [clear]` commands.
+
+### Changed
+
+- The prompt displays attachment markers instead of flooding the input with pasted content.
+- Chat history shows compact markers while the model receives the full expanded text and images.
+
 ## 0.5.6 - 2026-11-21
 
 ### Changed

@@ -8,7 +8,7 @@ Paicode is split into a provider layer, a typed tool layer, an agent loop, and a
 
 `paicode/providers/` contains the OpenAI-compatible client, provider presets, and the configuration store.
 
-- `client.py` streams chat completions, assembles tool call deltas, records usage, and rotates API keys on authentication or rate-limit failures.
+- `client.py` streams chat completions, assembles tool call deltas, records usage, and rotates API keys on authentication or rate-limit failures. User messages may include text and image parts.
 - `store.py` persists providers, base URLs, keys, selected models, and cached model lists in `~/.config/paicode/config.json`.
 - `presets.py` defines DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google OpenAI compatibility, and custom providers.
 
@@ -39,6 +39,10 @@ The loop compacts old context by truncating tool output and dropping complete to
 ### Interface layer
 
 `paicode/tui/` is a Textual application with four regions: explorer, diff stream, chat, and statistics. The agent runs in a worker thread and reports events to the interface through `call_from_thread`, so streaming text, tool updates, and diffs do not block input.
+
+The prompt composer stores multiline pastes and clipboard images as local attachments. It displays highlighted `[pasted N lines]` and `[image-N]` markers, expands the paste text on submission, and passes images to the agent as OpenAI-compatible multimodal content.
+
+The chat pane keeps a two-line work status bar with an animated loading bar, current action, elapsed time, Esc hint, and queue count. Prompts submitted while a worker is active enter a local queue and start after the current turn finishes. The stop path uses a cooperative event checked between model turns and before each tool call.
 
 `paicode/tui/actions.py` implements slash commands. Provider and model dialogs are separate modal screens.
 

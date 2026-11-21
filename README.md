@@ -95,6 +95,8 @@ The interface has four regions:
 | `/skill <name>` | Print a skill. |
 | `/stats` | Show session statistics. |
 | `/limits` | Show step and context limits. |
+| `/stop` | Stop the current task after the active step. |
+| `/queue [clear]` | Show or clear queued prompts. |
 | `/config` | Show redacted provider configuration. |
 | `/init` | Create a project `PAICODE.md` template. |
 | `/refresh` | Reload rules, skills, and the file tree. |
@@ -105,6 +107,16 @@ The interface has four regions:
 Provider presets: `deepseek`, `opencode`, `openai`, `openrouter`, `google`, and `custom`. Any OpenAI-compatible base URL works.
 
 Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
+
+## Prompt composer
+
+The prompt expands upward as it fills and can be toggled to a larger compose area with `Ctrl+E`. `Shift+Enter` inserts a newline.
+
+Multiline pastes become a highlighted `[pasted N lines]` marker. The full text is restored when the prompt is submitted, while the chat history keeps the compact marker.
+
+Attach an image by pasting a path to a PNG, JPEG, WebP, or GIF file, or press `Ctrl+G` to read an image from the system clipboard. Images become `[image-1]`, `[image-2]`, and are sent as multimodal content to vision-capable models.
+
+While Paicode works, the bottom of the chat pane shows an animated loading bar, the current action, elapsed time, and the Esc hint. Press `Esc` three times in quick succession to stop after the current step. Prompts submitted while Paicode is busy are queued and start automatically when the current task finishes. Use `/queue` to inspect them or `/queue clear` to remove them.
 
 ## Rules and skills
 
