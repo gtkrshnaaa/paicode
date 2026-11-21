@@ -151,7 +151,7 @@ class ProviderClient:
             except openai.APIConnectionError as exc:
                 raise ProviderError(f"Provider connection failed: {exc}") from exc
             except openai.APIStatusError as exc:
-                raise ProviderError(f"Provider request failed ({exc.status_code}): {exc.message}") from exc
+                raise ProviderError(f"Provider request failed ({exc.status_code}): {exc}") from exc
         raise ProviderError(f"All API keys failed. {last_error}".strip())
 
     def _stream_once(

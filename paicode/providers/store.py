@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -82,8 +83,16 @@ class ProviderStore:
             return data
         try:
             raw = self.path.read_text(encoding="utf-8")
+        except OSError:
+            return self._default()
+        try:
             data = json.loads(raw)
-        except (OSError, json.JSONDecodeError):
+        except json.JSONDecodeError:
+            backup = self.path.with_name(f"{self.path.name}.corrupt-{int(time.time())}")
+            try:
+                self.path.replace(backup)
+            except OSError:
+                pass
             return self._default()
         return self._normalize(data)
 

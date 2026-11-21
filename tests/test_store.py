@@ -35,6 +35,16 @@ def test_config_is_valid_json(config_home: Path):
     assert list((config_home).glob("*.tmp")) == []
 
 
+def test_corrupt_config_is_preserved(config_home: Path):
+    config_home.mkdir(parents=True, exist_ok=True)
+    (config_home / "config.json").write_text("{not json", encoding="utf-8")
+    store = ProviderStore()
+    assert store.load() == {"version": 2, "active": None, "providers": {}}
+    backups = list(config_home.glob("config.json.corrupt-*"))
+    assert len(backups) == 1
+    assert backups[0].read_text(encoding="utf-8") == "{not json"
+
+
 def test_legacy_migration(config_home: Path, tmp_path: Path, monkeypatch):
     legacy_dir = tmp_path / "home" / ".config" / "pai-code"
     legacy_dir.mkdir(parents=True)
