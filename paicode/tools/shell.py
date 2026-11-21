@@ -1,199 +1,116 @@
 import os
-import shlex
+import signal
 import subprocess
+import tempfile
+import time
 from pathlib import Path
 
+from ..core.paths import display_path, resolve_in_root
+from .sandbox import (
+    DEFAULT_TIMEOUT,
+    MAX_TIMEOUT,
+    OUTPUT_HEAD,
+    OUTPUT_LIMIT,
+    sandbox_available,
+    sandbox_cache_dir,
+    sandbox_command,
+    sandbox_mode,
+)
+from .shell_policy import guard_command, shell_environment
 from .types import ToolResult
-
-ALLOWED = {
-    "ls",
-    "cat",
-    "head",
-    "tail",
-    "wc",
-    "find",
-    "rg",
-    "grep",
-    "pytest",
-    "python",
-    "python3",
-    "git",
-    "make",
-    "npm",
-    "pnpm",
-    "bun",
-    "node",
-    "go",
-    "cargo",
-    "rustc",
-    "gcc",
-    "g++",
-    "clang",
-    "cmake",
-    "uname",
-    "df",
-    "free",
-    "ps",
-    "lscpu",
-    "lsblk",
-    "systemctl",
-    "journalctl",
-}
-
-GIT_READ_ONLY = {
-    "status",
-    "diff",
-    "log",
-    "show",
-    "branch",
-    "rev-parse",
-    "ls-files",
-    "grep",
-    "blame",
-    "remote",
-}
-
-PACKAGE_READ_ONLY = {"test", "run", "--version", "-v"}
-
-SYSTEMCTL_READ_ONLY = {
-    "cat",
-    "is-active",
-    "is-enabled",
-    "list-timers",
-    "list-unit-files",
-    "list-units",
-    "show",
-    "status",
-}
-
-JOURNALCTL_DESTRUCTIVE = (
-    "--vacuum-size",
-    "--vacuum-time",
-    "--vacuum-files",
-    "--rotate",
-    "--flush",
-    "--sync",
-    "--setup-keys",
-    "--relinquish-var",
-    "--smart-relinquish-var",
-)
-
-SENSITIVE_ENV_PARTS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
-SENSITIVE_ENV_PREFIXES = (
-    "OPENAI_",
-    "DEEPSEEK_",
-    "ANTHROPIC_",
-    "GOOGLE_",
-    "GITHUB_",
-    "GH_",
-    "AWS_",
-)
 
 
 class ShellTools:
-    def __init__(self, root: Path, stats, timeout: int = 30):
+    def __init__(self, root: Path, stats, timeout: int = DEFAULT_TIMEOUT, stop_event=None):
         self.root = root
         self.stats = stats
         self.default_timeout = timeout
+        self.stop_event = stop_event
+        self.sandboxed = sandbox_available()
+        if sandbox_mode() in {"required", "strict"} and not self.sandboxed:
+            raise RuntimeError("PAICODE_SHELL_SANDBOX requires bubblewrap, but it is unavailable.")
+        self.cache = sandbox_cache_dir() if self.sandboxed else None
 
-    def _reject_unsafe_paths(self, args: list[str]) -> None:
-        for arg in args:
-            if arg.startswith("-"):
-                if "=" in arg:
-                    value = arg.split("=", 1)[1]
-                    if value.startswith(("/", "~")) or ".." in Path(value).parts:
-                        raise ValueError(f"Path argument '{value}' escapes the project.")
-                continue
-            if arg.startswith(("/", "~")) or ".." in Path(arg).parts:
-                raise ValueError(f"Path argument '{arg}' escapes the project.")
-
-    def _validate(self, args: list[str]) -> None:
-        program = Path(args[0]).name
-        if program not in ALLOWED:
-            raise ValueError(f"Command '{program}' is not on the allowlist.")
-        self._reject_unsafe_paths(args)
-        if len(args) == 1:
-            return
-
-        sub = args[1]
-        if program == "git" and sub not in GIT_READ_ONLY:
-            raise ValueError(f"git {sub} is not allowed. Only read-only git commands are permitted.")
-        if program in {"npm", "pnpm", "bun"} and sub not in PACKAGE_READ_ONLY:
-            raise ValueError(f"{program} {sub} is not allowed.")
-        if program == "make":
-            targets = [arg for arg in args[1:] if not arg.startswith("-")]
-            if not targets or any(target not in {"test", "lint", "build", "check", "fmt", "format"} for target in targets):
-                raise ValueError("Only make test, lint, build, check, fmt, and format are allowed.")
-        if program in {"python", "python3"}:
-            if sub in {"-c", "-"}:
-                raise ValueError("Inline Python evaluation is not allowed.")
-            if sub == "-m":
-                module = args[2] if len(args) > 2 else ""
-                if module not in {"pytest", "unittest", "compileall"}:
-                    raise ValueError(f"python -m {module} is not allowed.")
-            if sub.startswith("-") and sub not in {"-V", "--version", "-m"}:
-                raise ValueError(f"python flag {sub} is not allowed.")
-        if program == "node" and sub in {"-e", "--eval", "-p", "--print"}:
-            raise ValueError("Inline Node evaluation is not allowed.")
-        if program == "find" and any(flag in {"-delete", "-exec", "-execdir", "-ok", "-okdir"} for flag in args):
-            raise ValueError("find with destructive or exec flags is not allowed.")
-        if program == "rg" and any(flag in {"--pre", "--pre-glob"} for flag in args):
-            raise ValueError("rg preprocessors are not allowed.")
-        if program == "go" and sub not in {"test", "build", "vet", "fmt", "version"}:
-            raise ValueError(f"go {sub} is not allowed.")
-        if program == "cargo" and sub not in {"test", "build", "check", "clippy", "fmt", "--version"}:
-            raise ValueError(f"cargo {sub} is not allowed.")
-        if program == "systemctl" and sub not in SYSTEMCTL_READ_ONLY:
-            raise ValueError(f"systemctl {sub} is not allowed. Only read-only systemctl commands are permitted.")
-        if program == "journalctl" and any(arg.startswith(JOURNALCTL_DESTRUCTIVE) for arg in args[1:]):
-            raise ValueError("Destructive journalctl flags are not allowed.")
-
-    def _environment(self) -> dict:
-        result = {}
-        for key, value in os.environ.items():
-            upper = key.upper()
-            if any(part in upper for part in SENSITIVE_ENV_PARTS):
-                continue
-            if any(upper.startswith(prefix) for prefix in SENSITIVE_ENV_PREFIXES):
-                continue
-            result[key] = value
-        result["PAGER"] = "cat"
-        result["SYSTEMD_PAGER"] = "cat"
-        result["GIT_PAGER"] = "cat"
-        result["MANPAGER"] = "cat"
-        return result
-
-    def run(self, command: str, timeout: int = 0) -> ToolResult:
-        if any(token in command for token in [";", "|", "&", ">", "<", "`", "$("]):
-            raise ValueError("Shell operators are not allowed.")
-        try:
-            args = shlex.split(command)
-        except ValueError as exc:
-            raise ValueError(f"Could not parse command: {exc}") from exc
-        if not args:
+    def run(self, command: str, timeout: int = 0, cwd: str = "") -> ToolResult:
+        command = str(command or "").strip()
+        if not command:
             raise ValueError("Empty command.")
-        self._validate(args)
-        limit = min(max(int(timeout or self.default_timeout), 1), 120)
-        try:
-            completed = subprocess.run(
-                args,
-                cwd=self.root,
-                capture_output=True,
-                text=True,
-                timeout=limit,
-                env=self._environment(),
-                shell=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            self.stats.mark("command")
-            raise ValueError(f"Command timed out after {limit}s.") from exc
-        except FileNotFoundError as exc:
-            raise ValueError(f"Command not found: {args[0]}") from exc
+        guard_command(command)
+        cwd_path = resolve_in_root(self.root, cwd or ".", must_exist=True)
+        if not cwd_path.is_dir():
+            raise ValueError("Shell working directory is not a directory.")
+        limit = min(max(int(timeout or self.default_timeout), 1), MAX_TIMEOUT)
+        argv = (
+            sandbox_command(self.root, cwd_path, command, self.cache)
+            if self.sandboxed
+            else ["bash", "-lc", command]
+        )
 
         self.stats.mark("command")
-        output = f"$ {command}\nexit {completed.returncode}"
-        if completed.stdout:
-            output += f"\n--- STDOUT ---\n{completed.stdout}"
-        if completed.stderr:
-            output += f"\n--- STDERR ---\n{completed.stderr}"
-        return ToolResult(ok=completed.returncode == 0, output=output.strip()[:200_000], kind="command")
+        with tempfile.TemporaryFile() as output:
+            try:
+                process = subprocess.Popen(
+                    argv,
+                    cwd=str(cwd_path),
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    env=shell_environment(self.sandboxed),
+                    start_new_session=True,
+                )
+            except OSError as exc:
+                raise ValueError(f"Could not start shell: {exc}") from exc
+
+            timed_out = False
+            stopped = False
+            deadline = time.monotonic() + limit
+            while process.poll() is None:
+                if self.stop_event is not None and self.stop_event.is_set():
+                    stopped = True
+                    self._terminate(process)
+                    break
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    self._terminate(process)
+                    break
+                time.sleep(0.05)
+
+            code = process.poll()
+            body = self._read_output(output)
+
+        if timed_out:
+            status = f"exit timeout after {limit}s"
+            ok = False
+        elif stopped:
+            status = "exit stopped by user"
+            ok = False
+        else:
+            status = f"exit {code}"
+            ok = code == 0
+        header = f"$ {command}\ncwd: {display_path(self.root, cwd_path) or '.'}\n{status}"
+        if body:
+            header += f"\n--- OUTPUT ---\n{body}"
+        return ToolResult(ok=ok, output=header[:OUTPUT_LIMIT], kind="command")
+
+    def _terminate(self, process: subprocess.Popen) -> None:
+        for sig, wait in ((signal.SIGTERM, 2), (signal.SIGKILL, 5)):
+            try:
+                os.killpg(process.pid, sig)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                process.wait(timeout=wait)
+                return
+            except subprocess.TimeoutExpired:
+                continue
+
+    @staticmethod
+    def _read_output(handle) -> str:
+        handle.flush()
+        size = handle.seek(0, os.SEEK_END)
+        handle.seek(0)
+        if size <= OUTPUT_LIMIT:
+            return handle.read().decode("utf-8", errors="replace")
+        head = handle.read(OUTPUT_HEAD).decode("utf-8", errors="replace")
+        handle.seek(max(0, size - (OUTPUT_LIMIT - OUTPUT_HEAD)))
+        tail = handle.read().decode("utf-8", errors="replace")
+        return f"{head}\n... [output truncated: {size} bytes total] ...\n{tail}"

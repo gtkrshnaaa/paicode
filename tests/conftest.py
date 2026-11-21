@@ -5,6 +5,13 @@ import pytest
 from paicode.core.stats import UsageStats
 
 
+@pytest.fixture(autouse=True)
+def sandbox_cache(tmp_path: Path, monkeypatch) -> Path:
+    cache = tmp_path / "sandbox-cache"
+    monkeypatch.setenv("PAICODE_SANDBOX_CACHE", str(cache))
+    return cache
+
+
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
     root = tmp_path / "project"

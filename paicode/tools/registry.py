@@ -11,7 +11,7 @@ from .types import ToolResult
 
 
 class ToolRegistry:
-    def __init__(self, root: Path, stats, skills: list[SkillMeta]):
+    def __init__(self, root: Path, stats, skills: list[SkillMeta], stop_event=None):
         self.root = root
         self.stats = stats
         self.skills = skills
@@ -19,7 +19,7 @@ class ToolRegistry:
         self.summary = ""
         self.files = FileTools(root, stats)
         self.search = SearchTools(root, stats)
-        self.shell = ShellTools(root, stats)
+        self.shell = ShellTools(root, stats, stop_event=stop_event)
         self.explore_tools = ExploreTools(root, stats)
 
     def execute(self, name: str, arguments: dict | str) -> ToolResult:
@@ -59,7 +59,11 @@ class ToolRegistry:
         if name == "grep":
             return self.search.grep(args["pattern"], args.get("path", "."), args.get("include"))
         if name == "bash":
-            return self.shell.run(args["command"], args.get("timeout", 0))
+            return self.shell.run(
+                args["command"],
+                args.get("timeout", 0),
+                args.get("cwd", ""),
+            )
         if name == "explore":
             return self.explore_tools.explore(
                 args["path"],

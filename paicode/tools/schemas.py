@@ -90,12 +90,28 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "bash",
-            "description": "Run a safe project command such as pytest, git diff, ls, or npm test. No shell operators.",
+            "description": (
+                "Run a bash command in the workspace. Supports pipes, redirection, "
+                "multi-command scripts, package managers, compilers, test runners, git, "
+                "and other development tools."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {"type": "string"},
-                    "timeout": {"type": "integer", "minimum": 1, "maximum": 120},
+                    "command": {
+                        "type": "string",
+                        "description": "Bash command to run, for example npm test or pytest -q.",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Seconds before the command is stopped.",
+                        "minimum": 1,
+                        "maximum": 600,
+                    },
+                    "cwd": {
+                        "type": "string",
+                        "description": "Project-relative working directory. Defaults to the project root.",
+                    },
                 },
                 "required": ["command"],
             },

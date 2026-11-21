@@ -130,7 +130,8 @@ class AgentRunner:
         self.rules = rules
         self.skills = skills
         self.client = ProviderClient(provider)
-        self.registry = ToolRegistry(root, stats, skills)
+        self._stop_event = threading.Event()
+        self.registry = ToolRegistry(root, stats, skills, stop_event=self._stop_event)
         self.session = SessionState(root=root)
         restored = [
             message
@@ -141,7 +142,6 @@ class AgentRunner:
             {"role": "system", "content": build_system_prompt(root, rules, skills)},
             *restored,
         ]
-        self._stop_event = threading.Event()
 
     def request_stop(self) -> None:
         self._stop_event.set()
