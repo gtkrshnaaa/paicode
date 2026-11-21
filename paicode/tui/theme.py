@@ -35,3 +35,43 @@ MONOCHROME = Theme(
         "input-selection-foreground": "#e5e5e5",
     },
 )
+
+
+from rich.style import Style
+from textual.widgets.text_area import TextAreaTheme
+
+MONO_TEXTAREA = TextAreaTheme(
+    name="paicode-mono",
+    base_style=Style(color="#d4d4d4", bgcolor="#0b0b0c"),
+    gutter_style=Style(color="#5a5a5a", bgcolor="#0b0b0c"),
+    cursor_style=Style(color="#0b0b0c", bgcolor="#d4d4d4"),
+    cursor_line_style=Style(bgcolor="#111111"),
+    cursor_line_gutter_style=Style(color="#8a8a8a", bgcolor="#111111"),
+    bracket_matching_style=Style(bgcolor="#2a2a2a", bold=True),
+    selection_style=Style(bgcolor="#333333"),
+    syntax_styles={
+        "string": Style(color="#a8a8a8", italic=True),
+        "string.documentation": Style(color="#8a8a8a"),
+        "comment": Style(color="#5a5a5a", italic=True),
+        "keyword": Style(color="#ffffff", bold=True),
+        "keyword.function": Style(color="#ffffff", bold=True),
+        "keyword.return": Style(color="#ffffff", bold=True),
+        "conditional": Style(color="#ffffff", bold=True),
+        "repeat": Style(color="#ffffff", bold=True),
+        "operator": Style(color="#9a9a9a"),
+        "number": Style(color="#d4d4d4"),
+        "float": Style(color="#d4d4d4"),
+        "class": Style(color="#ffffff", bold=True),
+        "type": Style(color="#e5e5e5"),
+        "type.builtin": Style(color="#d4d4d4"),
+        "function": Style(color="#ededed", bold=True),
+        "function.call": Style(color="#ededed"),
+        "method": Style(color="#ededed", bold=True),
+        "property": Style(color="#d4d4d4"),
+        "variable": Style(color="#c8c8c8"),
+        "constant": Style(color="#d4d4d4"),
+        "tag": Style(color="#e5e5e5"),
+        "punctuation.bracket": Style(color="#8a8a8a"),
+        "punctuation.delimiter": Style(color="#8a8a8a"),
+    },
+)
