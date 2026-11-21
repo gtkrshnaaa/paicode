@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
-from paicode.agent.events import Finished, ToolFinished
+import threading
+
+from paicode.agent.events import ErrorEvent, Finished, ToolFinished
 from paicode.agent.loop import AgentRunner
 from paicode.core.stats import UsageStats
 from paicode.providers.store import ProviderConfig
@@ -42,3 +44,28 @@ def test_agent_loop_executes_write_and_finish(project: Path):
         assert isinstance(events[-1], Finished)
         assert not (project / ".pai_brain").exists()
         assert not (project / ".pai_history").exists()
+
+
+def test_agent_runner_honors_external_stop_event(project: Path):
+    with FakeOpenAI(lambda index, payload: []) as server:
+        provider = ProviderConfig(
+            name="fake",
+            base_url=server.base_url,
+            api_keys=["test-key"],
+            model="fake-model",
+        )
+        stop = threading.Event()
+        stop.set()
+        events = []
+        runner = AgentRunner(
+            project,
+            provider,
+            UsageStats(),
+            rules=[],
+            skills=[],
+            emit=events.append,
+            stop_event=stop,
+        )
+        runner.run("Do not run.")
+        assert any(isinstance(event, ErrorEvent) and "Stopped" in event.message for event in events)
+        assert not server.requests

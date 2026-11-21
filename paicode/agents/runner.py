@@ -62,6 +62,9 @@ class MultiAgentRunner:
         try:
             return self._multi(user_text)
         except CouncilError as exc:
+            if self._stop_event.is_set():
+                _emit(self.emit, ErrorEvent("Stopped by user."))
+                return ""
             self._phase("fallback", str(exc)[:300])
             return self._single_agent(user_text, None)
         except Exception as exc:
@@ -76,6 +79,7 @@ class MultiAgentRunner:
             self.rules,
             self.skills,
             emit=self.emit,
+            stop_event=self._stop_event,
         )
         return runner.run(user_text, images=images)
 

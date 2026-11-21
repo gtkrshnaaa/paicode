@@ -101,6 +101,7 @@ class Validator:
             client=self.client,
             system_prompt=prompt,
             allowed_write_paths=set(),
+            stop_event=self.stop_event,
         )
         error = ""
         try:

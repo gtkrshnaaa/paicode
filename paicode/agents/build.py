@@ -86,6 +86,7 @@ class BuildCoordinator:
             client=self.client,
             system_prompt=self._brief(contract, units, findings),
             allowed_write_paths=allowed,
+            stop_event=self.stop_event,
         )
         error = ""
         try:

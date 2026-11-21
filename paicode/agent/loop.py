@@ -124,6 +124,7 @@ class AgentRunner:
         client: ProviderClient | None = None,
         system_prompt: str | None = None,
         allowed_write_paths: set[Path] | None = None,
+        stop_event: threading.Event | None = None,
     ):
         self.root = root
         self.provider = provider
@@ -133,7 +134,7 @@ class AgentRunner:
         self.rules = rules
         self.skills = skills
         self.client = client or ProviderClient(provider)
-        self._stop_event = threading.Event()
+        self._stop_event = stop_event or threading.Event()
         self.registry = ToolRegistry(
             root,
             stats,
