@@ -3,6 +3,7 @@ from pathlib import Path
 
 from ..core.errors import PathSecurityError
 from ..rules.skills import SkillMeta, find_skill, load_skill_text
+from .explore import ExploreTools
 from .fs import FileTools
 from .search import SearchTools
 from .shell import ShellTools
@@ -19,6 +20,7 @@ class ToolRegistry:
         self.files = FileTools(root, stats)
         self.search = SearchTools(root, stats)
         self.shell = ShellTools(root, stats)
+        self.explore_tools = ExploreTools(root, stats)
 
     def execute(self, name: str, arguments: dict | str) -> ToolResult:
         if isinstance(arguments, str):
@@ -58,6 +60,13 @@ class ToolRegistry:
             return self.search.grep(args["pattern"], args.get("path", "."), args.get("include"))
         if name == "bash":
             return self.shell.run(args["command"], args.get("timeout", 0))
+        if name == "explore":
+            return self.explore_tools.explore(
+                args["path"],
+                args.get("reason", ""),
+                args.get("pattern", "*"),
+                args.get("limit", 200),
+            )
         if name == "skill":
             skill = find_skill(self.skills, args["name"])
             if skill is None:

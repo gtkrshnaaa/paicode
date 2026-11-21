@@ -158,6 +158,37 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "explore",
+            "description": "Read-only exploration of the host filesystem outside the workspace. Use only when the workspace lacks host context, installed tools, services, logs, or another project. Provide a concrete reason. Writes are never allowed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path, or a path relative to the workspace.",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Why this path is needed. At least 12 characters.",
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Optional glob for directory listings, for example *.conf.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum directory entries to return.",
+                        "minimum": 1,
+                        "maximum": 1000,
+                    },
+                },
+                "required": ["path", "reason"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "finish",
             "description": "Finish the task with a concise summary of what changed.",
             "parameters": {
