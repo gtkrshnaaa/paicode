@@ -8,6 +8,7 @@ from uuid import uuid4
 import openai
 from openai import OpenAI
 
+from .. import __version__
 from ..core.errors import ConfigError, ProviderError
 from .store import ProviderConfig
 
@@ -89,7 +90,7 @@ class ProviderClient:
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Accept": "application/json",
-                "User-Agent": "paicode/0.5.0",
+                "User-Agent": f"paicode/{__version__}",
             },
         )
         with urllib.request.urlopen(request, timeout=30) as response:

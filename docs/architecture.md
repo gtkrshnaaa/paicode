@@ -30,7 +30,7 @@ The OpenCode preset uses `https://opencode.ai/inference/openai/v1` for chat and 
 2. Stream a completion from the provider.
 3. Append the assistant message and any tool calls to the conversation.
 4. Execute each tool, emit a result event, and append a tool message.
-5. Repeat until the model stops, calls `finish`, or reaches the step limit.
+5. Repeat until the model stops, calls `finish`, or repeats the same tool call five times consecutively. There is no default step cap.
 
 The loop compacts old context by truncating tool output and dropping complete tool call groups. It never delegates pass or fail decisions to a second model. Syntax checks, exit codes, and diffs are deterministic.
 

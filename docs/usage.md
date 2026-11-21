@@ -74,6 +74,12 @@ description: Review API handlers for input validation and error propagation.
 ...
 ```
 
+## Long-running tasks
+
+The interactive session has no model-turn cap. The loop stops when the model calls `finish`, returns no tool calls, or repeats the same tool call five times consecutively.
+
+The context budget defaults to 2,500,000 characters and can be changed with `PAICODE_CONTEXT_CHARS`. A positive `--max-steps` value in headless mode sets an explicit ceiling; `0` keeps the run unlimited.
+
 ## Headless commands
 
 ```bash
@@ -101,6 +107,7 @@ pai config show
 /skills
 /skill <name>
 /stats
+/limits
 /config
 /init
 /refresh

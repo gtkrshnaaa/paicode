@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1 - 2026-11-21
+
+### Changed
+
+- Removed the default 12 model-turn cap. Runs are unlimited unless `--max-steps` is set to a positive value.
+- Raised the context compaction budget from 180,000 to 2,500,000 characters. Override with `PAICODE_CONTEXT_CHARS`.
+- Raised tool limits: 20,000 lines per read request, 20 MB files, 5,000 list and search results, 200,000 characters of shell output.
+- Added repeated-action detection. Five consecutive identical tool calls stop the loop with a clear error instead of an arbitrary step cap.
+
+### Added
+
+- `/limits` slash command for the active step and context policy.
+
 ## 0.5.0 - 2026-11-21
 
 ### Added

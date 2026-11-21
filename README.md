@@ -64,6 +64,7 @@ The interface has four regions:
 | `/skills` | List installed skills. |
 | `/skill <name>` | Print a skill. |
 | `/stats` | Show session statistics. |
+| `/limits` | Show step and context limits. |
 | `/config` | Show redacted provider configuration. |
 | `/init` | Create a project `PAICODE.md` template. |
 | `/refresh` | Reload rules, skills, and the file tree. |
@@ -97,6 +98,12 @@ cd agenticway
 ```
 
 Use `--workspace /path/to/project` to install project rules and skills instead. See `agenticway/paicode/en/README.md`.
+
+## Long-running tasks
+
+Paicode has no fixed model-turn limit. The loop stops when the model finishes, returns no tool calls, or repeats the same tool call five times in a row. A positive `--max-steps` value in headless mode sets an explicit ceiling.
+
+Context compaction defaults to 2,500,000 characters. Override it with `PAICODE_CONTEXT_CHARS`. Tool limits are deliberately generous: 20,000 lines per read request, 20 MB files, 5,000 list and search results, and 200,000 characters of shell output.
 
 ## Headless mode
 
