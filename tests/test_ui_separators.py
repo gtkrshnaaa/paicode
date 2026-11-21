@@ -3,6 +3,8 @@ from pathlib import Path
 
 from paicode.providers.store import ProviderStore
 from paicode.tui.app import PaiCodeApp
+from textual.widgets import Markdown
+
 from paicode.tui.widgets.diff import DiffPane
 
 
@@ -38,6 +40,37 @@ async def test_chat_restore_rebuilds_turn_dividers(project: Path, config_home: P
         await pilot.pause()
         dividers = [child for child in app.chat._scroll().children if "turn-divider" in child.classes]
         assert len(dividers) == 1
+
+
+async def test_chat_keeps_text_tools_and_report_in_order(
+    project: Path, config_home: Path
+):
+    from textual.containers import Vertical
+
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.pause()
+        app.chat.begin_assistant()
+        app.chat.append_assistant("Before tool")
+        app.chat.add_tool("bash", "ok", "pytest -q")
+        app.chat.append_assistant("Final report")
+        await pilot.pause(0.2)
+        kinds = []
+        labels = []
+        sources = []
+        for child in app.chat._scroll().children:
+            if isinstance(child, Vertical) and "assistant-card" in child.classes:
+                kinds.append("assistant")
+                labels.append(child.query_one(".role").content.plain)
+                sources.append(child.query_one(Markdown).source)
+            elif "tool" in child.classes:
+                kinds.append("tool")
+        assert kinds == ["assistant", "tool", "assistant"]
+        assert labels[0].startswith("PAI")
+        assert labels[1].startswith("PAI")
+        assert re.search(r"\b\d{2}:\d{2}\b", labels[1])
+        assert "Before tool" in sources[0]
+        assert "Final report" in sources[1]
 
 
 def test_diff_divider_has_index_path_and_counts(project: Path, config_home: Path):

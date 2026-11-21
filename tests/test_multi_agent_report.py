@@ -37,6 +37,7 @@ def test_lead_report_falls_back_when_provider_is_down(
     runner = _runner(project, config_home)
     runner.emit = events.append
     report = runner._final_report(None, stopped=False)
+    runner._flush_events()
     assert "Lead report for" in report
     assert "Report fallback" in report
     assert any(isinstance(event, TextDelta) and "Lead report for" in event.text for event in events)
@@ -49,5 +50,6 @@ def test_stopped_lead_report_does_not_call_provider(
     runner = _runner(project, config_home)
     runner.emit = events.append
     report = runner._final_report(None, stopped=True)
+    runner._flush_events()
     assert "Stopped by user" in report
     assert any(isinstance(event, TextDelta) and "Stopped by user" in event.text for event in events)

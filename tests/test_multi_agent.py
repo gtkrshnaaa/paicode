@@ -3,7 +3,7 @@ from pathlib import Path
 
 from paicode.agents import MultiAgentRunner
 from paicode.agents.store import AgentStore
-from paicode.agent.events import AgentPhase, Finished, TextDelta
+from paicode.agent.events import AgentPhase, AgentStatus, Finished, TextDelta, ToolFinished
 from paicode.core.stats import UsageStats
 from paicode.providers.store import ProviderConfig
 from paicode.rules.loader import load_rules
@@ -193,6 +193,23 @@ def test_multi_agent_council_parallel_build_and_validator_repair(project: Path, 
         assert any(isinstance(event, AgentPhase) and event.phase == "build" for event in events)
         assert any(isinstance(event, AgentPhase) and event.phase == "validate" for event in events)
         assert any(isinstance(event, TextDelta) and "Lead report delivered" in event.text for event in events)
+        report_index = next(
+            index
+            for index, event in enumerate(events)
+            if isinstance(event, TextDelta) and "Lead report delivered" in event.text
+        )
+        tool_indices = [
+            index for index, event in enumerate(events) if isinstance(event, ToolFinished)
+        ]
+        validation_index = next(
+            index
+            for index, event in enumerate(events)
+            if isinstance(event, AgentStatus)
+            and event.agent_id == 22
+            and event.phase == "validation"
+        )
+        assert tool_indices and max(tool_indices) < report_index
+        assert validation_index < report_index
         assert isinstance(events[-1], Finished)
         assert server.requests
         for payload in server.requests:
