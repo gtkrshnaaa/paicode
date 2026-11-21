@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3 - 2026-11-21
+
+### Added
+
+- Filtered slash command palette above the prompt. Up and Down navigate, Tab completes, Escape dismisses, and Enter accepts partial commands or runs exact ones.
+- Command metadata is now a single source used by both `/help` and suggestions.
+
 ## 0.5.2 - 2026-11-21
 
 ### Added

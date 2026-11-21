@@ -93,6 +93,10 @@ pai config show
 
 `pai doctor` prints the version, project root, config path, provider status, available tools, rules, and skills.
 
+## Slash command suggestions
+
+Typing `/` opens a filtered command palette above the prompt. Up and Down move the selection, Tab completes the highlighted command, Escape dismisses the palette, and Enter accepts a partial command or runs an exact one. The palette stays monochrome and keeps focus in the prompt.
+
 ## Slash command reference
 
 ```text

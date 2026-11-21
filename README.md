@@ -104,6 +104,8 @@ The interface has four regions:
 
 Provider presets: `deepseek`, `opencode`, `openai`, `openrouter`, `google`, and `custom`. Any OpenAI-compatible base URL works.
 
+Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
+
 ## Rules and skills
 
 Paicode follows the OpenCode placement convention.
