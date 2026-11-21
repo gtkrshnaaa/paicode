@@ -6,6 +6,7 @@ from ..providers.client import ProviderClient
 from ..providers.presets import get_preset
 from ..rules.loader import load_rules, render_rules, rule_summary
 from ..rules.skills import discover_skills, find_skill, load_skill_text, render_catalog
+from ..sessions import format_session_detail, format_sessions
 from .commands import HELP_TEXT, parse_slash
 from .modals.models import ModelModal
 from .modals.provider import ProviderModal
@@ -253,6 +254,26 @@ class SlashActions:
 
     def _cmd_stats(self, args: str) -> None:
         self.chat.add_system(self.stats.detailed())
+
+    def _cmd_sessions(self, args: str) -> None:
+        self.chat.add_system(
+            format_sessions(self.session_store.list(), self.session.record.id)
+        )
+
+    def _cmd_session(self, args: str) -> None:
+        value = args.strip()
+        if not value:
+            self.chat.add_system(format_session_detail(self.session.record))
+            return
+        if value.lower() == "new":
+            if self.busy:
+                self.chat.add_system("Stop the current task before starting a new session.")
+                return
+            self._save_session()
+            created = self.session_store.create(self.root)
+            self._switch_session(created.record.id)
+            return
+        self._switch_session(value)
 
     def _cmd_stop(self, args: str) -> None:
         if self._active_runner is None:

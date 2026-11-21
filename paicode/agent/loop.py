@@ -120,6 +120,7 @@ class AgentRunner:
         skills: list[SkillMeta],
         emit,
         max_steps: int = 0,
+        history: list[dict] | None = None,
     ):
         self.root = root
         self.provider = provider
@@ -131,7 +132,15 @@ class AgentRunner:
         self.client = ProviderClient(provider)
         self.registry = ToolRegistry(root, stats, skills)
         self.session = SessionState(root=root)
-        self.messages = [{"role": "system", "content": build_system_prompt(root, rules, skills)}]
+        restored = [
+            message
+            for message in (history or [])
+            if isinstance(message, dict) and message.get("role") in {"user", "assistant", "tool"}
+        ]
+        self.messages = [
+            {"role": "system", "content": build_system_prompt(root, rules, skills)},
+            *restored,
+        ]
         self._stop_event = threading.Event()
 
     def request_stop(self) -> None:

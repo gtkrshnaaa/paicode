@@ -63,7 +63,7 @@ class WorkStatus(Static):
     def _refresh_display(self) -> None:
         if not self._working:
             line = f"[{'-' * self.BAR_WIDTH}] idle"
-            hint = "Esc x3 to stop a running task | type to queue"
+            hint = "Esc x3 stop | type to queue"
             self.update(Text(f"{line}\n{hint}", style="#8a8a8a"))
             return
 

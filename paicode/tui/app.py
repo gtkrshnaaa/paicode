@@ -10,11 +10,11 @@ from textual.widgets import Static
 from .. import __version__
 from ..agent.events import ErrorEvent, Finished, ReasoningDelta, TextDelta, ToolFinished, ToolStarted, UsageUpdated
 from ..agent.loop import AgentRunner
-from ..agent.session import read_brain
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
 from ..rules.skills import discover_skills
+from ..sessions import SessionData, SessionStore, display_time, format_session_detail, format_sessions, now_iso
 from ..tools.diff import looks_binary
 from .actions import SlashActions
 from .commands import filter_commands
@@ -197,13 +197,21 @@ class PaiCodeApp(SlashActions, App):
         ("f1", "help", "Help"),
     ]
 
-    def __init__(self, root: Path, store: ProviderStore | None = None):
+    def __init__(
+        self,
+        root: Path,
+        store: ProviderStore | None = None,
+        session_store: SessionStore | None = None,
+        session: SessionData | None = None,
+    ):
         super().__init__()
         self.register_theme(MONOCHROME)
         self.theme = MONOCHROME.name
-        self.root = root
+        self.session_store = session_store or SessionStore()
+        self.session = session or self.session_store.create(root)
+        self.root = Path(self.session.record.workspace)
         self.store = store or ProviderStore()
-        self.stats = UsageStats()
+        self.stats = UsageStats.from_dict(self.session.stats) if self.session.stats else UsageStats()
         self.rules = []
         self.skills = []
         self.busy = False
@@ -243,23 +251,40 @@ class PaiCodeApp(SlashActions, App):
         self._reload_context()
         self._refresh_topbar()
         self._refresh_stats()
-        self.chat.add_system(
-            f"Paicode {__version__}. Type a request or /help. "
-            "Workspace writes are limited to the project root. "
-            "Read-only host exploration is available with a reason. "
-            "Esc x3 stops a running task. Type while working to queue the next prompt."
-        )
-        brain = read_brain(self.root)
-        if brain:
-            self.chat.add_system("Previous session:\n" + brain[:1200])
-        provider = self.store.active()
-        if provider:
+        if self.session.transcript:
+            self.chat.restore(self.session.transcript)
             self.chat.add_system(
-                f"Provider: {provider.name} | Model: {provider.model or 'unset'} | Keys: {len(provider.api_keys)}"
+                f"Resumed session {self.session.record.id} at {self.session.record.workspace}"
             )
         else:
-            self.chat.add_system("No provider configured. Use /connect deepseek or /connect opencode.")
+            self.chat.add_system(
+                f"Paicode {__version__}. Type a request or /help. "
+                "Workspace writes are limited to the project root. "
+                "Read-only host exploration is available with a reason. "
+                "Esc x3 stops a running task. Type while working to queue the next prompt."
+            )
+            provider = self.store.active()
+            if provider:
+                self.chat.add_system(
+                    f"Provider: {provider.name} | Model: {provider.model or 'unset'} | "
+                    f"Keys: {len(provider.api_keys)}"
+                )
+            else:
+                self.chat.add_system("No provider configured. Use /connect deepseek or /connect opencode.")
+            self.chat.reset_transcript()
+
+        for entry in self.session.diffs:
+            self.diff.add_diff(
+                str(entry.get("path", "")),
+                str(entry.get("diff", "")),
+                display_time(str(entry.get("created_at", ""))),
+            )
+        if self.session.diffs:
+            self.diff.add_note(
+                f"Restored {len(self.session.diffs)} AI diff(s) from session {self.session.record.id}."
+            )
         self.prompt.focus()
+        self._save_session()
 
     def _reload_context(self) -> None:
         self.rules = load_rules(self.root)
@@ -270,7 +295,8 @@ class PaiCodeApp(SlashActions, App):
         provider_name = provider.name if provider else "no provider"
         model = provider.model if provider and provider.model else "no model"
         self.query_one("#topbar", Static).update(
-            f" Paicode {__version__}  |  {provider_name} / {model}  |  {self.root}"
+            f" Paicode {__version__}  |  {self.session.record.id}  |  "
+            f"{provider_name} / {model}  |  {self.root}"
         )
 
     def _refresh_stats(self) -> None:
@@ -366,6 +392,74 @@ class PaiCodeApp(SlashActions, App):
         self.chat.set_stopping()
         self.chat.add_system("Stop requested. Paicode will stop after the current step.")
 
+    def _save_session(self, messages=None) -> None:
+        try:
+            self.session.record.workspace = str(self.root)
+            self.session.record.last_opened_at = now_iso()
+            if self.chat is not None:
+                self.session.transcript = list(self.chat.transcript)
+            self.session.stats = self.stats.to_dict()
+            if messages is not None:
+                self.session.messages = messages
+            self.session_store.save(self.session)
+        except Exception:
+            pass
+
+    def _switch_session(self, session_id: str) -> bool:
+        if self.busy:
+            self.chat.add_system("Stop the current task before switching sessions.")
+            return False
+        record = self.session_store.find(session_id)
+        if record is None:
+            self.chat.add_system(f"Session '{session_id}' was not found.")
+            return False
+        if record.id == self.session.record.id:
+            self.chat.add_system(format_session_detail(record))
+            return True
+        workspace = Path(record.workspace)
+        if not workspace.is_dir():
+            self.chat.add_system(f"Session workspace is missing: {record.workspace}")
+            return False
+        self._save_session()
+        data = self.session_store.get(record.id)
+        if data is None:
+            self.chat.add_system(f"Session '{record.id}' could not be loaded.")
+            return False
+
+        self.session = data
+        self.root = workspace
+        self.stats = UsageStats.from_dict(data.stats) if data.stats else UsageStats()
+        self.chat.clear()
+        self.diff.clear()
+        self.chat.restore(data.transcript)
+        for entry in data.diffs:
+            self.diff.add_diff(
+                str(entry.get("path", "")),
+                str(entry.get("diff", "")),
+                display_time(str(entry.get("created_at", ""))),
+            )
+        if data.diffs:
+            self.diff.add_note(
+                f"Restored {len(data.diffs)} AI diff(s) from session {data.record.id}."
+            )
+        self.explorer.root = self.root
+        self.explorer.refresh_tree()
+        self._reload_context()
+        self._prompt_queue.clear()
+        self.chat.set_queue(0)
+        self.chat.end_work()
+        self._hide_suggestions()
+        self.prompt.text = ""
+        self.prompt.placeholder = PromptInput.DEFAULT_PLACEHOLDER
+        self._refresh_topbar()
+        self._refresh_stats()
+        self.chat.add_system(
+            f"Switched to session {data.record.id} at {data.record.workspace}"
+        )
+        self.prompt.focus()
+        self._save_session()
+        return True
+
     def _start_prompt(self, text: str, images=None, display: str | None = None) -> None:
         images = images or []
         display = display or text
@@ -389,6 +483,10 @@ class PaiCodeApp(SlashActions, App):
 
         self.busy = True
         self._reload_context()
+        if not any(entry.get("kind") == "user" for entry in self.chat.transcript):
+            first_line = display.strip().splitlines()[0][:60] if display.strip() else ""
+            if first_line:
+                self.session.record.title = first_line
         self.chat.add_user(display)
         self.chat.begin_assistant()
         self.chat.begin_work()
@@ -405,6 +503,7 @@ class PaiCodeApp(SlashActions, App):
                 self.rules,
                 self.skills,
                 emit=lambda event: self.call_from_thread(self._handle_event, event),
+                history=self.session.messages,
             )
         except Exception as exc:
             self.chat.add_system(f"Could not start the task: {exc}")
@@ -459,7 +558,12 @@ class PaiCodeApp(SlashActions, App):
                 self.chat.add_tool(event.name, status, event.output)
             if event.diff:
                 path = event.changed[0] if event.changed else event.name
-                self.diff.add_diff(path, event.diff)
+                stamp = now_iso()
+                self.diff.add_diff(path, event.diff, display_time(stamp))
+                self.session.diffs.append(
+                    {"path": path, "diff": event.diff, "created_at": stamp}
+                )
+                self._save_session()
             if event.changed:
                 self.explorer.refresh_tree()
             self._refresh_stats()
@@ -470,10 +574,14 @@ class PaiCodeApp(SlashActions, App):
         elif isinstance(event, Finished):
             self.chat.end_assistant()
             self.chat.add_system(f"Finished in {event.steps} step(s): {event.message[:400]}")
+            messages = getattr(self._active_runner, "messages", None)
+            self._save_session(messages=messages[1:] if messages else None)
             self._finish_work()
         elif isinstance(event, ErrorEvent):
             self.chat.end_assistant()
             self.chat.add_system(f"Error: {event.message}")
+            messages = getattr(self._active_runner, "messages", None)
+            self._save_session(messages=messages[1:] if messages else None)
             self._finish_work()
 
     def _summarize_arguments(self, arguments: dict) -> str:
@@ -506,3 +614,7 @@ class PaiCodeApp(SlashActions, App):
 
     def action_help(self) -> None:
         self._cmd_help("")
+
+    def on_unmount(self) -> None:
+        messages = getattr(self._active_runner, "messages", None)
+        self._save_session(messages=messages[1:] if messages else None)
