@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from ..agent.events import AgentPhase, AgentStatus, ToolFinished, UsageUpdated
+from ..agent.events import AgentPhase, AgentStatus, TextDelta, ToolFinished, UsageUpdated
 from ..agent.loop import AgentRunner
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
@@ -41,7 +41,8 @@ class BuildCoordinator:
         self.rules_text = rules_text
         self.reports: dict[int, BuildReport] = {}
         self.tasks: dict[int, str] = {}
-        self.changes: list[tuple[str, str, list[str]]] = []
+        self.changes: list[tuple[int, str, list[str]]] = []
+        self._flushed_changes = 0
 
     def _brief(self, contract: BuildContract, units: list[WorkUnit], findings: list[Finding] | None) -> str:
         return builder_system_prompt(contract, units, self.rules_text, findings=findings)
@@ -65,6 +66,18 @@ class BuildCoordinator:
         local_stats = UsageStats()
         changed: list[str] = []
         commands: list[str] = []
+        owned_files = [path for unit in units for path in unit.files]
+        _emit(
+            self.emit,
+            AgentStatus(
+                owner,
+                role.title,
+                phase,
+                "running",
+                f"writing {', '.join(owned_files)}" if owned_files else "working",
+                owned_files,
+            ),
+        )
 
         def on_event(event) -> None:
             if isinstance(event, ToolFinished):
@@ -132,24 +145,26 @@ class BuildCoordinator:
         )
         self.store.update_task(task_id, status, report.__dict__)
         _emit(self.emit, AgentStatus(owner, role.title, phase, status, summary[:220], files, local_stats.total_tokens))
-        owner_diffs = [
-            (diff, changed_files)
-            for changed_owner, diff, changed_files in self.changes
-            if changed_owner == owner
-        ]
-        if owner_diffs:
+        return report
+
+    def _flush_changes(self) -> None:
+        pending = self.changes[self._flushed_changes :]
+        self._flushed_changes = len(self.changes)
+        grouped: dict[int, list[tuple[str, list[str]]]] = {}
+        for owner, diff, changed in pending:
+            grouped.setdefault(owner, []).append((diff, changed))
+        for owner, items in sorted(grouped.items()):
             _emit(
                 self.emit,
                 ToolFinished(
                     name=f"agent {owner}",
-                    ok=status == "done",
-                    output=summary[:500],
-                    diff="\n".join(item[0] for item in owner_diffs),
-                    changed=sorted({path for _, paths in owner_diffs for path in paths}),
+                    ok=True,
+                    output="bulk build changes",
+                    diff="\n".join(item[0] for item in items),
+                    changed=sorted({path for _, paths in items for path in paths}),
                     kind="edited",
                 ),
             )
-        return report
 
     def build(self, contract: BuildContract, contract_id: str) -> dict[int, BuildReport]:
         grouped = contract.builder_units()
@@ -161,13 +176,24 @@ class BuildCoordinator:
                 files=[path for item in units for path in item.files],
             )
             self.tasks[owner] = self.store.save_task(self.session_id, contract_id, unit)
-        _emit(self.emit, AgentPhase("build", "parallel builders", 0, len(grouped)))
+        active = len(grouped)
+        _emit(
+            self.emit,
+            AgentPhase("build", f"{active} builders writing together", active, active),
+        )
+        _emit(
+            self.emit,
+            TextDelta(
+                f"\n**Build:** {active} builders started together from the frozen contract. "
+                "The validator waits until all builders finish.\n"
+            ),
+        )
         results = parallel_map(
             list(grouped.items()),
             lambda item: self._run_builder(
                 contract, item[0], item[1], self.tasks[item[0]], "build"
             ),
-            min(self.concurrency, max(1, len(grouped))),
+            min(self.concurrency, max(1, active)),
             self.stop_event,
         )
         for report in results:
@@ -175,7 +201,14 @@ class BuildCoordinator:
                 self.reports[report.agent_id] = report
             elif isinstance(report, dict) and "error" in report:
                 _emit(self.emit, AgentStatus(0, "builder", "build", "failed", report["error"][:220]))
-        _emit(self.emit, AgentPhase("build", "build complete", len(self.reports), len(grouped)))
+        self._flush_changes()
+        _emit(self.emit, AgentPhase("build", "all builders finished", len(self.reports), active))
+        _emit(
+            self.emit,
+            TextDelta(
+                f"\n**Build:** all {active} builders finished. Starting independent validation.\n"
+            ),
+        )
         return self.reports
 
     def repair(self, contract: BuildContract, findings: list[Finding]) -> dict[int, BuildReport]:
@@ -195,7 +228,16 @@ class BuildCoordinator:
             repairs.append((owner, units, owner_findings))
         if not repairs:
             return self.reports
-        _emit(self.emit, AgentPhase("repair", "fixing findings", 0, len(repairs)))
+        _emit(
+            self.emit,
+            AgentPhase("repair", f"{len(repairs)} builders repairing in parallel", len(repairs), len(repairs)),
+        )
+        _emit(
+            self.emit,
+            TextDelta(
+                f"\n**Repair:** {len(repairs)} builders are fixing their owned findings in parallel.\n"
+            ),
+        )
         results = parallel_map(
             repairs,
             lambda item: self._run_builder(
@@ -207,4 +249,5 @@ class BuildCoordinator:
         for report in results:
             if isinstance(report, BuildReport):
                 self.reports[report.agent_id] = report
+        self._flush_changes()
         return self.reports
