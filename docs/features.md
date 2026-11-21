@@ -2,7 +2,7 @@
 
 ## Multi-agent council
 
-Paicode is multi-agent by default. Agent 1 leads a 22-agent council, agents 2 to 21 are builders, and agent 22 is the independent validator. The council produces a frozen contract with file ownership, interfaces, API shapes, database schema, DOM tree, test plan, commands, and non-goals before code is written. Only the builders assigned to work units are activated, and they write in parallel. The validator runs the integrated test matrix and routes findings back to the owning builder until green or the repair budget is exhausted. `--single-agent` bypasses the council for small tasks.
+Paicode is multi-agent by default. Agent 1 leads a 22-agent council, agents 2 to 21 are builders, and agent 22 is the independent validator. Every model request carries the full global and project `PAICODE.md` rules, including all council proposals, reviews, builder turns, and validator turns. Rules are not truncated by the default limits and are placed first for provider prefix caching. The council produces a frozen contract with file ownership, interfaces, API shapes, database schema, DOM tree, test plan, commands, and non-goals before code is written. Only the builders assigned to work units are activated, and they write in parallel. The validator runs the integrated test matrix and routes findings back to the owning builder until green or the repair budget is exhausted. `--single-agent` bypasses the council for small tasks.
 
 ## Multi-pane terminal interface
 

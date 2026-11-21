@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1 - 2026-11-21
+
+### Fixed
+
+- Every model request now carries the full global and project `PAICODE.md` rules, including council proposals, lead synthesis, contract review, arbitration, builder turns, validator turns, and single-agent turns.
+- Removed the 100,000 character rule truncation and raised the per-file rule loading limit to 1,000,000 characters.
+- Added a request audit test that verifies every fake-provider request contains a unique global rule marker.
+- Documented the performance model and live measurements.
+
 ## 0.10.0 - 2026-11-21
 
 ### Added

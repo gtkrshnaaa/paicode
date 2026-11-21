@@ -168,14 +168,35 @@ Each run stores session, phase, agent, role, status, timestamps, model, token us
 - Full 22-agent fake-provider feature build.
 - Live provider smoke test.
 
+## Mandatory rule envelope
+
+Every model request carries the full global and project `PAICODE.md` rules. This applies to single-agent turns, all 22 council proposals, lead synthesis, 22 contract reviews, lead arbitration, every builder turn, and every validator turn. The rule block is the first section of the prompt so provider prefix caching can reuse the repeated prefix. The previous 100,000 character rule truncation was removed, and per-file loading now allows up to 1,000,000 characters.
+
+The audit test verifies that every fake-provider request contains a unique global rule marker. A live DeepSeek run with the real global rule file completed successfully, so mandatory rule injection does not break the workflow.
+
+## Performance notes
+
+Measured orchestration is not the bottleneck. The dominant cost is model latency and the mandatory rule tokens.
+
+- The 22 council proposals and 22 contract reviews are dispatched concurrently.
+- Active builders are dispatched concurrently, not in sequence.
+- SQLite uses WAL, short-lived connections, and a busy timeout.
+- Usage statistics are protected by a lock.
+- The provider client has a shared concurrency gate, key cooldown, and retry backoff.
+- The council, build, and validation phases write only small audit rows.
+- A live 22-agent run at concurrency 6 completed in 373 seconds with 69 model requests and 1,337,818 total tokens while carrying the full 58 KB global rule file.
+- With the default concurrency of 22, council and review phases have more headroom; lower the value only when the provider rate-limits or the host needs a ceiling.
+- Full rules are intentionally repeated because the user requires them on every turn. Prefix caching is the correct optimization; dropping rules is not.
+
 ## Defaults
 
 - Shared workspace with strict file ownership for version 1.
 - Two full council rounds.
 - Maximum 20 work units and 20 active builders.
 - Builders start in parallel.
-- Validator is read-only for production source.
+- Validator is read-only for production source and uses a disposable overlayfs workspace.
 - Three strikes and five validation rounds.
 - Multi-agent default for TUI and headless mode.
 - `--single-agent` escape hatch.
+- Every request carries the full PAICODE.md rule envelope.
 - Same active model for every role by default. Per-role model overrides are optional.
