@@ -2,9 +2,39 @@
 
 Paicode is a terminal coding agent with a multi-pane Textual interface and an OpenAI-compatible provider layer. It reads, searches, edits, and runs project commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
 
+## Quick install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh | bash
+```
+
+This downloads the latest `main`, creates an isolated environment at `~/.local/share/paicode/venv`, and writes the launcher to `~/.local/bin/pai`. It does not edit your shell profile.
+
+For a reproducible install, pin a tag or commit:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh | bash -s -- --ref <tag>
+```
+
+Prefer to inspect the script first:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh
+less install.sh
+bash install.sh
+```
+
+Remove Paicode while keeping provider configuration:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh | bash -s -- --uninstall
+```
+
 ## Install
 
-Requirements: Python 3.10 or newer, and `curl` for the pip bootstrap fallback.
+Requirements: Python 3.10 or newer. Remote installs need `curl` and `tar`.
+
+### From source
 
 ```bash
 git clone https://github.com/gtkrshnaaa/paicode.git
@@ -12,20 +42,20 @@ cd paicode
 ./install.sh
 ```
 
-The installer creates an isolated environment at `~/.local/share/paicode/venv`, installs the package, and writes the launcher to `~/.local/bin/pai`. It does not edit your shell profile. If `~/.local/bin` is not on your `PATH`, the installer prints the export line to add.
+### Development
+
+```bash
+./install.sh --dev
+.venv/bin/pai
+```
+
+The installer creates an isolated environment, installs the package, and writes the launcher. If `~/.local/bin` is not on your `PATH`, the installer prints the export line to add.
 
 Run Paicode from any project directory:
 
 ```bash
 cd /path/to/project
 pai
-```
-
-For development inside the repository:
-
-```bash
-./install.sh --dev
-.venv/bin/pai
 ```
 
 ## First run
