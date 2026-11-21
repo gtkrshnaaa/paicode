@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from paicode.agent.events import AgentStatus
 from paicode.cli import _build_parser, main
 from paicode.providers.store import ProviderStore
 from paicode.tui.app import PaiCodeApp
@@ -75,6 +76,25 @@ async def test_agents_command_lists_council(
         text = " ".join(str(entry.get("text", "")) for entry in app.chat.transcript)
         assert "Agent 1 Lead Architect" in text
         assert "Agent 2 Frontend Shell" in text
+
+
+async def test_review_objections_do_not_spam_chat(
+    project: Path, config_home: Path
+):
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        before = len(app.chat.transcript)
+        app._handle_event(
+            AgentStatus(19, "Data and Fixtures", "council-review", "object", "needs schema")
+        )
+        await pilot.pause()
+        assert len(app.chat.transcript) == before
+
+        app._handle_event(AgentStatus(19, "Data and Fixtures", "build", "failed", "boom"))
+        await pilot.pause()
+        assert len(app.chat.transcript) == before + 1
+        assert "failed: boom" in app.chat.transcript[-1]["text"]
 
 
 def test_doctor_reports_multi_agent(config_home: Path, capsys):

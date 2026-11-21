@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.4 - 2026-11-21
+
+### Fixed
+
+- Contract-review objections are no longer rendered as empty `object:` chat errors. Objections are normal council input and are resolved by the lead.
+- Only failed, blocked, or errored agent states render as chat notices.
+- Objection details are stored in the agent status summary for `/agents`.
+- The council work status now shows a compact objection count before lead arbitration.
+- Added TUI regression tests for objection suppression and failure notices.
+
 ## 0.10.3 - 2026-11-21
 
 ### Fixed

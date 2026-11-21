@@ -124,12 +124,15 @@ class Council:
             )
             payload.setdefault("agent", role.id)
             payload.setdefault("verdict", "approve")
+            verdict = str(payload.get("verdict", "approve")).lower()
+            changes = payload.get("required_changes", [])
+            detail = "; ".join(str(item) for item in changes)[:1_500] if verdict == "object" else ""
             self.store.add_message(
                 run_id, self.session_id, role.id, "council-review", "review",
                 json.dumps(payload, ensure_ascii=False),
             )
-            self.store.finish_run(run_id, "done", str(payload.get("verdict", "approve")))
-            _emit(self.emit, AgentStatus(role.id, role.title, "council-review", str(payload.get("verdict", "approve"))))
+            self.store.finish_run(run_id, "done", detail or verdict)
+            _emit(self.emit, AgentStatus(role.id, role.title, "council-review", verdict, detail))
             return payload
         except Exception as exc:
             self.store.finish_run(run_id, "failed", error=f"{type(exc).__name__}: {exc}")
@@ -194,6 +197,12 @@ class Council:
             if str(item.get("verdict", "")).lower() == "object"
             or item.get("required_changes")
         ]
+        summary = (
+            f"{len(objections)} objection(s) resolved by the lead"
+            if objections
+            else "contract approved by all reviewers"
+        )
+        _emit(self.emit, AgentPhase("council", summary, len(self.reviews), len(ROSTER)))
         if objections and not self.stop_event.is_set():
             _emit(self.emit, AgentPhase("council", "lead arbitration", 0, 1))
             final_payload = _ask_json(

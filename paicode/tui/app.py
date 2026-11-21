@@ -670,9 +670,10 @@ class PaiCodeApp(SlashActions, App):
             count = f" {event.active}/{event.total}" if event.total else ""
             self.chat.set_work_message(f"{event.phase}: {event.detail}{count}")
         elif isinstance(event, AgentStatus):
-            if event.status in {"failed", "object"}:
+            if event.status in {"failed", "blocked", "error"}:
+                detail = f": {event.detail[:300]}" if event.detail else ""
                 self.chat.add_system(
-                    f"Agent {event.agent_id} ({event.role}) {event.status}: {event.detail[:300]}"
+                    f"Agent {event.agent_id} ({event.role}) {event.status}{detail}"
                 )
         elif isinstance(event, UsageUpdated):
             if not self.multi_agent:

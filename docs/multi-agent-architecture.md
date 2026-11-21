@@ -69,7 +69,7 @@ The lead resolves conflicts. The contract is validated before review: at least o
 
 ### Round 3: contract review
 
-All 22 agents review the draft in parallel and return approve, approve with note, or objection with a concrete required change. The lead resolves objections and freezes contract version 1. No production file is written before this freeze.
+All 22 agents review the draft in parallel and return approve, approve with note, or objection with a concrete required change. The lead resolves objections and freezes contract version 1. Objections are normal council input, not errors; the chat shows one compact objection count while `/agents` keeps the per-agent verdict and required changes. No production file is written before this freeze.
 
 ## Build phase
 
