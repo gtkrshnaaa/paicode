@@ -10,7 +10,7 @@ from textual.strip import Strip
 from textual.widgets import TextArea
 
 from ...agent.attachments import MAX_IMAGE_BYTES, ImageAttachment
-from ..clipboard import read_clipboard_image
+from ..clipboard import read_clipboard_image, read_clipboard_text
 
 
 @dataclass
@@ -32,7 +32,7 @@ PLACEHOLDER_STYLE = Style(bgcolor="#3a3a3a", color="#f5f5f5", bold=True)
 
 
 class PromptInput(TextArea):
-    DEFAULT_PLACEHOLDER = "Message Paicode or /help. Shift+Enter newline. Ctrl+E expand. Ctrl+G image."
+    DEFAULT_PLACEHOLDER = "Message Paicode or /help. Shift+Enter newline. Ctrl+E expand. Ctrl+V image."
     BUSY_PLACEHOLDER = "Paicode is working. Type to queue a prompt."
 
     class Submitted(Message):
@@ -115,14 +115,10 @@ class PromptInput(TextArea):
             self._expanded = not self._expanded
             self._fit_height()
             return
-        if event.key == "ctrl+g":
+        if event.key == "ctrl+v":
             event.prevent_default()
             event.stop()
-            result = read_clipboard_image()
-            if result is None:
-                self.app.notify("No image found in the clipboard.", severity="warning")
-                return
-            self._attach_image(*result)
+            self.action_paste()
             return
         if event.key == "enter" and not getattr(event, "shift", False):
             event.prevent_default()
@@ -137,12 +133,35 @@ class PromptInput(TextArea):
             return
         await super()._on_key(event)
 
+    def action_paste(self) -> None:
+        image = read_clipboard_image()
+        if image is not None:
+            self._attach_image(*image)
+            return
+        text = read_clipboard_text()
+        if text:
+            if not self._handle_pasted_text(text):
+                self.insert(text)
+            return
+        super().action_paste()
+
     async def _on_paste(self, event: events.Paste) -> None:
-        text = event.text
-        if self._try_image_path(text):
+        if not event.text:
+            image = read_clipboard_image()
+            if image is not None:
+                self._attach_image(*image)
+                event.prevent_default()
+                event.stop()
+                return
+        if self._handle_pasted_text(event.text):
             event.prevent_default()
             event.stop()
             return
+        await super()._on_paste(event)
+
+    def _handle_pasted_text(self, text: str) -> bool:
+        if self._try_image_path(text):
+            return True
 
         line_count = len(text.splitlines()) or 1
         if "\n" in text or "\r" in text or len(text) > 1200:
@@ -150,10 +169,8 @@ class PromptInput(TextArea):
             token = f"[pasted {line_count} {unit}]"
             self._pastes.append(PasteAttachment(token=token, text=text))
             self.insert(token)
-            event.prevent_default()
-            event.stop()
-            return
-        await super()._on_paste(event)
+            return True
+        return False
 
     def _try_image_path(self, text: str) -> bool:
         stripped = text.strip().strip("'\"")

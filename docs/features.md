@@ -38,7 +38,7 @@ Global and project `PAICODE.md` files are injected into the system prompt. Skill
 
 ## Prompt attachments and queueing
 
-The prompt expands upward and supports a larger `Ctrl+E` compose mode. Multiline pastes become highlighted `[pasted N lines]` markers and expand to the full text on submit. Images from a pasted path or `Ctrl+G` become `[image-1]`, `[image-2]` markers and are sent as multimodal content.
+The prompt expands upward and supports a larger `Ctrl+E` compose mode. Multiline pastes become highlighted `[pasted N lines]` markers and expand to the full text on submit. Images from a pasted path or `Ctrl+V` become `[image-1]`, `[image-2]` markers and are sent as multimodal content. Clipboard images use wl-clipboard's `wl-paste` on Wayland, with `xclip` as the X11 fallback.
 
 The chat pane bottom shows an animated loading bar with the current action, elapsed time, and Esc hint. Three quick Esc presses stop after the active step. Prompts submitted while the agent works are queued and start automatically when the current task finishes.
 

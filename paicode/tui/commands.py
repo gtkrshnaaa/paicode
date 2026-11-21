@@ -43,7 +43,7 @@ HELP_TEXT = "\n".join(
         "/connect custom https://example.com/v1",
         "",
         "Keys:",
-        "Ctrl+E expands the prompt. Ctrl+G attaches a clipboard image.",
+        "Ctrl+E expands the prompt. Ctrl+V attaches a clipboard image.",
         "Shift+Enter inserts a newline. Esc x3 stops a running task.",
         "Type while Paicode works to queue the next prompt.",
         "",

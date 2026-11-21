@@ -4,6 +4,7 @@ from textual import events
 
 from paicode.providers.store import ProviderStore
 from paicode.tui.app import PaiCodeApp
+from paicode.tui.widgets import prompt as prompt_module
 from paicode.tui.widgets.prompt import PromptInput
 
 
@@ -38,6 +39,37 @@ async def test_image_path_paste_becomes_attachment(project: Path, config_home: P
         assert len(images) == 1
         assert images[0].mime == "image/png"
         assert images[0].data_url.startswith("data:image/png;base64,")
+
+
+async def test_ctrl_v_attaches_clipboard_image(project: Path, config_home: Path, monkeypatch):
+    monkeypatch.setattr(prompt_module, "read_clipboard_image", lambda: ("image/png", b"fake-image"))
+    monkeypatch.setattr(prompt_module, "read_clipboard_text", lambda: "")
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", PromptInput)
+        prompt.focus()
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert prompt.text == "[image-1]"
+        _, _, images = prompt.build_submission()
+        assert len(images) == 1
+        assert images[0].mime == "image/png"
+
+
+async def test_ctrl_v_multiline_text_uses_marker(project: Path, config_home: Path, monkeypatch):
+    monkeypatch.setattr(prompt_module, "read_clipboard_image", lambda: None)
+    monkeypatch.setattr(prompt_module, "read_clipboard_text", lambda: "first\nsecond\nthird")
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", PromptInput)
+        prompt.focus()
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert prompt.text == "[pasted 3 lines]"
+        _, expanded, _ = prompt.build_submission()
+        assert expanded == "first\nsecond\nthird"
 
 
 async def test_ctrl_e_toggles_expanded_prompt(project: Path, config_home: Path):

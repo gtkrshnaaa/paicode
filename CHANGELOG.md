@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 - 2026-11-21
+
+### Changed
+
+- Image paste now uses `Ctrl+V` instead of `Ctrl+G`.
+- Clipboard images use `wl-paste` from wl-clipboard on Wayland, with `xclip` as the X11 fallback.
+- When the clipboard contains text, `Ctrl+V` falls back to inserting the clipboard text or a multiline paste marker.
+
 ## 0.6.0 - 2026-11-21
 
 ### Added

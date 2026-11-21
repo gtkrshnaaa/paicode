@@ -114,7 +114,7 @@ The prompt expands upward as it fills and can be toggled to a larger compose are
 
 Multiline pastes become a highlighted `[pasted N lines]` marker. The full text is restored when the prompt is submitted, while the chat history keeps the compact marker.
 
-Attach an image by pasting a path to a PNG, JPEG, WebP, or GIF file, or press `Ctrl+G` to read an image from the system clipboard. Images become `[image-1]`, `[image-2]`, and are sent as multimodal content to vision-capable models.
+Attach an image by pasting a path to a PNG, JPEG, WebP, or GIF file, or press `Ctrl+V` to read an image from the system clipboard. Clipboard images use `wl-paste` from wl-clipboard on Wayland, with `xclip` as the X11 fallback. Images become `[image-1]`, `[image-2]`, and are sent as multimodal content to vision-capable models.
 
 While Paicode works, the bottom of the chat pane shows an animated loading bar, the current action, elapsed time, and the Esc hint. Press `Esc` three times in quick succession to stop after the current step. Prompts submitted while Paicode is busy are queued and start automatically when the current task finishes. Use `/queue` to inspect them or `/queue clear` to remove them.
 

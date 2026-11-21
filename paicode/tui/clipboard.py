@@ -18,6 +18,18 @@ def _run(command: list[str]) -> bytes:
     return result.stdout if result.returncode == 0 else b""
 
 
+def read_clipboard_text() -> str:
+    if shutil.which("wl-paste"):
+        data = _run(["wl-paste", "--no-newline"])
+        if data:
+            return data.decode("utf-8", errors="ignore")
+    if shutil.which("xclip") and os.getenv("DISPLAY"):
+        data = _run(["xclip", "-selection", "clipboard", "-o"])
+        if data:
+            return data.decode("utf-8", errors="ignore")
+    return ""
+
+
 def read_clipboard_image() -> tuple[str, bytes] | None:
     if shutil.which("wl-paste"):
         types = _run(["wl-paste", "--list-types"]).decode("utf-8", errors="ignore")

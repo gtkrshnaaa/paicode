@@ -15,16 +15,15 @@ Expand the prompt composer and add attachment and queue behavior to the TUI. The
 ## Acceptance Criteria
 - [x] Prompt grows upward automatically and `Ctrl+E` toggles a larger compose height
 - [x] Multiline paste inserts a highlighted `[pasted N lines]` marker and expands to full text on submit
-- [x] Image paste through a path or `Ctrl+G` inserts a highlighted `[image-N]` marker and sends multimodal content
+- [x] Image paste through a path or `Ctrl+V` inserts a highlighted `[image-N]` marker and sends multimodal content
 - [x] Chat pane bottom shows an animated work bar, current action, elapsed time, Esc hint, and queue count
 - [x] Esc pressed three times in quick succession requests a cooperative stop
 - [x] Prompts submitted while busy are queued, displayed, and started automatically after the current task
 - [x] `/stop` and `/queue [clear]` handle interrupt and queue inspection
 - [x] Tests cover paste expansion, image path attachment, queue behavior, triple-Esc stop, and provider multimodal payload
-- [x] Documentation updated and version bumped to 0.6.0
+- [x] Documentation updated and version bumped to 0.6.1
 
 ## Context / Notes
-- Target files: paicode/tui/widgets/prompt.py, paicode/tui/widgets/chat.py, paicode/tui/widgets/work_status.py, paicode/tui/app.py, paicode/agent/loop.py, paicode/agent/attachments.py
+- Follow-up: Ctrl+V image paste uses wl-clipboard (`wl-paste`) with xclip fallback.
+- Target files: paicode/tui/widgets/prompt.py, paicode/tui/clipboard.py, paicode/tui/commands.py, README.md, docs/
 - No provider credentials or user images may be written into the repository
-- Target files: 
-- Dependencies: None
