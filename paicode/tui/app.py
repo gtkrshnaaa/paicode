@@ -15,6 +15,7 @@ from ..rules.loader import load_rules
 from ..rules.skills import discover_skills
 from ..tools.diff import looks_binary
 from .actions import SlashActions
+from .commands import filter_commands
 from .messages import FileSelected
 from .modals.preview import FilePreviewScreen
 from .theme import MONOCHROME
@@ -23,6 +24,7 @@ from .widgets.diff import DiffPane
 from .widgets.explorer import ExplorerPane
 from .widgets.prompt import PromptInput
 from .widgets.stats import StatsBar
+from .widgets.suggestions import SuggestionBar
 
 PREVIEW_BYTES = 5_000_000
 
@@ -67,6 +69,14 @@ ModalScreen {
     border: round #262626;
     background: #0b0b0c;
     padding: 1 0 0 0;
+}
+#suggestions {
+    display: none;
+    height: auto;
+    border: round #262626;
+    background: #111111;
+    color: #8a8a8a;
+    padding: 0 1;
 }
 #prompt {
     height: 3;
@@ -187,7 +197,10 @@ class PaiCodeApp(SlashActions, App):
         self.explorer = None
         self.prompt = None
         self.stats_bar = None
+        self.suggestions_bar = None
         self._tool_line = None
+        self._suggestions = []
+        self._suggestion_index = 0
 
     def compose(self) -> ComposeResult:
         yield Static("Paicode", id="topbar")
@@ -197,6 +210,7 @@ class PaiCodeApp(SlashActions, App):
             ChatPane(),
             id="workspace",
         )
+        yield SuggestionBar()
         yield PromptInput(placeholder="Message Paicode or type /help. Shift+Enter for a new line.", id="prompt")
         yield StatsBar()
 
@@ -206,6 +220,7 @@ class PaiCodeApp(SlashActions, App):
         self.explorer = self.query_one(ExplorerPane)
         self.prompt = self.query_one("#prompt", PromptInput)
         self.stats_bar = self.query_one(StatsBar)
+        self.suggestions_bar = self.query_one(SuggestionBar)
         self._reload_context()
         self._refresh_topbar()
         self._refresh_stats()
@@ -242,10 +257,62 @@ class PaiCodeApp(SlashActions, App):
         model = provider.model if provider else ""
         self.stats_bar.update_stats(self.stats, provider_name, model, self.busy)
 
+    def on_prompt_input_content_changed(self, event: PromptInput.ContentChanged) -> None:
+        self._refresh_suggestions(event.value)
+
+    def _refresh_suggestions(self, text: str) -> None:
+        if not text.startswith("/") or "\n" in text or " " in text:
+            self._hide_suggestions()
+            return
+        matches = filter_commands(text[1:])
+        if not matches:
+            self._hide_suggestions()
+            return
+        self._suggestions = matches
+        self._suggestion_index = 0
+        self.suggestions_bar.show(matches, 0)
+        self.prompt.suggestions_visible = True
+
+    def _hide_suggestions(self) -> None:
+        self._suggestions = []
+        self._suggestion_index = 0
+        if self.suggestions_bar is not None:
+            self.suggestions_bar.hide()
+        if self.prompt is not None:
+            self.prompt.suggestions_visible = False
+
+    def _accept_suggestion(self) -> None:
+        if not self._suggestions:
+            return
+        spec = self._suggestions[self._suggestion_index]
+        self._hide_suggestions()
+        self.prompt.apply_completion(f"/{spec.name} ")
+
+    def on_prompt_input_suggestion_navigate(self, event: PromptInput.SuggestionNavigate) -> None:
+        if not self._suggestions:
+            return
+        self._suggestion_index = (self._suggestion_index + event.delta) % len(self._suggestions)
+        self.suggestions_bar.show(self._suggestions, self._suggestion_index)
+
+    def on_prompt_input_suggestion_accept(self, event: PromptInput.SuggestionAccept) -> None:
+        self._accept_suggestion()
+
+    def on_prompt_input_suggestion_dismiss(self, event: PromptInput.SuggestionDismiss) -> None:
+        self._hide_suggestions()
+
     def on_prompt_input_submitted(self, event: PromptInput.Submitted) -> None:
         text = event.value.strip()
         if not text:
             return
+        if self._suggestions:
+            if text == "/":
+                self.prompt.apply_completion("/")
+                self._refresh_suggestions("/")
+                return
+            if not any(text == f"/{spec.name}" for spec in self._suggestions):
+                self._accept_suggestion()
+                return
+        self._hide_suggestions()
         if self._handle_slash(text):
             return
         self._start_prompt(text)

@@ -5,6 +5,7 @@ from textual.widgets import Tree
 from paicode.providers.store import ProviderStore
 from paicode.tui.app import PaiCodeApp
 from paicode.tui.widgets.prompt import PromptInput
+from paicode.tui.widgets.suggestions import SuggestionBar
 
 
 async def test_tui_layout_and_slash_commands(project: Path, config_home: Path):
@@ -72,3 +73,44 @@ async def test_tui_layout_and_slash_commands(project: Path, config_home: Path):
 
         screenshot = app.export_screenshot()
         assert screenshot.startswith("<svg")
+
+
+async def test_slash_command_suggestions(project: Path, config_home: Path):
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", PromptInput)
+        bar = app.query_one(SuggestionBar)
+        prompt.focus()
+
+        prompt.text = "/mo"
+        await pilot.pause()
+        assert bar.has_suggestions
+        assert [spec.name for spec in app._suggestions] == ["model", "models"]
+        assert bar.selected_index == 0
+
+        await pilot.press("down")
+        await pilot.pause()
+        assert bar.selected_index == 1
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert prompt.text == "/models "
+        assert not bar.has_suggestions
+
+        prompt.text = "/"
+        await pilot.pause()
+        assert bar.has_suggestions
+        await pilot.press("enter")
+        await pilot.pause()
+        assert prompt.text == "/"
+        assert bar.has_suggestions
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not bar.has_suggestions
+
+        prompt.text = "/con"
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert prompt.text == "/connect "
