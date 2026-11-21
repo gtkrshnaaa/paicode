@@ -1,8 +1,12 @@
 # Internal Architecture
 
-Paicode is split into a provider layer, a typed tool layer, an agent loop, and a Textual interface. The control plane is deterministic Python. The model decides what to do next, but code decides how tools execute, how paths are validated, and how failures are reported.
+Paicode is split into a provider layer, a typed tool layer, a multi-agent council, a single-agent loop, and a Textual interface. The control plane is deterministic Python. The model decides what to do next, but code decides how tools execute, how paths are validated, how ownership is enforced, and how failures are reported.
 
 ## Layers
+
+### Multi-agent layer
+
+`paicode/agents/` contains the 22-agent roster, typed build contract, council, parallel build coordinator, validator, SQLite audit store, and `MultiAgentRunner`. The council runs 22 parallel proposals, lead synthesis, and 22 parallel contract reviews. The lead freezes file ownership and work units. Active builders run concurrently with per-agent write allowlists. Agent 22 runs the validation matrix and produces structured findings. Findings are assigned to owners and repaired until green or the configured round and strike limits. The default path is multi-agent; `--single-agent` keeps the original loop available.
 
 ### Provider layer
 

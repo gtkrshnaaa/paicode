@@ -48,6 +48,37 @@ Add tests for the parser and run them.
 Read the deployment script and explain the failure modes.
 ```
 
+## Multi-agent council
+
+Feature requests run through 22 agents by default:
+
+- Agent 1 leads the council and owns the frozen contract.
+- Agents 2 to 21 are builders.
+- Agent 22 validates tests and contract conformance.
+
+The council submits 22 proposals in parallel, the lead freezes file ownership and interfaces, and all 22 agents review the contract. Only builders with assigned files activate, and they build in parallel. Agent 22 tests the integrated workspace and sends structured findings to the owning builder. Repair repeats until green, three strikes, or five rounds.
+
+```text
+/agents
+/contract
+/bugs
+```
+
+Use `--single-agent` when a task is too small to justify the council:
+
+```bash
+pai --single-agent
+pai run --single-agent "Rename this variable"
+```
+
+Concurrency controls:
+
+```text
+PAICODE_AGENT_CONCURRENCY=22
+PAICODE_VALIDATION_ROUNDS=5
+PAICODE_AGENT_STRIKES=3
+```
+
 ## Rules
 
 `/rules` lists the loaded rule files. `/init` creates a project `PAICODE.md` template.

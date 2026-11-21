@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.10.0 - 2026-11-21
+
+### Added
+
+- 22-agent council enabled by default for TUI and headless runs.
+- Agent 1 lead, agents 2 to 21 builders, and agent 22 independent validator.
+- Parallel council proposals, lead contract synthesis, and 22-agent contract review.
+- Typed build contracts with work units, file ownership, interfaces, API, database, UI, tests, commands, and non-goals.
+- Parallel builder execution with per-agent write allowlists.
+- Independent validation with structured findings, strict owner accountability, strikes, and repair rounds.
+- SQLite audit tables for agent runs, messages, tasks, contracts, ownership, validation runs, findings, strikes, and events.
+- `/agents`, `/contract`, and `/bugs` commands.
+- Agent phase and status reporting in the TUI and headless output.
+- `make matrix` coverage and a 22-agent fake-provider end-to-end test.
+- Live DeepSeek 22-agent smoke test: 66 requests, 2 active builders, 20 idle, validator passed.
+
+### Changed
+
+- `pai` and `pai run` default to the multi-agent council.
+- Provider clients now support a shared concurrency gate and backoff for rate limits and transient failures.
+- Usage statistics are thread-safe and shared across agents.
+- File tools support per-agent write allowlists.
+- Session transcripts and diffs still persist; agent audit data has its own tables.
+
+### Compatibility
+
+- `--single-agent` restores the original single-agent path for small tasks.
+
 ## 0.9.0 - 2026-11-21
 
 ### Added

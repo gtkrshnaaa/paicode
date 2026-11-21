@@ -1,5 +1,9 @@
 # Features
 
+## Multi-agent council
+
+Paicode is multi-agent by default. Agent 1 leads a 22-agent council, agents 2 to 21 are builders, and agent 22 is the independent validator. The council produces a frozen contract with file ownership, interfaces, API shapes, database schema, DOM tree, test plan, commands, and non-goals before code is written. Only the builders assigned to work units are activated, and they write in parallel. The validator runs the integrated test matrix and routes findings back to the owning builder until green or the repair budget is exhausted. `--single-agent` bypasses the council for small tasks.
+
 ## Multi-pane terminal interface
 
 The Textual interface keeps the project tree, AI diffs, conversation, and usage statistics visible at the same time. File changes stream into the center pane as unified diffs generated from the old and new file contents.

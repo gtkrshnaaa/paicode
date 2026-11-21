@@ -1,6 +1,8 @@
 # Paicode
 
-Paicode is a terminal coding agent with a multi-pane Textual interface and an OpenAI-compatible provider layer. It reads, searches, edits, and runs project commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
+Paicode is a multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
+
+Every feature request starts with a lead-driven council. All 22 agents review the request, the lead freezes a contract with file ownership and interfaces, only the needed builders work in parallel, and agent 22 validates the integrated result. `--single-agent` remains available for small tasks.
 
 ## Quick install
 
@@ -97,6 +99,9 @@ The interface has four regions:
 | `/limits` | Show step and context limits. |
 | `/sessions` | List every session with workspace and timestamps. |
 | `/session [id or new]` | Show the current session, switch sessions, or start a new one. |
+| `/agents` | Show the 22-agent council state. |
+| `/contract` | Show the frozen build contract. |
+| `/bugs` | Show current validation findings. |
 | `/stop` | Stop the current task after the active step. |
 | `/queue [clear]` | Show or clear queued prompts. |
 | `/config` | Show redacted provider configuration. |
@@ -109,6 +114,35 @@ The interface has four regions:
 Provider presets: `deepseek`, `opencode`, `openai`, `openrouter`, `google`, and `custom`. Any OpenAI-compatible base URL works.
 
 Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
+
+## Multi-agent council
+
+Agent 1 is the lead and contract owner. Agents 2 to 21 are builders with frontend, backend, database, auth, test, integration, accessibility, performance, DevOps, documentation, data, quality, and observability roles. Agent 22 is the independent validator.
+
+The council runs in three stages:
+
+1. All 22 agents submit proposals in parallel.
+2. The lead synthesizes a contract with work units, file ownership, interfaces, API shapes, database schema, DOM tree, test plan, commands, and non-goals.
+3. All 22 agents review the contract. The lead resolves objections and freezes it.
+
+Only builders with assigned work units are activated. Active builders start together, not in sequence. Each builder may edit only its owned files. Agent 22 then runs the full test and acceptance matrix, files structured findings against the owning builder, and repeats the repair loop until green, three strikes, or five validation rounds.
+
+The full design is in [docs/multi-agent-architecture.md](docs/multi-agent-architecture.md).
+
+```bash
+pai                                  # multi-agent TUI
+pai run "build the feature"          # multi-agent headless
+pai --single-agent                   # single-agent TUI
+pai run --single-agent "small task"  # single-agent headless
+```
+
+Concurrency and loop controls:
+
+```text
+PAICODE_AGENT_CONCURRENCY=22
+PAICODE_VALIDATION_ROUNDS=5
+PAICODE_AGENT_STRIKES=3
+```
 
 ## Sessions
 
@@ -184,6 +218,7 @@ For scripts and CI:
 
 ```bash
 pai run "Add a health check endpoint and run the tests"
+pai run --single-agent "Rename this variable"
 pai run --diff "Refactor the parser"
 pai models
 pai doctor
