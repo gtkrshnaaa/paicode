@@ -2,7 +2,7 @@
 id: "008"
 title: "Add rich prompt attachments, work status, interrupt, and queue"
 type: "feature"
-status: "in-progress"
+status: "done"
 created_at: "2026-11-21"
 updated_at: "2026-11-21"
 ---
@@ -13,15 +13,15 @@ updated_at: "2026-11-21"
 Expand the prompt composer and add attachment and queue behavior to the TUI. The input must grow upward, support an explicit expanded mode, replace multiline pastes with highlighted `[pasted N lines]` markers, and attach clipboard images as highlighted `[image-N]` markers. The chat pane needs a bottom loading bar with work status, a triple-Esc stop hint, and queued prompts that run after the current task finishes.
 
 ## Acceptance Criteria
-- [ ] Prompt grows upward automatically and `Ctrl+E` toggles a larger compose height
-- [ ] Multiline paste inserts a highlighted `[pasted N lines]` marker and expands to full text on submit
-- [ ] Image paste through a path or `Ctrl+G` inserts a highlighted `[image-N]` marker and sends multimodal content
-- [ ] Chat pane bottom shows an animated work bar, current action, elapsed time, Esc hint, and queue count
-- [ ] Esc pressed three times in quick succession requests a cooperative stop
-- [ ] Prompts submitted while busy are queued, displayed, and started automatically after the current task
-- [ ] `/stop` and `/queue [clear]` handle interrupt and queue inspection
-- [ ] Tests cover paste expansion, image path attachment, queue behavior, triple-Esc stop, and provider multimodal payload
-- [ ] Documentation updated and version bumped to 0.6.0
+- [x] Prompt grows upward automatically and `Ctrl+E` toggles a larger compose height
+- [x] Multiline paste inserts a highlighted `[pasted N lines]` marker and expands to full text on submit
+- [x] Image paste through a path or `Ctrl+G` inserts a highlighted `[image-N]` marker and sends multimodal content
+- [x] Chat pane bottom shows an animated work bar, current action, elapsed time, Esc hint, and queue count
+- [x] Esc pressed three times in quick succession requests a cooperative stop
+- [x] Prompts submitted while busy are queued, displayed, and started automatically after the current task
+- [x] `/stop` and `/queue [clear]` handle interrupt and queue inspection
+- [x] Tests cover paste expansion, image path attachment, queue behavior, triple-Esc stop, and provider multimodal payload
+- [x] Documentation updated and version bumped to 0.6.0
 
 ## Context / Notes
 - Target files: paicode/tui/widgets/prompt.py, paicode/tui/widgets/chat.py, paicode/tui/widgets/work_status.py, paicode/tui/app.py, paicode/agent/loop.py, paicode/agent/attachments.py
