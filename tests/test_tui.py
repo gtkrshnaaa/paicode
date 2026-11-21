@@ -28,6 +28,16 @@ async def test_tui_layout_and_slash_commands(project: Path, config_home: Path):
         await pilot.pause()
         assert len(app.chat._scroll().children) >= 3
 
+        app.query_one("#prompt", Input).value = "/refresh"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.focused is app.query_one("#prompt", Input)
+
+        app.query_one("#prompt", Input).value = "/init"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert (project / "PAICODE.md").is_file()
+
         app.query_one("#prompt", Input).value = "/model deepseek-flash"
         await pilot.press("enter")
         await pilot.pause()

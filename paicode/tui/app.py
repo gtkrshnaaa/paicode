@@ -328,7 +328,10 @@ class PaiCodeApp(SlashActions, App):
             if looks_binary(raw):
                 self.chat.add_system(f"{message.path} is a binary file.")
                 return
-            self.push_screen(FilePreviewScreen(message.path, raw.decode("utf-8", errors="ignore")))
+            self.push_screen(
+                FilePreviewScreen(message.path, raw.decode("utf-8", errors="ignore")),
+                lambda _: self.prompt.focus(),
+            )
         except OSError as exc:
             self.chat.add_system(f"Could not open {message.path}: {exc}")
 

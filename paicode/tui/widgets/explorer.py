@@ -38,7 +38,6 @@ class ExplorerPane(Vertical):
         tree.root.label = self.root.name
         self._populate(tree.root, self.root, 0)
         tree.root.expand()
-        tree.focus()
 
     def _populate(self, node, directory: Path, depth: int) -> None:
         if depth > 6 or self._node_count >= self.MAX_NODES:

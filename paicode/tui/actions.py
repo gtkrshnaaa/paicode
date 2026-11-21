@@ -269,6 +269,7 @@ class SlashActions:
         self._reload_context()
         self.query_one("#explorer").refresh_tree()
         self.chat.add_system("Rules, skills, and the file tree were reloaded.")
+        self.prompt.focus()
 
     def _cmd_clear(self, args: str) -> None:
         if self.busy:
