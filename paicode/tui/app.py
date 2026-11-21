@@ -3,7 +3,7 @@ from pathlib import Path
 from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
-from textual.widgets import Input, Static
+from textual.widgets import Static
 
 from .. import __version__
 from ..agent.events import ErrorEvent, Finished, ReasoningDelta, TextDelta, ToolFinished, ToolStarted, UsageUpdated
@@ -17,9 +17,11 @@ from ..tools.diff import looks_binary
 from .actions import SlashActions
 from .messages import FileSelected
 from .modals.preview import FilePreviewScreen
+from .theme import MONOCHROME
 from .widgets.chat import ChatPane
 from .widgets.diff import DiffPane
 from .widgets.explorer import ExplorerPane
+from .widgets.prompt import PromptInput
 from .widgets.stats import StatsBar
 
 PREVIEW_BYTES = 5_000_000
@@ -28,6 +30,16 @@ CSS = """
 Screen {
     background: #0b0b0c;
     color: #d4d4d4;
+    scrollbar-color: #3a3a3a;
+    scrollbar-color-hover: #4a4a4a;
+    scrollbar-color-active: #5a5a5a;
+    scrollbar-background: #111111;
+    scrollbar-background-hover: #111111;
+    scrollbar-background-active: #111111;
+    scrollbar-corner-color: #111111;
+}
+ModalScreen {
+    align: center middle;
 }
 #topbar {
     height: 1;
@@ -42,25 +54,24 @@ Screen {
     width: 30;
     border: round #262626;
     background: #0b0b0c;
+    padding: 1 0 0 0;
 }
 #diff {
     width: 1fr;
     border: round #262626;
     background: #0b0b0c;
+    padding: 1 0 0 0;
 }
 #chat {
     width: 46;
     border: round #262626;
     background: #0b0b0c;
-}
-.pane-title {
-    height: 1;
-    background: #111111;
-    color: #8a8a8a;
-    padding: 0 1;
+    padding: 1 0 0 0;
 }
 #prompt {
     height: 3;
+    min-height: 3;
+    max-height: 14;
     border: round #262626;
     background: #111111;
     color: #d4d4d4;
@@ -100,7 +111,7 @@ Screen {
 }
 #preview-card {
     width: 90%;
-    height: 90%;
+    height: 85%;
     border: round #3a3a3a;
     background: #111111;
     padding: 1 2;
@@ -119,7 +130,7 @@ Screen {
     margin-bottom: 1;
 }
 .error {
-    color: #ff6b6b;
+    color: #e5e5e5;
     height: 1;
 }
 .modal-actions {
@@ -163,6 +174,8 @@ class PaiCodeApp(SlashActions, App):
 
     def __init__(self, root: Path, store: ProviderStore | None = None):
         super().__init__()
+        self.register_theme(MONOCHROME)
+        self.theme = MONOCHROME.name
         self.root = root
         self.store = store or ProviderStore()
         self.stats = UsageStats()
@@ -184,14 +197,14 @@ class PaiCodeApp(SlashActions, App):
             ChatPane(),
             id="workspace",
         )
-        yield Input(placeholder="Message Paicode or type /help", id="prompt")
+        yield PromptInput(placeholder="Message Paicode or type /help. Shift+Enter for a new line.", id="prompt")
         yield StatsBar()
 
     def on_mount(self) -> None:
         self.chat = self.query_one(ChatPane)
         self.diff = self.query_one(DiffPane)
         self.explorer = self.query_one(ExplorerPane)
-        self.prompt = self.query_one("#prompt", Input)
+        self.prompt = self.query_one("#prompt", PromptInput)
         self.stats_bar = self.query_one(StatsBar)
         self._reload_context()
         self._refresh_topbar()
@@ -229,9 +242,8 @@ class PaiCodeApp(SlashActions, App):
         model = provider.model if provider else ""
         self.stats_bar.update_stats(self.stats, provider_name, model, self.busy)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_prompt_input_submitted(self, event: PromptInput.Submitted) -> None:
         text = event.value.strip()
-        self.prompt.value = ""
         if not text:
             return
         if self._handle_slash(text):

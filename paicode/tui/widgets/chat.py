@@ -11,7 +11,6 @@ class ChatPane(Vertical):
         self._buffer = ""
 
     def compose(self) -> ComposeResult:
-        yield Static("Chat", classes="pane-title")
         yield VerticalScroll(id="chat-scroll")
 
     def on_mount(self) -> None:
@@ -30,7 +29,7 @@ class ChatPane(Vertical):
         self._scroll().scroll_end(animate=False)
 
     def _tool_text(self, name: str, status: str, detail: str) -> Text:
-        style = "green" if status == "ok" else "red" if status == "failed" else "#8a8a8a"
+        style = "#e5e5e5" if status == "ok" else "#8a8a8a" if status == "failed" else "#6b6b6b"
         first_line = (detail or "").splitlines()[0][:220] if detail else ""
         return Text.assemble(
             (f"{name} ", "bold #d4d4d4"),

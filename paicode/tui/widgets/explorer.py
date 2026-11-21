@@ -3,7 +3,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import Static, Tree
+from textual.widgets import Tree
 
 from ...core.paths import EXCLUDED_DIRS, SENSITIVE_NAMES
 from ..messages import FileSelected
@@ -24,7 +24,6 @@ class ExplorerPane(Vertical):
         self._node_count = 0
 
     def compose(self) -> ComposeResult:
-        yield Static("Files", classes="pane-title")
         yield Tree("Project", id="file-tree")
 
     def on_mount(self) -> None:

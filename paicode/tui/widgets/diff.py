@@ -1,6 +1,6 @@
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import RichLog, Static
+from textual.widgets import RichLog
 from rich.text import Text
 
 
@@ -9,7 +9,6 @@ class DiffPane(Vertical):
         super().__init__(id="diff")
 
     def compose(self) -> ComposeResult:
-        yield Static("AI Diff", classes="pane-title")
         yield RichLog(id="diff-log", max_lines=5000, wrap=False, markup=False)
 
     def on_mount(self) -> None:
@@ -28,9 +27,9 @@ class DiffPane(Vertical):
             if line.startswith("+++") or line.startswith("---"):
                 style = "bold #8a8a8a"
             elif line.startswith("+"):
-                style = "green"
+                style = "#e5e5e5"
             elif line.startswith("-"):
-                style = "red"
+                style = "#6b6b6b"
             elif line.startswith("@@"):
                 style = "bold #8a8a8a"
             else:
