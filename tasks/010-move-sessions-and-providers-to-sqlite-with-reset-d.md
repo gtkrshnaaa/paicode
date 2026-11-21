@@ -2,7 +2,7 @@
 id: "010"
 title: "Move sessions and providers to SQLite with reset-db seeder"
 type: "feature"
-status: "in-progress"
+status: "done"
 created_at: "2026-11-21"
 updated_at: "2026-11-21"
 ---
