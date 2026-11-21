@@ -3,7 +3,7 @@ from pathlib import Path
 
 from paicode.agents import MultiAgentRunner
 from paicode.agents.store import AgentStore
-from paicode.agent.events import AgentPhase, Finished
+from paicode.agent.events import AgentPhase, Finished, TextDelta
 from paicode.core.stats import UsageStats
 from paicode.providers.store import ProviderConfig
 from paicode.rules.loader import load_rules
@@ -114,6 +114,12 @@ def test_multi_agent_council_parallel_build_and_validator_repair(project: Path, 
                     agent = number
                     break
             return [text_chunk(json.dumps(_proposal(agent))), finish_chunk("stop"), usage_chunk(10, 5, 15)]
+        if "Write the final report directly to the user" in user:
+            return [
+                text_chunk("## Summary\n\nLead report delivered.\n\n## Delivered\n\nTests passed."),
+                finish_chunk("stop"),
+                usage_chunk(5, 5, 10),
+            ]
         if "Synthesize the council proposals" in user:
             return [text_chunk(json.dumps(_contract())), finish_chunk("stop"), usage_chunk(20, 10, 30)]
         if "Review this frozen-candidate contract" in user:
@@ -186,6 +192,7 @@ def test_multi_agent_council_parallel_build_and_validator_repair(project: Path, 
         assert any(isinstance(event, AgentPhase) and event.phase == "council" for event in events)
         assert any(isinstance(event, AgentPhase) and event.phase == "build" for event in events)
         assert any(isinstance(event, AgentPhase) and event.phase == "validate" for event in events)
+        assert any(isinstance(event, TextDelta) and "Lead report delivered" in event.text for event in events)
         assert isinstance(events[-1], Finished)
         assert server.requests
         for payload in server.requests:
