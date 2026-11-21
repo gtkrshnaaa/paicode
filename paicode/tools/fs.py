@@ -10,6 +10,19 @@ from .diff import looks_binary, unified_diff
 from .types import ToolResult
 
 
+def _clear_bytecode(path: Path) -> None:
+    if path.suffix != ".py":
+        return
+    cache = path.parent / "__pycache__"
+    if not cache.is_dir():
+        return
+    for candidate in cache.glob(f"{path.stem}.*.pyc"):
+        try:
+            candidate.unlink()
+        except OSError:
+            pass
+
+
 class FileTools:
     def __init__(self, root: Path, stats):
         self.root = root
@@ -51,6 +64,7 @@ class FileTools:
             old = self._read_text(target)
         mode = stat.S_IMODE(target.stat().st_mode) if existed else 0o644
         atomic_write_text(target, content, mode=mode)
+        _clear_bytecode(target)
         diff, added, removed = unified_diff(old, content, display_path(self.root, target))
         self.stats.mark("edited" if existed else "created")
         output = f"{'Updated' if existed else 'Created'} {display_path(self.root, target)} (+{added} -{removed})"
@@ -80,6 +94,7 @@ class FileTools:
         updated = text.replace(old_string, new_string) if replace_all else text.replace(old_string, new_string, 1)
         mode = stat.S_IMODE(target.stat().st_mode)
         atomic_write_text(target, updated, mode=mode)
+        _clear_bytecode(target)
         diff, added, removed = unified_diff(text, updated, display_path(self.root, target))
         self.stats.mark("edited")
         output = f"Edited {display_path(self.root, target)} (+{added} -{removed})"

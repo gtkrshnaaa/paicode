@@ -40,6 +40,19 @@ def test_write_reports_python_syntax_failure(project: Path, stats):
     assert stats.files_created == 1
 
 
+def test_edit_clears_stale_python_bytecode(project: Path, stats):
+    target = project / "calculator.py"
+    target.write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    cache = project / "__pycache__"
+    cache.mkdir()
+    compiled = cache / "calculator.cpython-314.pyc"
+    compiled.write_bytes(b"stale")
+    tools = FileTools(project, stats)
+    result = tools.edit("calculator.py", "a - b", "a + b")
+    assert result.ok
+    assert not compiled.exists()
+
+
 def test_write_existing_file_marks_edit(project: Path, stats):
     target = project / "README.md"
     tools = FileTools(project, stats)
