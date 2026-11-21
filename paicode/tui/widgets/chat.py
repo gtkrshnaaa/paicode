@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Markdown, Static
@@ -14,6 +16,7 @@ class ChatPane(Vertical):
         self._buffer = ""
         self._assistant_entry: dict | None = None
         self._recording = True
+        self._turn = 0
         self.transcript: list[dict] = []
 
     def compose(self) -> ComposeResult:
@@ -48,18 +51,33 @@ class ChatPane(Vertical):
         if self._recording:
             self.transcript.append(entry)
 
+    def _turn_divider(self) -> Text:
+        text = Text(no_wrap=True, overflow="crop")
+        text.append("──", style="#1f1f1f")
+        text.append(f" TURN {self._turn:02d} ", style="bold #8a8a8a")
+        text.append("· ", style="#3a3a3a")
+        text.append(f"{datetime.now().strftime('%H:%M')} ", style="#6b6b6b")
+        text.append("─" * 220, style="#1f1f1f")
+        return text
+
     def add_user(self, text: str) -> None:
+        self._turn += 1
+        if self._turn > 1:
+            self._scroll().mount(Static(self._turn_divider(), classes="turn-divider"))
         self._record({"kind": "user", "text": text})
         content = Text()
-        content.append("You", style="bold #8a8a8a")
-        content.append("\n")
+        content.append("YOU", style="bold #f5f5f5")
+        content.append("  prompt\n", style="#6b6b6b")
         content.append(text, style="#d4d4d4")
         self._scroll().mount(Static(content, classes="msg user"))
         self._scroll().scroll_end(animate=False)
 
     def add_system(self, text: str) -> None:
         self._record({"kind": "system", "text": text})
-        self._scroll().mount(Static(Text(text, style="#8a8a8a"), classes="msg system"))
+        content = Text()
+        content.append("· ", style="#3a3a3a")
+        content.append(text, style="#7a7a7a")
+        self._scroll().mount(Static(content, classes="msg system"))
         self._scroll().scroll_end(animate=False)
 
     def add_markdown_system(self, markdown: str, plain_text: str = "") -> None:
@@ -73,6 +91,7 @@ class ChatPane(Vertical):
         style = "#e5e5e5" if status == "ok" else "#8a8a8a" if status == "failed" else "#6b6b6b"
         first_line = (detail or "").splitlines()[0][:220] if detail else ""
         text = Text(no_wrap=True, overflow="ellipsis")
+        text.append("• ", style="#4a4a4a")
         text.append(f"{name} ", style="bold #d4d4d4")
         text.append(status, style=style)
         if first_line:
@@ -109,7 +128,10 @@ class ChatPane(Vertical):
 
     def _new_assistant_card(self, text: str = "") -> tuple[Vertical, Markdown]:
         stream = Markdown(text, classes="assistant-body")
-        card = Vertical(Static("Pai", classes="role"), stream, classes="msg assistant-card")
+        label = Text()
+        label.append("PAI", style="bold #f5f5f5")
+        label.append("  assistant", style="#6b6b6b")
+        card = Vertical(Static(label, classes="role"), stream, classes="msg assistant-card")
         return card, stream
 
     def begin_assistant(self) -> None:
@@ -153,6 +175,7 @@ class ChatPane(Vertical):
 
     def reset_transcript(self) -> None:
         self.transcript = []
+        self._turn = 0
 
     def clear(self, clear_transcript: bool = True) -> None:
         scroll = self._scroll()
@@ -162,11 +185,13 @@ class ChatPane(Vertical):
         self._assistant_card = None
         self._buffer = ""
         self._assistant_entry = None
+        self._turn = 0
         if clear_transcript:
             self.transcript = []
 
     def restore(self, entries: list[dict]) -> None:
         self.clear()
+        self._turn = 0
         self._recording = False
         for entry in entries:
             kind = entry.get("kind")

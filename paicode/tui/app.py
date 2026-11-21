@@ -65,6 +65,7 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     background: #111111;
     color: #8a8a8a;
     padding: 0 1;
+    border-bottom: solid #1f1f1f;
 }
 #workspace {
     height: 1fr;
@@ -79,23 +80,24 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     width: 1fr;
     border: round #262626;
     background: #0b0b0c;
-    padding: 1 0 0 0;
+    padding: 1 1 0 1;
 }
 #chat {
-    width: 54;
+    width: 56;
     border: round #262626;
     background: #0b0b0c;
     padding: 1 0 0 0;
 }
 #chat-scroll {
     height: 1fr;
-    padding: 0 1;
+    padding: 1 1 0 1;
 }
 #chat-status {
     height: 2;
     background: #111111;
     color: #8a8a8a;
     padding: 0 1;
+    border-top: solid #1f1f1f;
 }
 #suggestions {
     display: none;
@@ -122,26 +124,36 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     background: #111111;
     color: #8a8a8a;
     padding: 0 1;
+    border-top: solid #1f1f1f;
+}
+.turn-divider {
+    height: 1;
+    margin: 1 0 0 0;
+    color: #262626;
+    background: transparent;
 }
 .msg {
     margin: 0 0 1 0;
-    padding: 0 1;
+    padding: 0;
 }
 .msg.user {
-    background: #151515;
-    border-left: solid #3a3a3a;
+    background: #141415;
+    border: round #262626;
     padding: 1 1;
+    margin: 0 0 1 0;
 }
 .msg.assistant-card {
-    background: #0e0e0e;
-    border-left: solid #2a2a2a;
-    padding: 0 1 1 1;
+    background: #0f0f10;
+    border: round #262626;
+    padding: 1 1 1 1;
+    margin: 0 0 1 0;
     height: auto;
 }
 .role {
     height: 1;
     color: #8a8a8a;
     background: transparent;
+    margin: 0 0 1 0;
 }
 .assistant-body {
     background: transparent;
@@ -150,20 +162,22 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     padding: 0;
 }
 .msg.tool {
-    background: #111111;
-    border-left: solid #262626;
+    background: #0f0f10;
+    border-left: solid #2a2a2a;
     color: #8a8a8a;
     height: 1;
     padding: 0 1;
-    margin-bottom: 0;
+    margin: 0 0 0 0;
 }
 .msg.system {
-    color: #8a8a8a;
+    color: #6b6b6b;
+    padding: 0 1;
 }
 .msg.system.md {
-    background: #0e0e0e;
-    border-left: solid #1f1f1f;
-    padding: 0 1 1 1;
+    background: #0f0f10;
+    border: round #262626;
+    padding: 1 1;
+    margin: 0 0 1 0;
 }
 Markdown {
     background: transparent;
