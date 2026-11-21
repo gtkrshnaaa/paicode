@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.6 - 2026-11-21
+
+### Changed
+
+- Installer output is now a structured monochrome report with mode, platform, Python, install root, launcher, and source information.
+- Six-phase progress bar with an animated spinner on TTY, elapsed time per phase, and `[ok]` or `[failed]` status.
+- Package manager output is captured in per-step logs. Failures print the last 40 lines and preserve the full log at the install root.
+- Completion summary shows version, launcher, config path, next command, and total elapsed time.
+- Added `--quiet` to disable the spinner while keeping step lines.
+
 ## 0.5.5 - 2026-11-21
 
 ### Added

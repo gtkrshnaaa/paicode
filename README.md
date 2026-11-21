@@ -8,7 +8,7 @@ Paicode is a terminal coding agent with a multi-pane Textual interface and an Op
 curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh | bash
 ```
 
-This downloads the latest `main`, creates an isolated environment at `~/.local/share/paicode/venv`, and writes the launcher to `~/.local/bin/pai`. It does not edit your shell profile.
+This downloads the latest `main`, creates an isolated environment at `~/.local/share/paicode/venv`, and writes the launcher to `~/.local/bin/pai`. It does not edit your shell profile. The installer shows a structured header, a six-phase progress bar, and a completion summary. Package manager output stays hidden unless a step fails. Use `--quiet` to disable the spinner.
 
 For a reproducible install, pin a tag or commit:
 
