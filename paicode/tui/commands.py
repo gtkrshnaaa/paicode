@@ -12,6 +12,7 @@ HELP_TEXT = """Paicode slash commands:
 /skills            list installed skills
 /skill <name>      print a skill
 /stats             token and file statistics
+/limits            show step and context limits
 /config            show redacted provider configuration
 /init              create a project PAICODE.md
 /refresh           reload rules, skills, and the file tree

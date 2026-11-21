@@ -186,7 +186,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser("run", help="Run one prompt without the TUI.")
     run_parser.add_argument("prompt", nargs="+")
-    run_parser.add_argument("--max-steps", type=int, default=12)
+    run_parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=0,
+        help="Optional model-turn ceiling. 0 means unlimited (default).",
+    )
     run_parser.add_argument("--diff", action="store_true", help="Print file diffs.")
 
     subparsers.add_parser("models", help="List models from the active provider.")

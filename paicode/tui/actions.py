@@ -1,5 +1,6 @@
 from textual import work
 
+from ..agent.loop import context_budget
 from ..core.atomic import atomic_write_text
 from ..providers.client import ProviderClient
 from ..providers.presets import get_preset
@@ -252,6 +253,14 @@ class SlashActions:
 
     def _cmd_stats(self, args: str) -> None:
         self.chat.add_system(self.stats.detailed())
+
+    def _cmd_limits(self, args: str) -> None:
+        self.chat.add_system(
+            "Steps: unlimited by default. Use --max-steps in headless mode to set a ceiling.\n"
+            f"Context budget: {context_budget():,} characters. "
+            "Override with PAICODE_CONTEXT_CHARS.\n"
+            "Repeated identical tool calls are stopped after five consecutive attempts."
+        )
 
     def _cmd_config(self, args: str) -> None:
         self.chat.add_system(self.store.redacted())

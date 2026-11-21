@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from pathlib import Path
 
@@ -24,24 +25,49 @@ from .prompts import build_system_prompt
 from .session import SessionState, append_history, write_brain
 
 
+DEFAULT_CONTEXT_CHARS = 2_500_000
+TOOL_CONTENT_CHARS = 200_000
+ASSISTANT_CONTENT_CHARS = 400_000
+LOOP_WINDOW = 5
+
+
 def _redact(text: str) -> str:
     return re.sub(r"sk-[A-Za-z0-9_\-]{8,}", "sk-...", str(text))
 
 
-def compact_messages(messages: list[dict], max_chars: int = 180_000, keep_last: int = 24) -> list[dict]:
+def context_budget() -> int:
+    raw = os.getenv("PAICODE_CONTEXT_CHARS", str(DEFAULT_CONTEXT_CHARS))
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_CONTEXT_CHARS
+    return value if value > 0 else 10**12
+
+
+def call_signature(name: str, arguments: str) -> str:
+    try:
+        payload = json.loads(arguments or "{}")
+        normalized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    except (json.JSONDecodeError, TypeError):
+        normalized = arguments
+    return f"{name}:{normalized}"[:8_000]
+
+
+def compact_messages(messages: list[dict], max_chars: int | None = None, keep_last: int = 6) -> list[dict]:
+    budget = context_budget() if max_chars is None else max_chars
     system = [message for message in messages if message.get("role") == "system"]
     rest = [dict(message) for message in messages if message.get("role") != "system"]
 
     for message in rest:
         if message.get("role") == "tool" and isinstance(message.get("content"), str):
-            message["content"] = message["content"][:4_000]
+            message["content"] = message["content"][:TOOL_CONTENT_CHARS]
         elif message.get("role") == "assistant" and isinstance(message.get("content"), str):
-            message["content"] = message["content"][:20_000]
+            message["content"] = message["content"][:ASSISTANT_CONTENT_CHARS]
 
     def size() -> int:
         return sum(len(str(message.get("content", ""))) for message in rest)
 
-    while size() > max_chars and len(rest) > keep_last:
+    while size() > budget and len(rest) > keep_last:
         dropped = rest.pop(0)
         if dropped.get("role") == "assistant" and dropped.get("tool_calls"):
             while rest and rest[0].get("role") == "tool":
@@ -59,13 +85,13 @@ class AgentRunner:
         rules: list[RuleFile],
         skills: list[SkillMeta],
         emit,
-        max_steps: int = 12,
+        max_steps: int = 0,
     ):
         self.root = root
         self.provider = provider
         self.stats = stats
         self.emit = emit
-        self.max_steps = max_steps
+        self.max_steps = max(0, int(max_steps))
         self.rules = rules
         self.skills = skills
         self.client = ProviderClient(provider)
@@ -88,8 +114,13 @@ class AgentRunner:
         final_text = ""
         failed = False
         try:
-            for step in range(1, self.max_steps + 1):
-                steps = step
+            recent_calls: list[str] = []
+            while True:
+                if self.max_steps > 0 and steps >= self.max_steps:
+                    failed = True
+                    self._send(ErrorEvent(f"Configured step limit reached after {steps} model turns."))
+                    break
+                steps += 1
                 self.messages = compact_messages(self.messages)
                 result = self.client.stream(
                     self.messages,
@@ -124,7 +155,21 @@ class AgentRunner:
                         self._send(ErrorEvent("Provider returned an empty response."))
                     break
 
+                loop_detected = False
                 for call in result.tool_calls:
+                    signature = call_signature(call.name, call.arguments)
+                    recent_calls.append(signature)
+                    recent_calls = recent_calls[-8:]
+                    if len(recent_calls) >= LOOP_WINDOW and len(set(recent_calls[-LOOP_WINDOW:])) == 1:
+                        failed = True
+                        loop_detected = True
+                        self._send(
+                            ErrorEvent(
+                                "Repeated identical tool call detected. "
+                                "Stopping to avoid an infinite loop."
+                            )
+                        )
+                        break
                     try:
                         parsed_arguments = json.loads(call.arguments or "{}")
                         if not isinstance(parsed_arguments, dict):
@@ -155,17 +200,16 @@ class AgentRunner:
                         {
                             "role": "tool",
                             "tool_call_id": call.id,
-                            "content": tool_result.output[:20_000],
+                            "content": tool_result.output[:TOOL_CONTENT_CHARS],
                         }
                     )
+
+                if loop_detected:
+                    break
 
                 if self.registry.finished:
                     final_text = self.registry.summary or final_text
                     break
-
-            if steps >= self.max_steps and not self.registry.finished:
-                failed = True
-                self._send(ErrorEvent(f"Step limit reached after {self.max_steps} model turns."))
         except PaicodeError as exc:
             failed = True
             self._send(ErrorEvent(_redact(str(exc))))
