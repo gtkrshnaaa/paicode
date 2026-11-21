@@ -73,7 +73,7 @@ All 22 agents review the draft in parallel and return approve, approve with note
 
 ## Build phase
 
-The lead computes work units from the frozen contract. Only owners of active work units are activated. All active builders are dispatched at once through a thread pool. They do not take turns.
+The lead computes work units from the frozen contract. Only owners of active work units are activated. All active builders are submitted to the thread pool before any completion is collected, so they start together and do not take turns. The work phase reports the full active count immediately, each builder emits a running status with its owned files, and the diff report is flushed as one batch after the build. Completion times can differ because model latency differs, but the validator starts only after every builder has finished.
 
 Each builder receives one brief:
 

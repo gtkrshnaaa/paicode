@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.5 - 2026-11-21
+
+### Fixed
+
+- All active builders are dispatched to the executor before any completion is collected. Builders no longer wait for one another to start.
+- The build phase shows the full active builder count from the start, not `0/N`.
+- Each builder emits a running status with its owned files.
+- Builder diffs are flushed together after the bulk build instead of appearing one by one as builders finish.
+- The chat announces that all builders started together and that validation starts only after every builder finishes.
+- Added an eight-builder barrier test and a validator-after-all assertion.
+
 ## 0.10.4 - 2026-11-21
 
 ### Fixed
