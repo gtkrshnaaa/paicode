@@ -48,3 +48,25 @@ def test_sandbox_cache_is_writable(project: Path, stats, sandbox_cache: Path):
     result = tools.run("printf 'cached' > /tmp/paicode-cache/probe.txt")
     assert result.ok, result.output
     assert (sandbox_cache / "probe.txt").read_text(encoding="utf-8") == "cached"
+
+
+def test_strict_read_only_policy_blocks_writes(project: Path, stats):
+    tools = ShellTools(
+        project,
+        stats,
+        read_only_workspace=True,
+        strict_read_only=True,
+    )
+    for command in [
+        "echo hacked > README.md",
+        "rm README.md",
+        "git commit -m nope",
+        "npm install",
+        "sed -i s/Demo/Changed/ README.md",
+        "python3 -c \"open('x.txt', 'w').write('x')\"",
+    ]:
+        with pytest.raises(ValueError):
+            tools.run(command)
+    assert tools.run("cat README.md").ok
+    assert not (project / "x.txt").exists()
+    assert (project / "README.md").read_text(encoding="utf-8") == "# Demo\n"
