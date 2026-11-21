@@ -22,7 +22,7 @@ The OpenCode preset uses `https://opencode.ai/inference/openai/v1` for chat and 
 
 `explore` is the only tool that can read outside the workspace. It resolves the target, applies a sensitive-path denylist, requires a written reason, and returns the absolute path and scope. All write tools continue to use the workspace-confined path resolver.
 
-`registry.py` dispatches calls and converts security errors into tool results. `fs.py` implements atomic writes, surgical replacements, diffs, and in-process syntax checks for Python and JSON. `shell.py` enforces the command allowlist and scrubs provider secrets from the environment. `search.py` provides bounded glob and regex search.
+`registry.py` dispatches calls and converts security errors into tool results. `fs.py` implements atomic writes, surgical replacements, diffs, bytecode invalidation, and in-process syntax checks for Python and JSON. `shell.py` runs real bash commands with bounded output, process-group cancellation, secret scrubbing, and optional bubblewrap isolation. `sandbox.py` builds the bubblewrap command, hides the real home directory, mounts the workspace read-write, isolates package caches, and probes sandbox support. `search.py` provides bounded glob and regex search.
 
 ### Agent loop
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.0 - 2026-11-21
+
+### Added
+
+- Real bash execution with pipes, redirection, multi-command scripts, package managers, compilers, test runners, formatters, and git.
+- Optional bubblewrap sandbox that keeps workspace writes isolated, hides the real home directory, and isolates package caches.
+- Process-group cancellation on timeout or user stop, with bounded output and truncation markers.
+- Coding capability matrix covering Python, Node, C, C++, Java, shell, Git, SQLite, JSON, HTTP and static web tasks, refactors, debugging, and the full agent loop.
+- Optional Go, Rust, TypeScript, and Docker matrix cases with clean skips.
+- `make matrix` target and `docs/capability-matrix.md`.
+- `pai doctor` reports the shell isolation mode.
+
+### Changed
+
+- `bash` accepts an optional project-relative `cwd` and a timeout up to 600 seconds.
+- Python bytecode caches are cleared after edits so same-size fixes cannot be masked by stale `.pyc` files.
+- Shell environment scrubbing now also removes SSH agent sockets and common cloud provider credentials.
+
+### Removed
+
+- The read-only command allowlist and the no-shell command policy.
+
 ## 0.8.3 - 2026-11-21
 
 ### Fixed

@@ -26,7 +26,11 @@ The model receives JSON schemas for every tool instead of a text command protoco
 
 ## Deterministic verification
 
-Python and JSON writes run an in-process syntax check. Shell commands return real exit codes. The agent loop never asks another model whether a step passed.
+Python and JSON writes run an in-process syntax check. Shell commands return real exit codes, and stale Python bytecode is removed after edits. The agent loop never asks another model whether a step passed.
+
+## Real bash harness
+
+The `bash` tool runs real bash with pipes, redirection, multi-command scripts, package managers, compilers, test runners, formatters, and git. On Linux it uses bubblewrap when available: the workspace is the only writable host path, the real home directory is hidden, package caches are isolated, and child processes are killed on timeout or user stop. Direct execution is the fallback, with secret scrubbing and catastrophic-command guards in both modes. The capability matrix covers Python, Node, C, C++, Java, shell, Git, SQLite, JSON, HTTP and static web tasks, refactors, debugging, and optional Go, Rust, TypeScript, and Docker toolchains.
 
 ## Rules and skills
 

@@ -120,9 +120,33 @@ Check the nginx configuration under /etc/nginx.
 Find the installed Node version and the active systemd failures.
 ```
 
-The agent must state a concrete reason before exploring. Writes remain confined to the workspace. Credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems are denied.
+The agent must state a concrete reason before exploring. File tool writes remain confined to the workspace, and sandboxed shell writes are confined as well. Credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems are denied.
 
-Read-only host commands include `uname`, `df`, `free`, `ps`, `lscpu`, `lsblk`, read-only `systemctl`, and read-only `journalctl`.
+## Shell and build tasks
+
+The `bash` tool runs real bash in the workspace. Use it for package managers, compilers, test runners, linters, formatters, multi-step scripts, pipelines, redirection, and git.
+
+```text
+pytest -q
+npm test
+go test ./...
+cargo test --quiet
+cmake -S . -B build && cmake --build build --parallel 2
+git status --short && git diff --check
+```
+
+On Linux, commands run inside a bubblewrap sandbox when it is available. The workspace is writable, the rest of the filesystem is read-only, the real home directory is hidden, and package caches live in an isolated directory. If bubblewrap is unavailable, Paicode falls back to direct execution with secret scrubbing and catastrophic-command guards.
+
+Environment controls:
+
+```text
+PAICODE_SHELL_SANDBOX=auto|direct|required
+PAICODE_SANDBOX_CACHE=/path/to/cache
+PAICODE_SANDBOX_NETWORK=0|1
+PAICODE_SANDBOX_DOCKER=0|1
+```
+
+`pai doctor` reports whether the shell is sandboxed or direct.
 
 ## Long-running tasks
 

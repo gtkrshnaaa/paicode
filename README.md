@@ -204,22 +204,30 @@ The reset creates a timestamped backup of the existing database, drops every tab
 
 Each provider stores its base URL, API keys, selected model, cached model list, and optional models URL. Multiple keys are rotated automatically when a provider returns an authentication or rate-limit error.
 
+## Coding harness
+
+`bash` is a real bash shell with pipes, redirection, multi-command scripts, package managers, compilers, test runners, formatters, and git. On Linux, commands run inside a bubblewrap sandbox when it is available: the workspace is writable, the rest of the filesystem is read-only, the real home directory is hidden, package caches are isolated, and child processes are killed on timeout or stop.
+
+The deterministic capability matrix covers Python, Node, C, C++, Java, shell, Git, SQLite, JSON tooling, HTTP and static web tasks, multi-file refactors, debugging loops, and the full agent write-test-fix-finish cycle. Go, Rust, TypeScript, and Docker cases skip cleanly when their toolchains are unavailable. See [docs/capability-matrix.md](docs/capability-matrix.md).
+
 ## Security model
 
 - Workspace writes are confined to the project root with `commonpath`, symlink resolution, and a sensitive-name denylist.
 - `explore` provides read-only host filesystem inspection outside the workspace. It requires a concrete reason and blocks credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems such as `/proc`, `/sys`, and `/dev`.
-- `bash` has no shell. Commands are split with `shlex`, validated against an allowlist, and rejected if they contain shell operators, absolute paths, or parent traversal. Read-only host commands are available for OS and service inspection. Provider secrets are removed from the subprocess environment.
+- `bash` runs real bash. With bubblewrap, the workspace is the only writable host path, the home directory is hidden, and the cache is isolated. Without bubblewrap, Paicode falls back to direct execution. Both modes remove provider secrets, SSH agent sockets, and sensitive environment variables, and reject catastrophic host commands, privilege escalation, raw device writes, filesystem creation, package publishing, and privileged containers.
+- Shell commands use their own process group and are terminated on timeout or user stop. Output is bounded at 200,000 characters with a truncation marker.
 - Config writes are atomic and protected by a file lock.
-- The agent never commits or pushes. Git access is limited to read-only commands.
+- The agent is instructed not to commit or push unless the user asks. Shell git access is otherwise unrestricted so real coding workflows remain possible.
 
 ## Development
 
 ```bash
 ./install.sh --dev
 .venv/bin/pytest -q
+make matrix
 ```
 
-The test suite covers path security, surgical edits, provider configuration, rule and skill discovery, shell policy, OpenAI-compatible SSE streaming, the agent loop, and the Textual layout.
+The full suite covers path security, surgical edits, provider configuration, rule and skill discovery, OpenAI-compatible SSE streaming, the agent loop, the Textual layout, shell execution and sandboxing, and the real coding capability matrix.
 
 ## License
 
