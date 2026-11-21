@@ -66,7 +66,7 @@ Start the TUI and connect a provider from the prompt:
 /connect deepseek
 ```
 
-Enter the base URL and API key in the dialog. Paicode stores the provider in `~/.config/paicode/config.json` with mode `0600`. Then fetch and select a model:
+Enter the base URL and API key in the dialog. Paicode stores the provider, key, and session data in a SQLite database with mode `0600`. Then fetch and select a model:
 
 ```text
 /models
@@ -112,7 +112,7 @@ Typing `/` in the prompt opens a filtered command palette. Type more characters 
 
 ## Sessions
 
-Every `pai` launch creates a new session for the current workspace. Sessions persist their chat transcript, AI diff history, model context, and usage statistics under `~/.local/state/paicode/sessions`.
+Every `pai` launch creates a new session for the current workspace. Sessions persist their chat transcript, AI diff history, model context, and usage statistics in the Paicode SQLite database.
 
 List every session from anywhere:
 
@@ -186,7 +186,15 @@ pai --path /path/to/project run "Summarize this repository"
 
 ## Configuration
 
-Configuration lives in `~/.config/paicode/config.json`. Override the location with `PAICODE_CONFIG_DIR`. Override the project root with `PAICODE_ROOT`. Session state lives in `~/.local/state/paicode/sessions` or `$XDG_STATE_HOME/paicode/sessions`; override it with `PAICODE_STATE_DIR`.
+Providers, keys, sessions, transcripts, diffs, and stats live in `~/.local/state/paicode/paicode.db` or `$XDG_STATE_HOME/paicode/paicode.db`. Override the state directory with `PAICODE_STATE_DIR` or the exact database path with `PAICODE_DB_PATH`. Override the project root with `PAICODE_ROOT`.
+
+Reset the database with a fresh migration and provider seed:
+
+```bash
+pai --reset-db
+```
+
+The reset creates a timestamped backup of the existing database, drops every table, runs migrations, and seeds provider base URLs. API keys are database data, so a reset removes them; the backup preserves the previous state. The seeder includes DeepSeek, OpenCode, OpenAI, OpenRouter, Google, Groq, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, SambaNova, Moonshot, Zhipu, DashScope, MiniMax, NVIDIA, Hyperbolic, Novita, DeepInfra, GitHub Models, Ollama, LM Studio, and a custom entry.
 
 Each provider stores its base URL, API keys, selected model, cached model list, and optional models URL. Multiple keys are rotated automatically when a provider returns an authentication or rate-limit error.
 

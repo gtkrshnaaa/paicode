@@ -19,7 +19,7 @@ Use `/connect` without arguments to open the provider dialog. A preset name pref
 /connect custom https://gateway.example.com/v1
 ```
 
-The dialog asks for the provider name, base URL, and API key. The key is stored with mode `0600` in `~/.config/paicode/config.json`.
+The dialog asks for the provider name, base URL, and API key. The provider and key are stored with mode `0600` in the Paicode SQLite database at `~/.local/state/paicode/paicode.db`.
 
 Use `/key` to add another key to the active provider. Use `/baseurl` to change the endpoint without re-entering keys.
 
@@ -76,7 +76,7 @@ description: Review API handlers for input validation and error propagation.
 
 ## Sessions
 
-Every `pai` launch creates a new session for the current workspace. The chat transcript, AI diff history, model context, and usage statistics are stored per session under `~/.local/state/paicode/sessions`.
+Every `pai` launch creates a new session for the current workspace. The chat transcript, AI diff history, model context, usage statistics, provider configuration, and keys are stored in the Paicode SQLite database at `~/.local/state/paicode/paicode.db`.
 
 ```bash
 pai session-lists
@@ -87,6 +87,16 @@ pai --s-7f3a9c2d
 `pai session-lists` shows the session ID, workspace path, creation timestamp, last-opened timestamp, and title. Opening a session switches to its workspace and restores its chat and diff history.
 
 Inside Paicode, `/sessions` lists all sessions with the current one marked. `/session <id>` switches, and `/session new` creates a fresh session in the current workspace. `/session` alone shows the current ID, workspace, creation time, last-opened time, and title.
+
+## Database reset
+
+`pai --reset-db` performs a fresh database migration:
+
+```bash
+pai --reset-db
+```
+
+It backs up the current database to a timestamped `.bak-*` file, drops all tables, runs migrations, and seeds provider presets. The seeded order starts with DeepSeek, OpenCode, OpenAI, OpenRouter, and Google, followed by other OpenAI-compatible providers. API keys are removed by the reset; they remain available in the backup file.
 
 ## Prompt composer
 

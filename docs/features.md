@@ -32,13 +32,9 @@ Python and JSON writes run an in-process syntax check. Shell commands return rea
 
 Global and project `PAICODE.md` files are injected into the system prompt. Skills are discovered from `~/.config/paicode/skills` and `<project>/.paicode/skills`, listed with their descriptions, and loaded on demand through the `skill` tool.
 
-## Persistent session state
-
-`.pai_brain/session.md` records the last request, summary, changed files, and token totals. On the next launch, Paicode shows the previous session state. `.pai_history` keeps an append-only log.
-
 ## Persistent sessions
 
-Every TUI launch is a session with a stable ID, workspace path, creation time, and last-opened time. Sessions persist chat transcripts, AI diff history, model context, and usage statistics. `pai session-lists` lists everything from outside Paicode. `/sessions` and `/session <id>` list and switch sessions inside the TUI. Reopening a session restores its workspace and diff history; a new session starts with an empty diff pane.
+Every TUI launch is a session with a stable ID, workspace path, creation time, and last-opened time. Sessions persist chat transcripts, AI diff history, model context, and usage statistics in SQLite. `pai session-lists` lists everything from outside Paicode. `/sessions` and `/session <id>` list and switch sessions inside the TUI. Reopening a session restores its workspace and diff history; a new session starts with an empty diff pane.
 
 ## Prompt attachments and queueing
 

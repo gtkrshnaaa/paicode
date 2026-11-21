@@ -9,7 +9,7 @@ Paicode is split into a provider layer, a typed tool layer, an agent loop, and a
 `paicode/providers/` contains the OpenAI-compatible client, provider presets, and the configuration store.
 
 - `client.py` streams chat completions, assembles tool call deltas, records usage, and rotates API keys on authentication or rate-limit failures. User messages may include text and image parts.
-- `store.py` persists providers, base URLs, keys, selected models, and cached model lists in `~/.config/paicode/config.json`.
+- `store.py` persists providers, base URLs, keys, selected models, and cached model lists in the SQLite `providers`, `provider_keys`, `provider_models`, and `settings` tables.
 - `presets.py` defines DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google OpenAI compatibility, and custom providers.
 
 The OpenCode preset uses `https://opencode.ai/inference/openai/v1` for chat and `https://opencode.ai/inference/v1/models` for discovery.
@@ -60,13 +60,13 @@ The TUI renders diffs from `ToolFinished.diff`, which contains a unified diff ge
 
 ## Sessions
 
-`paicode/sessions/` stores one JSON file per session under `~/.local/state/paicode/sessions`, plus an index with session ID, workspace, creation time, last-opened time, and title. A session file contains the sanitized model messages, display transcript, AI diff history, and usage statistics. The store uses atomic writes and a lock on the index.
+`paicode/db/` owns the SQLite schema, migrations, and provider seeder. The database is at `~/.local/state/paicode/paicode.db` or `$XDG_STATE_HOME/paicode/paicode.db`. Tables cover sessions, model messages, display transcript entries, AI diffs, usage stats, providers, provider keys, cached models, settings, and seeded provider presets.
 
-The CLI creates a new session for a normal `pai` launch, resolves `--session` and `--s-xxxx` to the stored workspace, and lists sessions with `session-lists`. The TUI restores the transcript and diff history on session switch and saves diffs as they are produced. Multimodal image data is replaced with a text marker when messages are persisted, so session files do not retain raw image payloads.
+The CLI creates a new session for a normal `pai` launch, resolves `--session` and `--s-xxxx` to the stored workspace, and lists sessions with `session-lists`. The TUI restores the transcript and diff history on session switch and saves diffs as they are produced. Multimodal image data is replaced with a text marker when messages are persisted, so the database does not retain raw image payloads.
 
-## Persistence
+Legacy JSON provider configuration and JSON session files are imported once and archived with a `.migrated-*` suffix. `pai --reset-db` checkpoints the database, creates a timestamped backup, drops every table, applies migrations, and seeds provider presets.
 
-`.pai_brain/session.md` stores the last request, turn count, summary, changed files, and token totals. `.pai_history/session-YYYYMMDD.log` stores an append-only turn log. Both directories are self-contained and can be removed safely.
+There are no `.pai_brain` or `.pai_history` writes in the workspace.
 
 ## Context strategy
 

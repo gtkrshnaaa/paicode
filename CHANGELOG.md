@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0 - 2026-11-21
+
+### Added
+
+- One SQLite database for sessions, transcripts, diffs, model messages, stats, providers, keys, models, and provider presets.
+- `pai --reset-db` backs up the database, drops every table, migrates fresh, and seeds provider base URLs.
+- Provider preset seeder ordered with DeepSeek, OpenCode, OpenAI, OpenRouter, Google, and additional OpenAI-compatible providers.
+- Automatic migration of legacy `~/.config/paicode/config.json` provider configuration and JSON session files into SQLite.
+
+### Changed
+
+- Removed `.pai_brain` and `.pai_history` writes from the agent loop.
+- Provider configuration and session state now live in `~/.local/state/paicode/paicode.db`.
+
 ## 0.7.0 - 2026-11-21
 
 ### Added
