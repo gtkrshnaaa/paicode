@@ -101,7 +101,7 @@ Builders use the file tools for source changes, so the write allowlist can enfor
 
 ## Validator and repair loop
 
-Agent 22 is independent and read-only for production source. It can read files, run commands, and write validation artifacts. It cannot silently fix production code.
+Agent 22 is independent and read-only for production source. File tools deny writes, and sandboxed shell commands run on a disposable overlayfs workspace, so build and test artifacts are discarded when the command exits. It can read files, run the full test matrix, and write validation artifacts outside the workspace. It cannot silently fix production code.
 
 Validation checks:
 

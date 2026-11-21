@@ -250,6 +250,7 @@ The deterministic capability matrix covers Python, Node, C, C++, Java, shell, Gi
 - Workspace writes are confined to the project root with `commonpath`, symlink resolution, and a sensitive-name denylist.
 - `explore` provides read-only host filesystem inspection outside the workspace. It requires a concrete reason and blocks credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems such as `/proc`, `/sys`, and `/dev`.
 - `bash` runs real bash. With bubblewrap, the workspace is the only writable host path, the home directory is hidden, and the cache is isolated. Without bubblewrap, Paicode falls back to direct execution. Both modes remove provider secrets, SSH agent sockets, and sensitive environment variables, and reject catastrophic host commands, privilege escalation, raw device writes, filesystem creation, package publishing, and privileged containers.
+- The independent validator uses read-only file tools and a disposable overlayfs workspace for shell commands. Validation tests can write build artifacts, but those writes are discarded and production source cannot be modified.
 - Shell commands use their own process group and are terminated on timeout or user stop. Output is bounded at 200,000 characters with a truncation marker.
 - Config writes are atomic and protected by a file lock.
 - The agent is instructed not to commit or push unless the user asks. Shell git access is otherwise unrestricted so real coding workflows remain possible.
