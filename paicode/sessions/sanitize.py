@@ -6,32 +6,69 @@ MAX_DIFFS = 300
 MAX_DIFF_CHARS = 1_000_000
 
 
+def _sanitize_content(message: dict) -> tuple[str, object]:
+    role = message.get("role")
+    content = message.get("content")
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                parts.append(str(part.get("text", "")))
+            elif isinstance(part, dict) and part.get("type") == "image_url":
+                parts.append("[image attachment omitted from restored session]")
+        content = "\n".join(parts)
+    if isinstance(content, str):
+        limit = MAX_TOOL_CHARS if role == "tool" else MAX_MESSAGE_CHARS
+        content = content[:limit]
+    return role, content
+
+
 def sanitize_messages(messages: list[dict]) -> list[dict]:
-    cleaned = []
-    for message in messages[-MAX_SESSION_MESSAGES:]:
-        if not isinstance(message, dict):
+    valid = []
+    index = 0
+    while index < len(messages):
+        message = messages[index]
+        if not isinstance(message, dict) or message.get("role") not in {"user", "assistant", "tool"}:
+            index += 1
             continue
-        role = message.get("role")
-        if role not in {"user", "assistant", "tool"}:
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            expected = {
+                str(call.get("id", ""))
+                for call in message["tool_calls"]
+                if isinstance(call, dict)
+            }
+            lookahead = index + 1
+            tool_messages = []
+            while lookahead < len(messages) and messages[lookahead].get("role") == "tool":
+                tool_messages.append(messages[lookahead])
+                lookahead += 1
+            received = {str(item.get("tool_call_id", "")) for item in tool_messages}
+            if expected and not expected.issubset(received):
+                index = lookahead
+                continue
+            role, content = _sanitize_content(message)
+            valid.append({"role": role, "content": content, "tool_calls": message["tool_calls"]})
+            for tool_message in tool_messages:
+                role, content = _sanitize_content(tool_message)
+                valid.append(
+                    {
+                        "role": role,
+                        "content": content,
+                        "tool_call_id": tool_message.get("tool_call_id", ""),
+                    }
+                )
+            index = lookahead
             continue
-        content = message.get("content")
-        if isinstance(content, list):
-            parts = []
-            for part in content:
-                if isinstance(part, dict) and part.get("type") == "text":
-                    parts.append(str(part.get("text", "")))
-                elif isinstance(part, dict) and part.get("type") == "image_url":
-                    parts.append("[image attachment omitted from restored session]")
-            content = "\n".join(parts)
-        if isinstance(content, str):
-            limit = MAX_TOOL_CHARS if role == "tool" else MAX_MESSAGE_CHARS
-            content = content[:limit]
+        role, content = _sanitize_content(message)
         item = {"role": role, "content": content}
-        if message.get("tool_calls"):
-            item["tool_calls"] = message["tool_calls"]
         if message.get("tool_call_id"):
             item["tool_call_id"] = message["tool_call_id"]
-        cleaned.append(item)
+        valid.append(item)
+        index += 1
+
+    cleaned = valid[-MAX_SESSION_MESSAGES:]
+    while cleaned and cleaned[0].get("role") == "tool":
+        cleaned.pop(0)
     return cleaned
 
 

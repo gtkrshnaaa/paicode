@@ -41,6 +41,44 @@ class UsageStats:
         self.commands = 0
         self.started_at = datetime.now()
 
+    def to_dict(self) -> dict:
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "requests": self.requests,
+            "files_read": self.files_read,
+            "files_created": self.files_created,
+            "files_edited": self.files_edited,
+            "commands": self.commands,
+            "started_at": self.started_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "UsageStats":
+        stats = cls()
+        for key in (
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            "requests",
+            "files_read",
+            "files_created",
+            "files_edited",
+            "commands",
+        ):
+            try:
+                setattr(stats, key, int(data.get(key, 0) or 0))
+            except (TypeError, ValueError):
+                setattr(stats, key, 0)
+        started = data.get("started_at")
+        if isinstance(started, str):
+            try:
+                stats.started_at = datetime.fromisoformat(started)
+            except ValueError:
+                pass
+        return stats
+
     def summary(self) -> str:
         return (
             f"tokens {self.prompt_tokens}/{self.completion_tokens}/{self.total_tokens} "

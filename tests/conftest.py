@@ -24,6 +24,8 @@ def config_home(tmp_path: Path, monkeypatch) -> Path:
     config.mkdir()
     home = tmp_path / "home"
     home.mkdir()
+    state = tmp_path / "state"
     monkeypatch.setenv("PAICODE_CONFIG_DIR", str(config))
+    monkeypatch.setenv("PAICODE_STATE_DIR", str(state))
     monkeypatch.setattr(Path, "home", lambda: home)
     return config

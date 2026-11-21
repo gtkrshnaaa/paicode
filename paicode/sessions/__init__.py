@@ -1,3 +1,4 @@
+from .format import format_session_detail, format_sessions
 from .models import (
     SessionData,
     SessionRecord,
@@ -12,6 +13,8 @@ __all__ = [
     "SessionRecord",
     "SessionStore",
     "display_time",
+    "format_session_detail",
+    "format_sessions",
     "new_session_id",
     "now_iso",
     "sessions_root",

@@ -14,6 +14,7 @@ from .providers.presets import get_preset
 from .providers.store import ProviderStore
 from .rules.loader import load_rules, rule_summary
 from .rules.skills import discover_skills, render_catalog
+from .sessions import SessionStore, format_sessions, sessions_root
 
 
 def _root(args) -> Path:
@@ -153,6 +154,24 @@ def _cmd_config(args) -> int:
     return 0
 
 
+def _cmd_sessions() -> int:
+    print(format_sessions(SessionStore().list()))
+    return 0
+
+
+def _expand_session_args(argv: list[str]) -> list[str]:
+    store = SessionStore()
+    expanded = []
+    for argument in argv:
+        if argument.startswith("--") and not argument.startswith("---"):
+            candidate = argument[2:]
+            if candidate.startswith("s-") and store.find(candidate):
+                expanded.extend(["--session", candidate])
+                continue
+        expanded.append(argument)
+    return expanded
+
+
 def _cmd_doctor(root: Path) -> int:
     store = ProviderStore()
     provider = store.active()
@@ -167,6 +186,7 @@ def _cmd_doctor(root: Path) -> int:
         print(f"Model: {provider.model or 'unset'}")
         print(f"Keys: {len(provider.api_keys)}")
     print(f"Tools: {', '.join(tools) or 'none'}")
+    print(f"Sessions: {sessions_root()} ({len(SessionStore().list())})")
     print(rule_summary(load_rules(root)))
     skills = discover_skills(root)
     print(f"Skills: {len(skills)}")
@@ -182,6 +202,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"Paicode {__version__}")
     parser.add_argument("--path", default="", help="Project root. Defaults to the current directory.")
+    parser.add_argument("--session", default="", help="Open a session by ID or unique prefix.")
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Run one prompt without the TUI.")
@@ -195,6 +216,11 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--diff", action="store_true", help="Print file diffs.")
 
     subparsers.add_parser("models", help="List models from the active provider.")
+    subparsers.add_parser(
+        "session-lists",
+        aliases=["sessions"],
+        help="List every Paicode session with workspace and timestamps.",
+    )
 
     connect_parser = subparsers.add_parser("connect", help="Configure a provider from the command line.")
     connect_parser.add_argument("name")
@@ -217,7 +243,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(_expand_session_args(raw_args))
+
+    if args.command in {"session-lists", "sessions"}:
+        return _cmd_sessions()
+
     root = _root(args)
 
     if args.command == "run":
@@ -233,7 +264,23 @@ def main(argv: list[str] | None = None) -> int:
 
     from .tui.app import PaiCodeApp
 
-    app = PaiCodeApp(root, ProviderStore())
+    session_store = SessionStore()
+    if args.session:
+        record = session_store.find(args.session)
+        if record is None:
+            print(f"Session '{args.session}' was not found.", file=sys.stderr)
+            return 1
+        root = Path(record.workspace).expanduser().resolve()
+        if not root.is_dir():
+            print(f"Session workspace is missing: {record.workspace}", file=sys.stderr)
+            return 1
+        session_data = session_store.touch(record.id) or session_store.get(record.id)
+    else:
+        if not root.is_dir():
+            print(f"Project root does not exist: {root}", file=sys.stderr)
+            return 1
+        session_data = session_store.create(root)
+    app = PaiCodeApp(root, ProviderStore(), session_store=session_store, session=session_data)
     app.run()
     return 0
 
