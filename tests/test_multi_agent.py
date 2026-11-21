@@ -6,6 +6,7 @@ from paicode.agents.store import AgentStore
 from paicode.agent.events import AgentPhase, Finished
 from paicode.core.stats import UsageStats
 from paicode.providers.store import ProviderConfig
+from paicode.rules.loader import load_rules
 
 from .fake_openai import FakeOpenAI, finish_chunk, text_chunk, tool_chunk, usage_chunk
 
@@ -162,13 +163,15 @@ def test_multi_agent_council_parallel_build_and_validator_repair(project: Path, 
             api_keys=["test-key"],
             model="fake-model",
         )
+        marker = "GLOBAL-RULE-MARKER-7f3a9c"
+        (config_home / "PAICODE.md").write_text(marker, encoding="utf-8")
         events = []
         stats = UsageStats()
         runner = MultiAgentRunner(
             project,
             provider,
             stats,
-            rules=[],
+            rules=load_rules(project),
             skills=[],
             emit=events.append,
             session_id="multi-test",
@@ -184,6 +187,10 @@ def test_multi_agent_council_parallel_build_and_validator_repair(project: Path, 
         assert any(isinstance(event, AgentPhase) and event.phase == "build" for event in events)
         assert any(isinstance(event, AgentPhase) and event.phase == "validate" for event in events)
         assert isinstance(events[-1], Finished)
+        assert server.requests
+        for payload in server.requests:
+            text = "\n".join(str(message.get("content", "")) for message in payload["messages"])
+            assert marker in text
         store = AgentStore()
         assert store.strike_count("multi-test", 2) == 1
         statuses = {row["agent_id"]: row for row in store.agent_status("multi-test")}
