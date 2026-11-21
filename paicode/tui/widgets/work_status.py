@@ -63,7 +63,7 @@ class WorkStatus(Static):
     def _refresh_display(self) -> None:
         if not self._working:
             line = f"[{'-' * self.BAR_WIDTH}] idle"
-            hint = "Esc x3 stop | type to queue"
+            hint = "Esc stop | type to queue"
             self.update(Text(f"{line}\n{hint}", style="#8a8a8a"))
             return
 
@@ -73,7 +73,7 @@ class WorkStatus(Static):
         elapsed = int(time.monotonic() - self._started)
         first = f"[{''.join(cells)}] {self._message} {elapsed}s"
         if self._stopping:
-            second = f"stop requested | queued {self._queue}"
+            second = f"stopping now | queued {self._queue}"
         else:
-            second = f"Esc x3 to stop | queued {self._queue}"
+            second = f"Esc to stop | queued {self._queue}"
         self.update(Text(f"{first}\n{second}", style="#8a8a8a"))

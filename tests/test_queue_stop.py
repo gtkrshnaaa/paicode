@@ -39,8 +39,7 @@ async def test_prompt_queue_and_triple_escape(project: Path, config_home: Path):
         fake = FakeRunner()
         app._active_runner = fake
         app.busy = True
-        for _ in range(3):
-            await pilot.press("escape")
-            await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
         assert fake.stopped
         app.busy = False

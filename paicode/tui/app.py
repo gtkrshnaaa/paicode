@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 
 from textual import events, work
@@ -20,7 +19,7 @@ from ..agent.events import (
     UsageUpdated,
 )
 from ..agent.loop import AgentRunner
-from ..agents import MultiAgentRunner
+from ..agents import DiscussionRunner, MultiAgentRunner
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
@@ -311,12 +310,12 @@ class PaiCodeApp(SlashActions, App):
         self.stats_bar = None
         self.suggestions_bar = None
         self._tool_line = None
+        self._active_mode = "build"
         self._suggestions = []
         self._suggestion_index = 0
         self._prompt_queue = []
         self._active_runner = None
-        self._escape_count = 0
-        self._last_escape = 0.0
+        self._stop_requested = False
 
     def compose(self) -> ComposeResult:
         yield Static("Paicode", id="topbar")
@@ -349,7 +348,7 @@ class PaiCodeApp(SlashActions, App):
             self.chat.add_system(
                 f"Paicode {__version__}. 22-agent council online. Type a request or /help. "
                 "Shift+Enter newline. Ctrl+Shift+C/V copy/paste. Ctrl+V image. "
-                "Esc x3 stops a running task. Type while working to queue the next prompt."
+                "Esc stops a running task immediately. Type while working to queue the next prompt."
             )
             provider = self.store.active()
             if provider:
@@ -459,26 +458,17 @@ class PaiCodeApp(SlashActions, App):
             return
         if isinstance(self.screen, ModalScreen):
             return
-        now = time.monotonic()
-        if now - self._last_escape > 1.2:
-            self._escape_count = 0
-        self._last_escape = now
-        self._escape_count += 1
-        remaining = 3 - self._escape_count
-        if remaining > 0:
-            self.chat.set_work_message(f"press Esc {remaining} more to stop")
-        else:
-            self._escape_count = 0
-            self._request_stop()
+        self._request_stop()
         event.prevent_default()
         event.stop()
 
     def _request_stop(self) -> None:
-        if self._active_runner is None:
+        if self._active_runner is None or self._stop_requested:
             return
+        self._stop_requested = True
         self._active_runner.request_stop()
         self.chat.set_stopping()
-        self.chat.add_system("Stop requested. Paicode will stop after the current step.")
+        self.chat.add_system("Stopping now.")
 
     def _save_session(self, messages=None) -> None:
         try:
@@ -548,9 +538,12 @@ class PaiCodeApp(SlashActions, App):
         self._save_session()
         return True
 
-    def _start_prompt(self, text: str, images=None, display: str | None = None) -> None:
+    def _start_prompt(self, text: str, images=None, display: str | None = None, mode: str = "build") -> None:
         images = images or []
         display = display or text
+        if mode == "discussion" and self.busy:
+            self.chat.add_system("Stop the current task before starting a discussion.")
+            return
         if self.busy:
             self._prompt_queue.append((text, images, display))
             self.chat.set_queue(len(self._prompt_queue))
@@ -570,6 +563,7 @@ class PaiCodeApp(SlashActions, App):
             return
 
         self.busy = True
+        self._stop_requested = False
         self._reload_context()
         if not any(entry.get("kind") == "user" for entry in self.chat.transcript):
             first_line = display.strip().splitlines()[0][:60] if display.strip() else ""
@@ -579,12 +573,26 @@ class PaiCodeApp(SlashActions, App):
         self.chat.begin_assistant()
         self.chat.begin_work()
         self.chat.set_queue(len(self._prompt_queue))
-        self.chat.set_work_message("thinking")
-        self.diff.add_note(f"Task: {display[:220]}")
+        self.chat.set_work_message("discussion: read-only" if mode == "discussion" else "thinking")
+        if mode == "discussion":
+            self.chat.add_system("Discussion mode: read-only. Files, builds, and git mutations are locked.")
+        self._active_mode = mode
+        self.diff.add_note(
+            f"Discussion: {display[:220]}" if mode == "discussion" else f"Task: {display[:220]}"
+        )
         self.prompt.placeholder = PromptInput.BUSY_PLACEHOLDER
         self._refresh_stats()
         try:
-            if self.multi_agent:
+            if mode == "discussion":
+                runner = DiscussionRunner(
+                    self.root,
+                    provider,
+                    self.stats,
+                    self.rules,
+                    self.skills,
+                    emit=lambda event: self.call_from_thread(self._handle_event, event),
+                )
+            elif self.multi_agent:
                 runner = MultiAgentRunner(
                     self.root,
                     provider,
@@ -620,8 +628,10 @@ class PaiCodeApp(SlashActions, App):
 
     def _finish_work(self) -> None:
         self.busy = False
+        self._stop_requested = False
         self._active_runner = None
         self._tool_line = None
+        self._active_mode = "build"
         self.chat.end_work()
         self.chat.set_queue(len(self._prompt_queue))
         self.prompt.placeholder = PromptInput.DEFAULT_PLACEHOLDER
