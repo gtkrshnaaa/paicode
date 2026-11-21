@@ -23,6 +23,11 @@ async def test_tui_layout_and_slash_commands(project: Path, config_home: Path):
         assert str(tree.root.label) == project.name
 
         prompt = app.query_one("#prompt", PromptInput)
+        chat_scroll = app.query_one("#chat-scroll")
+        assert chat_scroll.styles.scrollbar_size_vertical == 0
+        assert app.query_one("#diff-log").styles.scrollbar_size_vertical == 0
+        assert prompt.styles.scrollbar_size_vertical == 0
+
         prompt.text = "one\ntwo\nthree"
         await pilot.pause()
         assert prompt._target_height == 5
@@ -70,6 +75,14 @@ async def test_tui_layout_and_slash_commands(project: Path, config_home: Path):
         await pilot.press("enter")
         await pilot.pause()
         assert app.busy is False
+
+        for index in range(40):
+            app.chat.add_system(f"scroll line {index}")
+        await pilot.pause()
+        chat_scroll.scroll_end(animate=False)
+        await pilot.pause()
+        assert chat_scroll.max_scroll_y > 0
+        assert chat_scroll.scroll_y > 0
 
         screenshot = app.export_screenshot()
         assert screenshot.startswith("<svg")

@@ -43,6 +43,10 @@ Screen {
 ModalScreen {
     align: center middle;
 }
+VerticalScroll, RichLog, Tree, TextArea, OptionList {
+    scrollbar-size-vertical: 0;
+    scrollbar-size-horizontal: 0;
+}
 #topbar {
     height: 1;
     background: #111111;
