@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.6 - 2026-11-21
+
+### Fixed
+
+- Multi-agent events now pass through one FIFO dispatcher, so tool rows and validator status cannot appear after the final report.
+- Assistant cards close before a tool row or system notice is mounted; later assistant text starts a new card below the tools.
+- Every assistant card label includes a timestamp.
+- Fixed a Markdown mount race that could leave assistant cards visually empty.
+- Added tests for event ordering, card ordering, timestamps, and non-empty assistant content.
+- Added a visual review of the ordered chat layout.
+
 ## 0.10.5 - 2026-11-21
 
 ### Fixed

@@ -169,7 +169,7 @@ Inside the TUI, `/sessions` lists all sessions with the current session marked. 
 
 ## Chat rendering
 
-Assistant replies render Markdown headings, lists, blockquotes, inline code, fenced code blocks, and tables. User messages use a bordered `YOU` card, assistant messages use a bordered `PAI` card, and tool activity stays on compact single-line rows. Every turn after the first starts with a labelled `TURN 02` divider and timestamp. The AI diff stream gives every change its own `DIFF 01` separator with path, additions, removals, and timestamp. `/sessions` and session details render as Markdown blocks that wrap cleanly in the chat pane.
+Assistant replies render Markdown headings, lists, blockquotes, inline code, fenced code blocks, and tables. User messages use a bordered `YOU` card, assistant messages use timestamped `PAI` cards, and tool activity stays on compact single-line rows. Assistant text, tool rows, system notices, and later report text are mounted in chronological order, with a new assistant card when text resumes after a tool or notice. Every turn after the first starts with a labelled `TURN 02` divider and timestamp. The AI diff stream gives every change its own `DIFF 01` separator with path, additions, removals, and timestamp. `/sessions` and session details render as Markdown blocks that wrap cleanly in the chat pane.
 
 ## Prompt composer
 

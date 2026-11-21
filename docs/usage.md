@@ -38,7 +38,7 @@ Use `/key` to add another key to the active provider. Use `/baseurl` to change t
 
 ## Send a task
 
-Type a request and press Enter. The agent streams text to the right pane, executes tools, and renders every file change in the center pane. The chat uses bordered user and assistant cards with a labelled turn divider between requests. The diff pane gives each change its own labelled separator with path, additions, removals, and timestamp. The bottom bar updates after each provider response.
+Type a request and press Enter. The agent streams text to the right pane, executes tools, and renders every file change in the center pane. The chat uses bordered user and timestamped assistant cards with a labelled turn divider between requests. Assistant text, tool rows, notices, and later reports stay in chronological order. The diff pane gives each change its own labelled separator with path, additions, removals, and timestamp. The bottom bar updates after each provider response.
 
 Useful prompts:
 

@@ -46,7 +46,7 @@ Every TUI launch is a session with a stable ID, workspace path, creation time, a
 
 ## Chat rendering
 
-The chat pane uses role-labeled user and assistant cards, inset spacing, and monochrome Markdown rendering. Headings, lists, blockquotes, inline code, fenced code blocks, and tables are supported. Every turn after the first starts with a labelled divider and timestamp. Tool activity is compact, and session lists render as readable Markdown blocks. The diff pane gives every change a labelled separator with the path, additions, removals, and timestamp, followed by a clean monochrome diff body.
+The chat pane uses role-labeled user and assistant cards, inset spacing, and monochrome Markdown rendering. Headings, lists, blockquotes, inline code, fenced code blocks, and tables are supported. Every turn after the first starts with a labelled divider and timestamp. Assistant cards carry their own start time. Assistant text, tool rows, system notices, and later report text are rendered in chronological order, and later text starts a new card instead of jumping above earlier tools. Tool activity is compact, and session lists render as readable Markdown blocks. The diff pane gives every change a labelled separator with the path, additions, removals, and timestamp, followed by a clean monochrome diff body.
 
 ## Prompt attachments and queueing
 
