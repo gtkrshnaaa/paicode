@@ -1,103 +1,237 @@
-#!/usr/bin/env python
-
 import argparse
-from . import agent, config, llm, ui, __version__
+import os
+import shutil
+import sys
+from pathlib import Path
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Pai Code: Your Agentic AI Coding Companion.",
-        epilog="Run 'pai config --help' for API key management. Use 'pai config reset blacklist' to unblock rate-limited keys. Run 'pai' or 'pai auto' to start the agent."
-    )
-    parser.add_argument('-v', '--version', action='version', version=f'Pai Code v{__version__}')
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+from rich.console import Console
 
-    parser_auto = subparsers.add_parser('auto', help='Start the interactive AI agent session.')
-    parser_auto.add_argument('--model', type=str, help='LLM model name (e.g., gemini-2.5-flash-lite)')
-    parser_auto.add_argument('--temperature', type=float, help='LLM sampling temperature (e.g., 0.2)')
+from . import __version__
+from .core.paths import config_file, project_root
+from .core.stats import UsageStats
+from .providers.client import ProviderClient
+from .providers.presets import get_preset
+from .providers.store import ProviderStore
+from .rules.loader import load_rules, rule_summary
+from .rules.skills import discover_skills, render_catalog
 
-    parser_config = subparsers.add_parser('config', help='Manage the API key configuration')
-    config_subparsers = parser_config.add_subparsers(dest='config_cmd', help='Available config subcommands')
 
-    parser_config_add = config_subparsers.add_parser('add', help='Add a new API key')
-    parser_config_add.add_argument('id', type=str, help='API key ID')
-    parser_config_add.add_argument('key', type=str, help='API key')
+def _root(args) -> Path:
+    if getattr(args, "path", ""):
+        return Path(args.path).expanduser().resolve()
+    return project_root()
 
-    parser_config_list = config_subparsers.add_parser('list', help='List all API keys')
 
-    parser_config_show = config_subparsers.add_parser('show', help='Show an API key')
-    parser_config_show.add_argument('id', type=str, help='API key ID')
+def _require_provider(store: ProviderStore):
+    provider = store.active()
+    if provider is None:
+        raise SystemExit("No provider configured. Run: pai connect deepseek <base_url> --key-env DEEPSEEK_API_KEY")
+    if not provider.api_keys:
+        raise SystemExit(f"Provider '{provider.name}' has no API key. Use the /key command in the TUI.")
+    return provider
 
-    parser_config_remove = config_subparsers.add_parser('remove', help='Remove an API key')
-    parser_config_remove.add_argument('id', type=str, help='API key ID')
 
-    parser_config_set_default = config_subparsers.add_parser('set-default', help='Set an API key as default')
-    parser_config_set_default.add_argument('id', type=str, help='API key ID')
+def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool) -> int:
+    from .agent.events import ErrorEvent, Finished, TextDelta, ToolFinished, ToolStarted, UsageUpdated
+    from .agent.loop import AgentRunner
 
-    parser_config_reset = config_subparsers.add_parser('reset', help='Reset API key blacklist')
-    parser_config_reset.add_argument('target', type=str, choices=['blacklist'], help='What to reset (currently only "blacklist")')
+    store = ProviderStore()
+    provider = _require_provider(store)
+    if not provider.model:
+        raise SystemExit("No model selected. Run: pai config set-model <model>")
 
-    config_group = parser_config.add_mutually_exclusive_group(required=False)
-    config_group.add_argument('--set', type=str, metavar='API_KEY', help='Set or update the API key (DEPRECATED)')
-    config_group.add_argument('--show', action='store_true', help='Show the currently configured API key (DEPRECATED)')
-    config_group.add_argument('--remove', action='store_true', help='Remove the stored API key (DEPRECATED)')
+    console = Console(highlight=False, soft_wrap=True)
+    stats = UsageStats()
+    rules = load_rules(root)
+    skills = discover_skills(root)
+    state = {"error": False, "started": False}
 
-    args = parser.parse_args()
-
-    if args.command == 'config':
-        # Handle new subcommands first
-        if args.config_cmd == 'add':
-            config.add_api_key(args.id, args.key)
+    def on_event(event) -> None:
+        if isinstance(event, TextDelta):
+            state["started"] = True
+            console.print(event.text, end="", markup=False)
+        elif isinstance(event, ToolStarted):
+            if state["started"]:
+                console.print("")
+                state["started"] = False
+            console.print(f"[dim]{event.name}[/dim]", end=" ")
+        elif isinstance(event, ToolFinished):
+            status = "ok" if event.ok else "failed"
+            console.print(f"[dim]{status}[/dim]")
+            if show_diff and event.diff:
+                console.print(event.diff, style="dim")
+        elif isinstance(event, UsageUpdated):
             return
-        elif args.config_cmd == 'list':
-            rows = config.list_api_keys()
-            # Pretty table
-            from rich.table import Table
-            table = Table(show_header=True, header_style="bold")
-            table.add_column("ID", style="bold")
-            table.add_column("Masked Key")
-            table.add_column("Default", justify="center")
-            for r in rows:
-                table.add_row(r.get('id',''), r.get('masked',''), r.get('is_default',''))
-            ui.console.print(table)
-            return
-        elif args.config_cmd == 'show':
-            config.show_api_key(args.id)
-            return
-        elif args.config_cmd == 'remove':
-            config.remove_api_key(args.id)
-            return
-        elif args.config_cmd == 'set-default':
-            config.set_default_api_key(args.id)
-            return
-        elif args.config_cmd == 'reset':
-            if args.target == 'blacklist':
-                config.reset_blacklist()
-            return
+        elif isinstance(event, Finished):
+            if state["started"]:
+                console.print("")
+            console.print(f"[dim]finished in {event.steps} step(s)[/dim]")
+        elif isinstance(event, ErrorEvent):
+            state["error"] = True
+            if state["started"]:
+                console.print("")
+            console.print(f"[red]error: {event.message}[/red]")
 
-        # Legacy flags (kept for compatibility)
-        if getattr(args, 'set', None):
-            config.save_api_key(args.set)
-            return
-        if getattr(args, 'show', False):
-            config.show_api_key(None)
-            return
-        if getattr(args, 'remove', False):
-            # In multi-key mode, removing legacy means wiping file; but safer to instruct user
-            ui.print_warning("Legacy --remove is deprecated. Use: pai config remove <ID>")
-            return
+    runner = AgentRunner(root, provider, stats, rules, skills, emit=on_event, max_steps=max_steps)
+    runner.run(prompt)
+    if state["started"]:
+        console.print("")
+    console.print(f"[dim]{stats.summary()}[/dim]")
+    return 1 if state["error"] else 0
+
+
+def _cmd_models(root: Path) -> int:
+    store = ProviderStore()
+    provider = _require_provider(store)
+    client = ProviderClient(provider)
+    try:
+        models = client.list_models()
+    except Exception as exc:
+        print(f"Model discovery failed: {exc}", file=sys.stderr)
+        return 1
+    if models:
+        store.set_models(provider.name, models)
+        for model in models:
+            marker = "*" if model == provider.model else " "
+            print(f"{marker} {model}")
     else:
-        # Configure LLM runtime if flags provided
-        model = getattr(args, 'model', None)
-        temperature = getattr(args, 'temperature', None)
-        if model is not None or temperature is not None:
-            llm.set_runtime_model(model, temperature)
-        try:
-            agent.start_interactive_session()
-        except KeyboardInterrupt:
-            ui.print_info("\nSession terminated by user.")
-        except Exception as e:
-            ui.print_error(f"An error occurred during the session: {e}")
-            return 1
+        print("The provider returned no models.")
+    return 0
+
+
+def _cmd_connect(args) -> int:
+    api_key = args.api_key or ""
+    if args.key_env:
+        api_key = os.getenv(args.key_env, "")
+    if not api_key:
+        print("Provide an API key or --key-env with the environment variable name.", file=sys.stderr)
+        return 1
+    store = ProviderStore()
+    preset = get_preset(args.name)
+    models_url = args.models_url or (preset.models_url if preset else "")
+    try:
+        provider = store.upsert(
+            args.name,
+            args.base_url,
+            api_key=api_key,
+            model=args.model or (preset.model if preset else ""),
+            models_url=models_url,
+        )
+        store.set_active(provider.name)
+    except Exception as exc:
+        print(f"Could not save provider: {exc}", file=sys.stderr)
+        return 1
+    print(store.redacted())
+    return 0
+
+
+def _cmd_config(args) -> int:
+    store = ProviderStore()
+    command = args.config_cmd or "show"
+    if command == "show":
+        print(store.redacted())
+        return 0
+    provider = store.active()
+    if provider is None:
+        print("No active provider.", file=sys.stderr)
+        return 1
+    try:
+        if command == "set-key":
+            store.add_key(provider.name, args.value)
+        elif command == "set-base-url":
+            store.upsert(provider.name, args.value)
+        elif command == "set-model":
+            store.set_model(provider.name, args.value)
+        elif command == "use":
+            store.set_active(args.value)
+        elif command == "remove":
+            store.remove(args.value)
+    except Exception as exc:
+        print(f"Configuration failed: {exc}", file=sys.stderr)
+        return 1
+    print(store.redacted())
+    return 0
+
+
+def _cmd_doctor(root: Path) -> int:
+    store = ProviderStore()
+    provider = store.active()
+    tools = [tool for tool in ["git", "rg", "pytest", "python3", "node", "npm", "cargo", "go"] if shutil.which(tool)]
+    print(f"Paicode: {__version__}")
+    print(f"Python: {sys.version.split()[0]}")
+    print(f"Project root: {root}")
+    print(f"Config: {config_file()}")
+    print(f"Provider: {provider.name if provider else 'none'}")
+    if provider:
+        print(f"Base URL: {provider.base_url}")
+        print(f"Model: {provider.model or 'unset'}")
+        print(f"Keys: {len(provider.api_keys)}")
+    print(f"Tools: {', '.join(tools) or 'none'}")
+    print(rule_summary(load_rules(root)))
+    skills = discover_skills(root)
+    print(f"Skills: {len(skills)}")
+    if skills:
+        print(render_catalog(skills))
+    return 0
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="pai",
+        description="Paicode, a terminal coding agent with a multi-pane TUI.",
+    )
+    parser.add_argument("--version", action="version", version=f"Paicode {__version__}")
+    parser.add_argument("--path", default="", help="Project root. Defaults to the current directory.")
+    subparsers = parser.add_subparsers(dest="command")
+
+    run_parser = subparsers.add_parser("run", help="Run one prompt without the TUI.")
+    run_parser.add_argument("prompt", nargs="+")
+    run_parser.add_argument("--max-steps", type=int, default=12)
+    run_parser.add_argument("--diff", action="store_true", help="Print file diffs.")
+
+    subparsers.add_parser("models", help="List models from the active provider.")
+
+    connect_parser = subparsers.add_parser("connect", help="Configure a provider from the command line.")
+    connect_parser.add_argument("name")
+    connect_parser.add_argument("base_url")
+    connect_parser.add_argument("api_key", nargs="?", default="")
+    connect_parser.add_argument("--key-env", default="", help="Read the API key from this environment variable.")
+    connect_parser.add_argument("--model", default="")
+    connect_parser.add_argument("--models-url", default="")
+
+    config_parser = subparsers.add_parser("config", help="Inspect or edit provider configuration.")
+    config_sub = config_parser.add_subparsers(dest="config_cmd")
+    config_sub.add_parser("show")
+    for name in ["set-key", "set-base-url", "set-model", "use", "remove"]:
+        child = config_sub.add_parser(name)
+        child.add_argument("value")
+
+    subparsers.add_parser("doctor", help="Show environment, provider, rules, and skill status.")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    root = _root(args)
+
+    if args.command == "run":
+        return _run_headless(root, " ".join(args.prompt), args.max_steps, args.diff)
+    if args.command == "models":
+        return _cmd_models(root)
+    if args.command == "connect":
+        return _cmd_connect(args)
+    if args.command == "config":
+        return _cmd_config(args)
+    if args.command == "doctor":
+        return _cmd_doctor(root)
+
+    from .tui.app import PaiCodeApp
+
+    app = PaiCodeApp(root, ProviderStore())
+    app.run()
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -16,6 +16,9 @@ __pycache__/
 
 
 pai_code.egg-info
+*.egg-info/
+build/
+dist/
 z_project_list
 z_listing/
 # Runtime state
