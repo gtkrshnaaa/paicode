@@ -1,7 +1,12 @@
 from pathlib import Path
 
 from paicode.core.stats import UsageStats
-from paicode.sessions import SessionStore, format_sessions
+from paicode.sessions import (
+    SessionStore,
+    format_session_detail_markdown,
+    format_sessions,
+    format_sessions_markdown,
+)
 
 
 def test_session_store_create_list_find_touch(tmp_path: Path, config_home: Path):
@@ -29,6 +34,14 @@ def test_session_store_create_list_find_touch(tmp_path: Path, config_home: Path)
     assert "* " in table
     assert "CREATED" in table
     assert "LAST OPENED" in table
+
+    markdown = format_sessions_markdown(store.list(), first.record.id)
+    assert "## Sessions" in markdown
+    assert first.record.id in markdown
+    assert str(workspace_a.resolve()) in markdown
+    detail = format_session_detail_markdown(first.record)
+    assert "## Current Session" in detail
+    assert first.record.id in detail
 
 
 def test_session_store_persists_transcript_diffs_messages_and_stats(tmp_path: Path, config_home: Path):

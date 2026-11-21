@@ -6,7 +6,12 @@ from ..providers.client import ProviderClient
 from ..providers.presets import get_preset
 from ..rules.loader import load_rules, render_rules, rule_summary
 from ..rules.skills import discover_skills, find_skill, load_skill_text, render_catalog
-from ..sessions import format_session_detail, format_sessions
+from ..sessions import (
+    format_session_detail,
+    format_session_detail_markdown,
+    format_sessions,
+    format_sessions_markdown,
+)
 from .commands import HELP_TEXT, parse_slash
 from .modals.models import ModelModal
 from .modals.provider import ProviderModal
@@ -256,14 +261,19 @@ class SlashActions:
         self.chat.add_system(self.stats.detailed())
 
     def _cmd_sessions(self, args: str) -> None:
-        self.chat.add_system(
-            format_sessions(self.session_store.list(), self.session.record.id)
+        records = self.session_store.list()
+        self.chat.add_markdown_system(
+            format_sessions_markdown(records, self.session.record.id),
+            plain_text=format_sessions(records, self.session.record.id),
         )
 
     def _cmd_session(self, args: str) -> None:
         value = args.strip()
         if not value:
-            self.chat.add_system(format_session_detail(self.session.record))
+            self.chat.add_markdown_system(
+                format_session_detail_markdown(self.session.record),
+                plain_text=format_session_detail(self.session.record),
+            )
             return
         if value.lower() == "new":
             if self.busy:

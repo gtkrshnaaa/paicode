@@ -71,13 +71,14 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     padding: 1 0 0 0;
 }
 #chat {
-    width: 46;
+    width: 54;
     border: round #262626;
     background: #0b0b0c;
     padding: 1 0 0 0;
 }
 #chat-scroll {
     height: 1fr;
+    padding: 0 1;
 }
 #chat-status {
     height: 2;
@@ -116,16 +117,77 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     padding: 0 1;
 }
 .msg.user {
-    background: #171717;
+    background: #151515;
+    border-left: solid #3a3a3a;
+    padding: 1 1;
 }
-.msg.assistant {
-    background: #0f0f0f;
+.msg.assistant-card {
+    background: #0e0e0e;
+    border-left: solid #2a2a2a;
+    padding: 0 1 1 1;
+    height: auto;
+}
+.role {
+    height: 1;
+    color: #8a8a8a;
+    background: transparent;
+}
+.assistant-body {
+    background: transparent;
+    color: #d4d4d4;
+    margin: 0;
+    padding: 0;
 }
 .msg.tool {
+    background: #111111;
+    border-left: solid #262626;
     color: #8a8a8a;
+    height: 1;
+    padding: 0 1;
+    margin-bottom: 0;
 }
 .msg.system {
     color: #8a8a8a;
+}
+.msg.system.md {
+    background: #0e0e0e;
+    border-left: solid #1f1f1f;
+    padding: 0 1 1 1;
+}
+Markdown {
+    background: transparent;
+    color: #d4d4d4;
+}
+MarkdownH1, MarkdownH2, MarkdownH3, MarkdownH4 {
+    color: #f5f5f5;
+    text-style: bold;
+    margin: 0 0 1 0;
+}
+MarkdownParagraph {
+    margin: 0 0 1 0;
+}
+MarkdownBulletList, MarkdownOrderedList {
+    margin: 0 0 1 0;
+}
+MarkdownListItem {
+    margin: 0;
+}
+MarkdownListItem > Vertical {
+    margin: 0;
+}
+MarkdownFence {
+    background: #171717;
+    border: round #262626;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+MarkdownTable {
+    background: #111111;
+    border: round #262626;
+    margin: 0 0 1 0;
+}
+MarkdownTH, MarkdownTD {
+    padding: 0 1;
 }
 #modal-card {
     width: 86;

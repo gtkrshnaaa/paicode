@@ -10,6 +10,7 @@ class ChatPane(Vertical):
     def __init__(self):
         super().__init__(id="chat")
         self._stream: Markdown | None = None
+        self._assistant_card: Vertical | None = None
         self._buffer = ""
         self._assistant_entry: dict | None = None
         self._recording = True
@@ -49,7 +50,10 @@ class ChatPane(Vertical):
 
     def add_user(self, text: str) -> None:
         self._record({"kind": "user", "text": text})
-        content = Text.assemble(("You\n", "bold #8a8a8a"), (text, "#d4d4d4"))
+        content = Text()
+        content.append("You", style="bold #8a8a8a")
+        content.append("\n")
+        content.append(text, style="#d4d4d4")
         self._scroll().mount(Static(content, classes="msg user"))
         self._scroll().scroll_end(animate=False)
 
@@ -58,14 +62,22 @@ class ChatPane(Vertical):
         self._scroll().mount(Static(Text(text, style="#8a8a8a"), classes="msg system"))
         self._scroll().scroll_end(animate=False)
 
+    def add_markdown_system(self, markdown: str, plain_text: str = "") -> None:
+        self._record({"kind": "system", "text": plain_text or markdown})
+        widget = Markdown(markdown, classes="msg system md")
+        scroll = self._scroll()
+        scroll.mount(widget)
+        scroll.scroll_to_widget(widget, top=True, animate=False)
+
     def _tool_text(self, name: str, status: str, detail: str) -> Text:
         style = "#e5e5e5" if status == "ok" else "#8a8a8a" if status == "failed" else "#6b6b6b"
         first_line = (detail or "").splitlines()[0][:220] if detail else ""
-        return Text.assemble(
-            (f"{name} ", "bold #d4d4d4"),
-            (status, style),
-            (f"  {first_line}" if first_line else "", "#8a8a8a"),
-        )
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append(f"{name} ", style="bold #d4d4d4")
+        text.append(status, style=style)
+        if first_line:
+            text.append(f"  {first_line}", style="#8a8a8a")
+        return text
 
     def add_tool(self, name: str, status: str, detail: str = "") -> Static:
         self._record(
@@ -95,11 +107,16 @@ class ChatPane(Vertical):
         widget.update(self._tool_text(name, status, detail))
         self._scroll().scroll_end(animate=False)
 
+    def _new_assistant_card(self, text: str = "") -> tuple[Vertical, Markdown]:
+        stream = Markdown(text, classes="assistant-body")
+        card = Vertical(Static("Pai", classes="role"), stream, classes="msg assistant-card")
+        return card, stream
+
     def begin_assistant(self) -> None:
         self._buffer = ""
         self._assistant_entry = None
-        self._stream = Markdown("", classes="msg assistant")
-        self._scroll().mount(self._stream)
+        self._assistant_card, self._stream = self._new_assistant_card()
+        self._scroll().mount(self._assistant_card)
         self._scroll().scroll_end(animate=False)
 
     def append_assistant(self, chunk: str) -> None:
@@ -113,15 +130,24 @@ class ChatPane(Vertical):
         self._stream.update(self._buffer)
         self._scroll().scroll_end(animate=False)
 
+    def add_assistant(self, text: str) -> None:
+        if not text:
+            return
+        self._record({"kind": "assistant", "text": text})
+        card, _ = self._new_assistant_card(text)
+        self._scroll().mount(card)
+        self._scroll().scroll_end(animate=False)
+
     def end_assistant(self) -> None:
-        if self._stream is not None and not self._buffer.strip():
-            self._stream.remove()
+        if self._assistant_card is not None and not self._buffer.strip():
+            self._assistant_card.remove()
         if self._assistant_entry is not None:
             if self._buffer.strip():
                 self._assistant_entry["text"] = self._buffer
             elif self._assistant_entry in self.transcript:
                 self.transcript.remove(self._assistant_entry)
         self._stream = None
+        self._assistant_card = None
         self._buffer = ""
         self._assistant_entry = None
 
@@ -133,6 +159,7 @@ class ChatPane(Vertical):
         for child in list(scroll.children):
             child.remove()
         self._stream = None
+        self._assistant_card = None
         self._buffer = ""
         self._assistant_entry = None
         if clear_transcript:
@@ -154,9 +181,7 @@ class ChatPane(Vertical):
                     str(entry.get("detail", "")),
                 )
             elif kind == "assistant":
-                text = str(entry.get("text", ""))
-                if text:
-                    self._scroll().mount(Markdown(text, classes="msg assistant"))
+                self.add_assistant(str(entry.get("text", "")))
         self.transcript = list(entries)
         self._recording = True
         self._scroll().scroll_end(animate=False)
