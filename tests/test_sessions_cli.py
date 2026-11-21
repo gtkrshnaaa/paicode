@@ -49,7 +49,7 @@ def test_main_creates_a_new_session_for_current_workspace(
     captured = {}
 
     class FakeApp:
-        def __init__(self, root, provider_store, session_store, session):
+        def __init__(self, root, provider_store, session_store, session, **kwargs):
             captured["root"] = Path(root)
             captured["session"] = session
 
@@ -76,7 +76,7 @@ def test_main_opens_dynamic_session_workspace(
     captured = {}
 
     class FakeApp:
-        def __init__(self, root, provider_store, session_store, session):
+        def __init__(self, root, provider_store, session_store, session, **kwargs):
             captured["root"] = Path(root)
             captured["session_id"] = session.record.id
 

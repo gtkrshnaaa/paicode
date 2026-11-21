@@ -1,5 +1,7 @@
 from textual import work
 
+from ..agents import MultiAgentRunner
+from ..agents.store import AgentStore
 from ..agent.loop import context_budget
 from ..core.atomic import atomic_write_text
 from ..providers.client import ProviderClient
@@ -284,6 +286,50 @@ class SlashActions:
             self._switch_session(created.record.id)
             return
         self._switch_session(value)
+
+    def _cmd_agents(self, args: str) -> None:
+        runner = self._active_runner
+        if isinstance(runner, MultiAgentRunner):
+            rows = runner.agent_status()
+            if not rows:
+                self.chat.add_system("The council has not started yet.")
+                return
+            lines = ["## Agents", ""]
+            for row in rows:
+                lines.append(
+                    f"- Agent {row['agent_id']} {row['role']}: {row['phase']} / {row['status']} "
+                    f"({row.get('total_tokens', 0)} tokens)"
+                )
+            self.chat.add_markdown_system("\n".join(lines))
+            return
+        self.chat.add_system("This run is using a single agent. Start a new prompt to use the council.")
+
+    def _cmd_contract(self, args: str) -> None:
+        runner = self._active_runner
+        contract = runner.contract if isinstance(runner, MultiAgentRunner) else None
+        if contract is None:
+            contract = AgentStore().latest_contract(self.session.record.id)
+        if contract is None:
+            self.chat.add_system("No frozen contract in this session yet.")
+            return
+        self.chat.add_markdown_system(contract.markdown(), plain_text=contract.feature)
+
+    def _cmd_bugs(self, args: str) -> None:
+        runner = self._active_runner
+        if isinstance(runner, MultiAgentRunner):
+            rows = runner.latest_findings()
+        else:
+            rows = AgentStore().latest_findings(self.session.record.id)
+        if not rows:
+            self.chat.add_system("No validation findings.")
+            return
+        lines = ["## Validation Findings", ""]
+        for row in rows[:25]:
+            lines.append(
+                f"- Agent {row['owner']} [{row['severity']}] {row['title']} "
+                f"`{row['file'] or 'unknown'}`: {row['message'] or row['actual']}"
+            )
+        self.chat.add_markdown_system("\n".join(lines))
 
     def _cmd_stop(self, args: str) -> None:
         if self._active_runner is None:

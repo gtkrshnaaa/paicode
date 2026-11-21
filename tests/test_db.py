@@ -34,7 +34,7 @@ def test_reset_backs_up_and_creates_a_fresh_seeded_database(config_home: Path):
     result = database.reset()
     assert result["backup"] is not None
     assert result["backup"].exists()
-    assert result["migrations"] == 1
+    assert result["migrations"] == 2
     assert result["seeded"][:3] == ["deepseek", "opencode", "openai"]
 
     counts = database.counts()

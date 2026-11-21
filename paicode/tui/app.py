@@ -8,8 +8,19 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from .. import __version__
-from ..agent.events import ErrorEvent, Finished, ReasoningDelta, TextDelta, ToolFinished, ToolStarted, UsageUpdated
+from ..agent.events import (
+    AgentPhase,
+    AgentStatus,
+    ErrorEvent,
+    Finished,
+    ReasoningDelta,
+    TextDelta,
+    ToolFinished,
+    ToolStarted,
+    UsageUpdated,
+)
 from ..agent.loop import AgentRunner
+from ..agents import MultiAgentRunner
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
@@ -265,8 +276,10 @@ class PaiCodeApp(SlashActions, App):
         store: ProviderStore | None = None,
         session_store: SessionStore | None = None,
         session: SessionData | None = None,
+        multi_agent: bool = True,
     ):
         super().__init__()
+        self.multi_agent = multi_agent
         self.register_theme(MONOCHROME)
         self.theme = MONOCHROME.name
         self.session_store = session_store or SessionStore()
@@ -320,7 +333,7 @@ class PaiCodeApp(SlashActions, App):
             )
         else:
             self.chat.add_system(
-                f"Paicode {__version__}. Type a request or /help. "
+                f"Paicode {__version__}. 22-agent council online. Type a request or /help. "
                 "Shift+Enter newline. Ctrl+Shift+C/V copy/paste. Ctrl+V image. "
                 "Esc x3 stops a running task. Type while working to queue the next prompt."
             )
@@ -557,15 +570,26 @@ class PaiCodeApp(SlashActions, App):
         self.prompt.placeholder = PromptInput.BUSY_PLACEHOLDER
         self._refresh_stats()
         try:
-            runner = AgentRunner(
-                self.root,
-                provider,
-                self.stats,
-                self.rules,
-                self.skills,
-                emit=lambda event: self.call_from_thread(self._handle_event, event),
-                history=self.session.messages,
-            )
+            if self.multi_agent:
+                runner = MultiAgentRunner(
+                    self.root,
+                    provider,
+                    self.stats,
+                    self.rules,
+                    self.skills,
+                    emit=lambda event: self.call_from_thread(self._handle_event, event),
+                    session_id=self.session.record.id,
+                )
+            else:
+                runner = AgentRunner(
+                    self.root,
+                    provider,
+                    self.stats,
+                    self.rules,
+                    self.skills,
+                    emit=lambda event: self.call_from_thread(self._handle_event, event),
+                    history=self.session.messages,
+                )
         except Exception as exc:
             self.chat.add_system(f"Could not start the task: {exc}")
             self._finish_work()
@@ -628,9 +652,18 @@ class PaiCodeApp(SlashActions, App):
             if event.changed:
                 self.explorer.refresh_tree()
             self._refresh_stats()
+        elif isinstance(event, AgentPhase):
+            count = f" {event.active}/{event.total}" if event.total else ""
+            self.chat.set_work_message(f"{event.phase}: {event.detail}{count}")
+        elif isinstance(event, AgentStatus):
+            if event.status in {"failed", "object"}:
+                self.chat.add_system(
+                    f"Agent {event.agent_id} ({event.role}) {event.status}: {event.detail[:300]}"
+                )
         elif isinstance(event, UsageUpdated):
-            self.chat.end_assistant()
-            self.chat.set_work_message("thinking")
+            if not self.multi_agent:
+                self.chat.end_assistant()
+                self.chat.set_work_message("thinking")
             self._refresh_stats()
         elif isinstance(event, Finished):
             self.chat.end_assistant()

@@ -34,9 +34,19 @@ def _require_provider(store: ProviderStore):
     return provider
 
 
-def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool) -> int:
-    from .agent.events import ErrorEvent, Finished, TextDelta, ToolFinished, ToolStarted, UsageUpdated
+def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, single_agent: bool = False) -> int:
+    from .agent.events import (
+        AgentPhase,
+        AgentStatus,
+        ErrorEvent,
+        Finished,
+        TextDelta,
+        ToolFinished,
+        ToolStarted,
+        UsageUpdated,
+    )
     from .agent.loop import AgentRunner
+    from .agents import MultiAgentRunner
 
     store = ProviderStore()
     provider = _require_provider(store)
@@ -65,6 +75,15 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool) -> i
                 console.print(event.diff, style="dim")
         elif isinstance(event, UsageUpdated):
             return
+        elif isinstance(event, AgentPhase):
+            if state["started"]:
+                console.print("")
+                state["started"] = False
+            count = f" {event.active}/{event.total}" if event.total else ""
+            console.print(f"[dim]phase {event.phase}: {event.detail}{count}[/dim]")
+        elif isinstance(event, AgentStatus):
+            if event.status in {"failed", "object"}:
+                console.print(f"[dim]agent {event.agent_id} {event.role}: {event.status} {event.detail}[/dim]")
         elif isinstance(event, Finished):
             if state["started"]:
                 console.print("")
@@ -75,7 +94,10 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool) -> i
                 console.print("")
             console.print(f"[red]error: {event.message}[/red]")
 
-    runner = AgentRunner(root, provider, stats, rules, skills, emit=on_event, max_steps=max_steps)
+    if single_agent:
+        runner = AgentRunner(root, provider, stats, rules, skills, emit=on_event, max_steps=max_steps)
+    else:
+        runner = MultiAgentRunner(root, provider, stats, rules, skills, emit=on_event)
     runner.run(prompt)
     if state["started"]:
         console.print("")
@@ -190,6 +212,7 @@ def _cmd_doctor(root: Path) -> int:
         print(f"Keys: {len(provider.api_keys)}")
     print(f"Tools: {', '.join(tools) or 'none'}")
     print(f"Shell: {'bubblewrap sandbox' if sandbox_available() else 'direct execution'}")
+    print(f"Agents: multi (22) | single-agent fallback available")
     database = Database()
     database.initialize()
     counts = database.counts()
@@ -217,6 +240,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Back up the database, drop every table, migrate fresh, and seed provider presets.",
     )
+    parser.add_argument(
+        "--single-agent",
+        action="store_true",
+        help="Bypass the 22-agent council for a small task.",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Run one prompt without the TUI.")
@@ -228,6 +256,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional model-turn ceiling. 0 means unlimited (default).",
     )
     run_parser.add_argument("--diff", action="store_true", help="Print file diffs.")
+    run_parser.add_argument(
+        "--single-agent",
+        action="store_true",
+        dest="single_agent",
+        help="Bypass the 22-agent council for a small task.",
+    )
 
     subparsers.add_parser("models", help="List models from the active provider.")
     subparsers.add_parser(
@@ -277,7 +311,13 @@ def main(argv: list[str] | None = None) -> int:
     root = _root(args)
 
     if args.command == "run":
-        return _run_headless(root, " ".join(args.prompt), args.max_steps, args.diff)
+        return _run_headless(
+            root,
+            " ".join(args.prompt),
+            args.max_steps,
+            args.diff,
+            single_agent=bool(args.single_agent),
+        )
     if args.command == "models":
         return _cmd_models(root)
     if args.command == "connect":
@@ -305,7 +345,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Project root does not exist: {root}", file=sys.stderr)
             return 1
         session_data = session_store.create(root)
-    app = PaiCodeApp(root, ProviderStore(), session_store=session_store, session=session_data)
+    app = PaiCodeApp(
+        root,
+        ProviderStore(),
+        session_store=session_store,
+        session=session_data,
+        multi_agent=not bool(args.single_agent),
+    )
     app.run()
     return 0
 
