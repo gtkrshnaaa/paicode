@@ -139,7 +139,7 @@ Assistant replies render Markdown headings, lists, blockquotes, inline code, fen
 
 The prompt expands upward as it fills and can be toggled to a larger compose area with `Ctrl+E`. `Shift+Enter` inserts a newline. `Ctrl+J` inserts a newline as well, which helps in terminals that cannot report `Shift+Enter`.
 
-`Ctrl+Shift+C` copies the prompt selection, or the full prompt when nothing is selected. `Ctrl+Shift+V` pastes clipboard text only. Both write through `wl-copy` on Wayland and `xclip` on X11 when those tools are available, and also use the terminal clipboard. `Ctrl+V` remains the image-first paste shortcut.
+`Ctrl+Shift+C` copies the prompt selection, or the full prompt when nothing is selected. `Ctrl+Shift+V` pastes clipboard text only. Copy uses `wl-copy` on Wayland and `xclip` on X11 when available; paste uses `wl-paste` or `xclip`. Both also use the terminal clipboard as a fallback. `Ctrl+V` remains the image-first paste shortcut.
 
 Multiline pastes become a highlighted `[pasted N lines]` marker. The full text is restored when the prompt is submitted, while the chat history keeps the compact marker.
 
