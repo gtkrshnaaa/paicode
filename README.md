@@ -157,8 +157,9 @@ Each provider stores its base URL, API keys, selected model, cached model list, 
 
 ## Security model
 
-- File tools resolve every path inside the project root with `commonpath`, reject symlink escapes, and deny sensitive entries such as `.env`, `.git`, and `.ssh`.
-- `bash` has no shell. Commands are split with `shlex`, validated against an allowlist, and rejected if they contain shell operators, absolute paths, or parent traversal. Provider secrets are removed from the subprocess environment.
+- Workspace writes are confined to the project root with `commonpath`, symlink resolution, and a sensitive-name denylist.
+- `explore` provides read-only host filesystem inspection outside the workspace. It requires a concrete reason and blocks credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems such as `/proc`, `/sys`, and `/dev`.
+- `bash` has no shell. Commands are split with `shlex`, validated against an allowlist, and rejected if they contain shell operators, absolute paths, or parent traversal. Read-only host commands are available for OS and service inspection. Provider secrets are removed from the subprocess environment.
 - Config writes are atomic and protected by a file lock.
 - The agent never commits or pushes. Git access is limited to read-only commands.
 

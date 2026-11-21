@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.5 - 2026-11-21
+
+### Added
+
+- Read-only `explore` tool for guarded host filesystem inspection outside the workspace. It requires a concrete reason and blocks credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems.
+- Read-only host commands in the shell allowlist: uname, df, free, ps, lscpu, lsblk, read-only systemctl, and read-only journalctl.
+- System prompt now states the cwd, project root, home, platform, and the OS exploration policy.
+
+### Changed
+
+- Writes, edits, deletes, and moves remain confined to the workspace.
+
 ## 0.5.4 - 2026-11-21
 
 ### Changed

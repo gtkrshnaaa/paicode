@@ -18,7 +18,9 @@ The OpenCode preset uses `https://opencode.ai/inference/openai/v1` for chat and 
 
 `paicode/tools/` exposes twelve typed tools to the model through OpenAI function calling:
 
-`read`, `write`, `edit`, `list`, `glob`, `grep`, `bash`, `skill`, `mkdir`, `move`, `delete`, and `finish`.
+`read`, `write`, `edit`, `list`, `glob`, `grep`, `bash`, `explore`, `skill`, `mkdir`, `move`, `delete`, and `finish`.
+
+`explore` is the only tool that can read outside the workspace. It resolves the target, applies a sensitive-path denylist, requires a written reason, and returns the absolute path and scope. All write tools continue to use the workspace-confined path resolver.
 
 `registry.py` dispatches calls and converts security errors into tool results. `fs.py` implements atomic writes, surgical replacements, diffs, and in-process syntax checks for Python and JSON. `shell.py` enforces the command allowlist and scrubs provider secrets from the environment. `search.py` provides bounded glob and regex search.
 

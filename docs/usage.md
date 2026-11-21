@@ -74,6 +74,20 @@ description: Review API handlers for input validation and error propagation.
 ...
 ```
 
+## Host exploration
+
+Inside the workspace, Paicode uses `read`, `list`, `glob`, and `grep`. Outside the workspace, it can use the read-only `explore` tool when the task needs host context, installed tools, services, logs, or another project.
+
+```text
+Inspect /etc/os-release and summarize the distribution.
+Check the nginx configuration under /etc/nginx.
+Find the installed Node version and the active systemd failures.
+```
+
+The agent must state a concrete reason before exploring. Writes remain confined to the workspace. Credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems are denied.
+
+Read-only host commands include `uname`, `df`, `free`, `ps`, `lscpu`, `lsblk`, read-only `systemctl`, and read-only `journalctl`.
+
 ## Long-running tasks
 
 The interactive session has no model-turn cap. The loop stops when the model calls `finish`, returns no tool calls, or repeats the same tool call five times consecutively.

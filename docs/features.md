@@ -36,6 +36,10 @@ Global and project `PAICODE.md` files are injected into the system prompt. Skill
 
 `.pai_brain/session.md` records the last request, summary, changed files, and token totals. On the next launch, Paicode shows the previous session state. `.pai_history` keeps an append-only log.
 
+## Guarded host exploration
+
+The `explore` tool gives read-only access to the host filesystem outside the current workspace for host configuration, installed tools, services, logs, and other projects. Every call requires a concrete reason. Credentials, private keys, shell history, browser profiles, Paicode configuration, and pseudo-filesystems are blocked. Writes remain confined to the workspace.
+
 ## Long-running execution
 
 Interactive sessions have no fixed model-turn limit. A repeated-action detector stops the loop only when the same tool call appears five times in a row. The context budget defaults to 2,500,000 characters, and tool limits allow 20,000-line reads, 20 MB files, 5,000 list and search results, and 200,000 characters of shell output.
