@@ -1,3 +1,4 @@
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -13,33 +14,48 @@ class UsageStats:
     files_edited: int = 0
     commands: int = 0
     started_at: datetime = field(default_factory=datetime.now)
+    _lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
 
     def record_usage(self, prompt: int = 0, completion: int = 0, total: int = 0) -> None:
-        self.prompt_tokens += max(0, int(prompt or 0))
-        self.completion_tokens += max(0, int(completion or 0))
-        self.total_tokens += max(0, int(total or 0))
-        self.requests += 1
+        with self._lock:
+            self.prompt_tokens += max(0, int(prompt or 0))
+            self.completion_tokens += max(0, int(completion or 0))
+            self.total_tokens += max(0, int(total or 0))
+            self.requests += 1
 
     def mark(self, kind: str, amount: int = 1) -> None:
-        if kind == "read":
-            self.files_read += amount
-        elif kind == "created":
-            self.files_created += amount
-        elif kind == "edited":
-            self.files_edited += amount
-        elif kind == "command":
-            self.commands += amount
+        with self._lock:
+            if kind == "read":
+                self.files_read += amount
+            elif kind == "created":
+                self.files_created += amount
+            elif kind == "edited":
+                self.files_edited += amount
+            elif kind == "command":
+                self.commands += amount
+
+    def merge(self, other: "UsageStats") -> None:
+        with self._lock:
+            self.prompt_tokens += other.prompt_tokens
+            self.completion_tokens += other.completion_tokens
+            self.total_tokens += other.total_tokens
+            self.requests += other.requests
+            self.files_read += other.files_read
+            self.files_created += other.files_created
+            self.files_edited += other.files_edited
+            self.commands += other.commands
 
     def reset(self) -> None:
-        self.prompt_tokens = 0
-        self.completion_tokens = 0
-        self.total_tokens = 0
-        self.requests = 0
-        self.files_read = 0
-        self.files_created = 0
-        self.files_edited = 0
-        self.commands = 0
-        self.started_at = datetime.now()
+        with self._lock:
+            self.prompt_tokens = 0
+            self.completion_tokens = 0
+            self.total_tokens = 0
+            self.requests = 0
+            self.files_read = 0
+            self.files_created = 0
+            self.files_edited = 0
+            self.commands = 0
+            self.started_at = datetime.now()
 
     def to_dict(self) -> dict:
         return {

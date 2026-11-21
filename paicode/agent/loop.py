@@ -121,6 +121,9 @@ class AgentRunner:
         emit,
         max_steps: int = 0,
         history: list[dict] | None = None,
+        client: ProviderClient | None = None,
+        system_prompt: str | None = None,
+        allowed_write_paths: set[Path] | None = None,
     ):
         self.root = root
         self.provider = provider
@@ -129,19 +132,23 @@ class AgentRunner:
         self.max_steps = max(0, int(max_steps))
         self.rules = rules
         self.skills = skills
-        self.client = ProviderClient(provider)
+        self.client = client or ProviderClient(provider)
         self._stop_event = threading.Event()
-        self.registry = ToolRegistry(root, stats, skills, stop_event=self._stop_event)
+        self.registry = ToolRegistry(
+            root,
+            stats,
+            skills,
+            stop_event=self._stop_event,
+            allowed_write_paths=allowed_write_paths,
+        )
         self.session = SessionState(root=root)
         restored = [
             message
             for message in (history or [])
             if isinstance(message, dict) and message.get("role") in {"user", "assistant", "tool"}
         ]
-        self.messages = [
-            {"role": "system", "content": build_system_prompt(root, rules, skills)},
-            *restored,
-        ]
+        prompt = system_prompt or build_system_prompt(root, rules, skills)
+        self.messages = [{"role": "system", "content": prompt}, *restored]
 
     def request_stop(self) -> None:
         self._stop_event.set()

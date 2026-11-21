@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -41,35 +42,49 @@ class KeyRing:
         self.keys = [key for key in keys if key]
         self.index = 0
         self.cooldowns: dict[str, float] = {}
+        self._lock = threading.RLock()
 
     def __len__(self) -> int:
         return len(self.keys)
 
     def current(self) -> str:
-        if not self.keys:
-            raise ProviderError("No API key configured. Use /connect or /key.")
-        now = time.time()
-        for _ in range(len(self.keys)):
-            key = self.keys[self.index % len(self.keys)]
-            if self.cooldowns.get(key, 0) <= now:
-                return key
-            self.index = (self.index + 1) % len(self.keys)
-        raise ProviderError("All API keys are temporarily rate limited. Retry in a few minutes.")
+        with self._lock:
+            if not self.keys:
+                raise ProviderError("No API key configured. Use /connect or /key.")
+            now = time.time()
+            for _ in range(len(self.keys)):
+                key = self.keys[self.index % len(self.keys)]
+                if self.cooldowns.get(key, 0) <= now:
+                    return key
+                self.index = (self.index + 1) % len(self.keys)
+            raise ProviderError("All API keys are temporarily rate limited. Retry in a few minutes.")
 
     def rotate(self) -> None:
-        if self.keys:
-            self.index = (self.index + 1) % len(self.keys)
+        with self._lock:
+            if self.keys:
+                self.index = (self.index + 1) % len(self.keys)
 
     def mark(self, seconds: int = 600) -> None:
-        if self.keys:
-            self.cooldowns[self.keys[self.index % len(self.keys)]] = time.time() + seconds
+        with self._lock:
+            if self.keys:
+                self.cooldowns[self.keys[self.index % len(self.keys)]] = time.time() + seconds
 
 
 class ProviderClient:
-    def __init__(self, provider: ProviderConfig, timeout: float = 120.0):
+    def __init__(
+        self,
+        provider: ProviderConfig,
+        timeout: float = 120.0,
+        max_concurrency: int = 0,
+    ):
         self.provider = provider
         self.timeout = timeout
         self.ring = KeyRing(provider.api_keys)
+        self._gate = (
+            threading.BoundedSemaphore(max(1, int(max_concurrency)))
+            if max_concurrency
+            else None
+        )
 
     def _client(self, api_key: str) -> OpenAI:
         return OpenAI(
@@ -129,15 +144,27 @@ class ProviderClient:
         raise ProviderError(f"Model discovery failed for all keys. {last_error}".strip())
 
     def stream(self, messages: list[dict], tools: list[dict] | None = None, on_text=None, on_reasoning=None) -> ChatResult:
+        if self._gate is None:
+            return self._stream(messages, tools, on_text, on_reasoning)
+        with self._gate:
+            return self._stream(messages, tools, on_text, on_reasoning)
+
+    def _stream(self, messages: list[dict], tools: list[dict] | None = None, on_text=None, on_reasoning=None) -> ChatResult:
         if not self.provider.model:
             raise ConfigError("No model selected. Use /model or /models.")
         if not self.ring.keys:
             raise ProviderError("No API key configured. Use /connect or /key.")
 
         last_error = ""
-        attempts = max(1, len(self.ring))
-        for _ in range(attempts):
-            api_key = self.ring.current()
+        attempts = max(3, len(self.ring) * 3)
+        for attempt in range(attempts):
+            try:
+                api_key = self.ring.current()
+            except ProviderError:
+                if attempt < attempts - 1:
+                    time.sleep(min(8, 2 + attempt))
+                    continue
+                raise
             try:
                 try:
                     return self._stream_once(api_key, messages, tools, on_text, on_reasoning, include_usage=True)
@@ -145,13 +172,27 @@ class ProviderClient:
                     if "stream_options" in str(exc).lower():
                         return self._stream_once(api_key, messages, tools, on_text, on_reasoning, include_usage=False)
                     raise
-            except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as exc:
+            except (openai.AuthenticationError, openai.PermissionDeniedError) as exc:
                 last_error = str(exc)
-                self.ring.mark()
+                self.ring.mark(600)
                 self.ring.rotate()
+            except openai.RateLimitError as exc:
+                last_error = str(exc)
+                wait = min(10, 2 ** min(attempt, 4))
+                self.ring.mark(wait + 1)
+                time.sleep(wait)
             except openai.APIConnectionError as exc:
-                raise ProviderError(f"Provider connection failed: {exc}") from exc
+                last_error = str(exc)
+                if attempt >= attempts - 1:
+                    raise ProviderError(f"Provider connection failed: {exc}") from exc
+                time.sleep(min(8, 2 + attempt))
             except openai.APIStatusError as exc:
+                if exc.status_code >= 500:
+                    last_error = f"HTTP {exc.status_code}: {exc}"
+                    if attempt >= attempts - 1:
+                        raise ProviderError(f"Provider request failed ({exc.status_code}): {exc}") from exc
+                    time.sleep(min(8, 2 + attempt))
+                    continue
                 raise ProviderError(f"Provider request failed ({exc.status_code}): {exc}") from exc
         raise ProviderError(f"All API keys failed. {last_error}".strip())
 
