@@ -8,15 +8,32 @@ from rich.text import Text
 from .work_status import WorkStatus
 
 
+class AssistantMarkdown(Markdown):
+    def __init__(self, markdown: str = "", **kwargs):
+        super().__init__(markdown, **kwargs)
+        self._pending_source = markdown
+
+    def set_source(self, markdown: str) -> None:
+        self._pending_source = markdown
+        if self.is_mounted:
+            self.update(markdown)
+
+    async def _on_mount(self, event) -> None:
+        await super()._on_mount(event)
+        if self._pending_source:
+            await self.update(self._pending_source)
+
+
 class ChatPane(Vertical):
     def __init__(self):
         super().__init__(id="chat")
-        self._stream: Markdown | None = None
+        self._stream: AssistantMarkdown | None = None
         self._assistant_card: Vertical | None = None
         self._buffer = ""
         self._assistant_entry: dict | None = None
         self._recording = True
         self._turn = 0
+        self._sync_timer = None
         self.transcript: list[dict] = []
 
     def compose(self) -> ComposeResult:
@@ -61,6 +78,7 @@ class ChatPane(Vertical):
         return text
 
     def add_user(self, text: str) -> None:
+        self.end_assistant()
         self._turn += 1
         if self._turn > 1:
             self._scroll().mount(Static(self._turn_divider(), classes="turn-divider"))
@@ -73,6 +91,7 @@ class ChatPane(Vertical):
         self._scroll().scroll_end(animate=False)
 
     def add_system(self, text: str) -> None:
+        self.end_assistant()
         self._record({"kind": "system", "text": text})
         content = Text()
         content.append("· ", style="#3a3a3a")
@@ -81,6 +100,7 @@ class ChatPane(Vertical):
         self._scroll().scroll_end(animate=False)
 
     def add_markdown_system(self, markdown: str, plain_text: str = "") -> None:
+        self.end_assistant()
         self._record({"kind": "system", "text": plain_text or markdown})
         widget = Markdown(markdown, classes="msg system md")
         scroll = self._scroll()
@@ -99,6 +119,7 @@ class ChatPane(Vertical):
         return text
 
     def add_tool(self, name: str, status: str, detail: str = "") -> Static:
+        self.end_assistant()
         self._record(
             {
                 "kind": "tool",
@@ -126,41 +147,63 @@ class ChatPane(Vertical):
         widget.update(self._tool_text(name, status, detail))
         self._scroll().scroll_end(animate=False)
 
-    def _new_assistant_card(self, text: str = "") -> tuple[Vertical, Markdown]:
-        stream = Markdown(text, classes="assistant-body")
+    def _new_assistant_card(self, text: str = "") -> tuple[Vertical, AssistantMarkdown]:
+        stream = AssistantMarkdown(text, classes="assistant-body")
         label = Text()
         label.append("PAI", style="bold #f5f5f5")
         label.append("  assistant", style="#6b6b6b")
+        label.append(f"  ·  {datetime.now().strftime('%H:%M')}", style="#4a4a4a")
         card = Vertical(Static(label, classes="role"), stream, classes="msg assistant-card")
         return card, stream
 
     def begin_assistant(self) -> None:
         self._buffer = ""
         self._assistant_entry = None
-        self._assistant_card, self._stream = self._new_assistant_card()
-        self._scroll().mount(self._assistant_card)
-        self._scroll().scroll_end(animate=False)
+        self._assistant_card = None
+        self._stream = None
+
+    def _schedule_stream_sync(self, stream=None, buffer: str | None = None) -> None:
+        stream = stream or self._stream
+        if stream is None:
+            return
+        text = self._buffer if buffer is None else buffer
+        if self._sync_timer is not None:
+            self._sync_timer.stop()
+        self._sync_timer = self.set_timer(0.05, lambda: stream.set_source(text))
 
     def append_assistant(self, chunk: str) -> None:
-        if self._stream is None:
-            self.begin_assistant()
         self._buffer += chunk
+        if self._stream is None:
+            self._assistant_card, self._stream = self._new_assistant_card(self._buffer)
+            self._scroll().mount(self._assistant_card)
+        else:
+            self._stream.set_source(self._buffer)
+        self._schedule_stream_sync()
         if self._assistant_entry is None:
             self._assistant_entry = {"kind": "assistant", "text": ""}
             self._record(self._assistant_entry)
         self._assistant_entry["text"] = self._buffer
-        self._stream.update(self._buffer)
         self._scroll().scroll_end(animate=False)
 
     def add_assistant(self, text: str) -> None:
         if not text:
             return
         self._record({"kind": "assistant", "text": text})
-        card, _ = self._new_assistant_card(text)
+        card, stream = self._new_assistant_card(text)
         self._scroll().mount(card)
+        self._buffer = text
+        self._stream = stream
+        self._schedule_stream_sync()
         self._scroll().scroll_end(animate=False)
 
     def end_assistant(self) -> None:
+        stream = self._stream
+        buffer = self._buffer
+        if stream is not None and buffer.strip():
+            self._schedule_stream_sync(stream, buffer)
+        elif self._sync_timer is not None:
+            self._sync_timer.stop()
+        self._sync_timer = None
         if self._assistant_card is not None and not self._buffer.strip():
             self._assistant_card.remove()
         if self._assistant_entry is not None:
@@ -178,6 +221,9 @@ class ChatPane(Vertical):
         self._turn = 0
 
     def clear(self, clear_transcript: bool = True) -> None:
+        if self._sync_timer is not None:
+            self._sync_timer.stop()
+            self._sync_timer = None
         scroll = self._scroll()
         for child in list(scroll.children):
             child.remove()
