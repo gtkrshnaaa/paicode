@@ -51,6 +51,23 @@ async def test_ctrl_shift_c_copies_selection(
         assert written == ["cde"]
 
 
+async def test_ctrl_shift_c_empty_prompt_stays_empty(
+    project: Path, config_home: Path, monkeypatch
+):
+    written: list[str] = []
+    monkeypatch.setattr(prompt_module, "write_clipboard_text", written.append)
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", PromptInput)
+        prompt.focus()
+        prompt.text = ""
+        await pilot.press("ctrl+shift+c")
+        await pilot.pause()
+        assert app.clipboard == ""
+        assert written == []
+
+
 async def test_ctrl_shift_c_accepts_uppercase_kitty_key(
     project: Path, config_home: Path, monkeypatch
 ):
