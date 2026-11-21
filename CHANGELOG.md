@@ -8,6 +8,7 @@
 - `Ctrl+Shift+C` copies the prompt selection or the full prompt text.
 - `Ctrl+Shift+V` pastes clipboard text without attaching images. `Ctrl+V` keeps the image-first paste behavior.
 - Copy and text paste write through `wl-copy` on Wayland and `xclip` on X11, with the terminal clipboard as a fallback.
+- Clipboard text reads request text MIME types, so an image-only clipboard is ignored instead of pasted as binary data.
 
 ## 0.8.2 - 2026-11-21
 
