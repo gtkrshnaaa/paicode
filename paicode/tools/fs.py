@@ -25,12 +25,12 @@ class FileTools:
             raise ValueError("Binary files are not supported.")
         return raw.decode("utf-8", errors="ignore")
 
-    def read(self, path: str, offset: int = 1, limit: int = 400) -> ToolResult:
+    def read(self, path: str, offset: int = 1, limit: int = 2000) -> ToolResult:
         target = resolve_in_root(self.root, path, must_exist=True)
         text = self._read_text(target)
         lines = text.splitlines()
         start = max(1, int(offset or 1))
-        count = min(max(1, int(limit or 400)), 2000)
+        count = min(max(1, int(limit or 2000)), 20_000)
         selected = lines[start - 1 : start - 1 + count]
         header = f"# {display_path(self.root, target)} (lines {start}-{start + len(selected) - 1} of {len(lines)})"
         body = "\n".join(selected)
@@ -40,8 +40,8 @@ class FileTools:
         return ToolResult(ok=True, output=f"{header}\n{body}", kind="read")
 
     def write(self, path: str, content: str) -> ToolResult:
-        if len(content) > 1_000_000:
-            raise ValueError("Content exceeds the 1,000,000 character limit.")
+        if len(content) > 20_000_000:
+            raise ValueError("Content exceeds the 20,000,000 character limit.")
         target = resolve_in_root(self.root, path)
         old = ""
         existed = target.exists()
@@ -103,8 +103,8 @@ class FileTools:
             if entry.name in EXCLUDED_DIRS or entry.name in SENSITIVE_NAMES:
                 continue
             entries.append(f"{entry.name}/" if entry.is_dir() else entry.name)
-            if len(entries) >= 500:
-                entries.append("... [truncated at 500 entries]")
+            if len(entries) >= 5_000:
+                entries.append("... [truncated at 5,000 entries]")
                 break
         label = display_path(self.root, target) or "."
         return ToolResult(ok=True, output=f"{label}/\n" + "\n".join(entries), kind="list")

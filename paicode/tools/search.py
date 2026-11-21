@@ -26,8 +26,8 @@ class SearchTools:
             if any(part in EXCLUDED_DIRS or part in SENSITIVE_NAMES for part in relative.parts):
                 continue
             matches.append(str(relative) + ("/" if candidate.is_dir() else ""))
-            if len(matches) >= 500:
-                matches.append("... [truncated at 500 matches]")
+            if len(matches) >= 5_000:
+                matches.append("... [truncated at 5,000 matches]")
                 break
         output = "\n".join(sorted(matches)) if matches else f"No matches for '{pattern}'."
         return ToolResult(ok=True, output=output, kind="glob")
@@ -68,8 +68,8 @@ class SearchTools:
             for number, line in enumerate(text.splitlines(), start=1):
                 if regex.search(line):
                     results.append(f"{relative}:{number}:{line.strip()[:300]}")
-                    if len(results) >= 200:
-                        results.append("... [truncated at 200 matches]")
+                    if len(results) >= 5_000:
+                        results.append("... [truncated at 5,000 matches]")
                         return ToolResult(ok=True, output="\n".join(results), kind="grep")
 
         if not results:

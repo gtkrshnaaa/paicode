@@ -5,10 +5,10 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Input, Static
 
+from .. import __version__
 from ..agent.events import ErrorEvent, Finished, ReasoningDelta, TextDelta, ToolFinished, ToolStarted, UsageUpdated
 from ..agent.loop import AgentRunner
 from ..agent.session import read_brain
-from ..core.paths import MAX_TEXT_BYTES
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
@@ -21,6 +21,8 @@ from .widgets.chat import ChatPane
 from .widgets.diff import DiffPane
 from .widgets.explorer import ExplorerPane
 from .widgets.stats import StatsBar
+
+PREVIEW_BYTES = 5_000_000
 
 CSS = """
 Screen {
@@ -195,7 +197,7 @@ class PaiCodeApp(SlashActions, App):
         self._refresh_topbar()
         self._refresh_stats()
         self.chat.add_system(
-            "Paicode 0.5.0. Type a request or /help. File operations are limited to the project root."
+            f"Paicode {__version__}. Type a request or /help. File operations are limited to the project root."
         )
         brain = read_brain(self.root)
         if brain:
@@ -218,7 +220,7 @@ class PaiCodeApp(SlashActions, App):
         provider_name = provider.name if provider else "no provider"
         model = provider.model if provider and provider.model else "no model"
         self.query_one("#topbar", Static).update(
-            f" Paicode 0.5.0  |  {provider_name} / {model}  |  {self.root}"
+            f" Paicode {__version__}  |  {provider_name} / {model}  |  {self.root}"
         )
 
     def _refresh_stats(self) -> None:
@@ -322,7 +324,7 @@ class PaiCodeApp(SlashActions, App):
     def on_file_selected(self, message: FileSelected) -> None:
         try:
             raw = message.path.read_bytes()
-            if len(raw) > MAX_TEXT_BYTES:
+            if len(raw) > PREVIEW_BYTES:
                 self.chat.add_system(f"{message.path} is too large to preview.")
                 return
             if looks_binary(raw):

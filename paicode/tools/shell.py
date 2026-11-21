@@ -157,4 +157,4 @@ class ShellTools:
             output += f"\n--- STDOUT ---\n{completed.stdout}"
         if completed.stderr:
             output += f"\n--- STDERR ---\n{completed.stderr}"
-        return ToolResult(ok=completed.returncode == 0, output=output.strip()[:20_000], kind="command")
+        return ToolResult(ok=completed.returncode == 0, output=output.strip()[:200_000], kind="command")

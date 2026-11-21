@@ -39,7 +39,7 @@ EXCLUDED_DIRS = {
     "venv",
 }
 
-MAX_TEXT_BYTES = 2_000_000
+MAX_TEXT_BYTES = 20_000_000
 
 
 def project_root(start: Path | str | None = None) -> Path:
