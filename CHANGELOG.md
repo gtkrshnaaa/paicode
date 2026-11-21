@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.0 - 2026-11-22
+
+### Added
+
+- `/disscus <prompt>` read-only discussion mode with `/discuss` as an alias.
+- Discussion mode blocks file writes, builds, package installs, git mutations, inline code evaluation, in-place edits, and shell redirection.
+- Discussion shell runs on a disposable overlay with a host-cache-free cache path.
+- Monochrome syntax highlighting for the diff stream and file preview.
+- Strong diff header bands, closing rules, and wider spacing between diff blocks.
+- `Esc` now stops immediately by aborting active provider streams and killing sandboxed shell process groups.
+
+### Changed
+
+- Provider streams use a watchdog plus worker thread for immediate cancellation.
+- The work status and help text describe one-press stop.
+- File preview uses the shared language detector and monochrome TextArea theme.
+
 ## 0.10.6 - 2026-11-21
 
 ### Fixed

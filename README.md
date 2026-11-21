@@ -99,6 +99,8 @@ The interface has four regions:
 | `/limits` | Show step and context limits. |
 | `/sessions` | List every session with workspace and timestamps. |
 | `/session [id or new]` | Show the current session, switch sessions, or start a new one. |
+| `/disscus <prompt>` | Start read-only discussion mode. |
+| `/discuss <prompt>` | Alias for `/disscus`. |
 | `/agents` | Show the 22-agent council state. |
 | `/contract` | Show the frozen build contract. |
 | `/bugs` | Show current validation findings. |
@@ -138,6 +140,12 @@ pai --single-agent                   # single-agent TUI
 pai run --single-agent "small task"  # single-agent headless
 ```
 
+Discussion mode is read-only. It can inspect files, search, explore, and run read-only git and shell commands, but it cannot write, edit, delete, build, install packages, redirect output, or mutate git state.
+
+```text
+/disscus compare these two architecture options
+```
+
 Concurrency and loop controls:
 
 ```text
@@ -169,7 +177,7 @@ Inside the TUI, `/sessions` lists all sessions with the current session marked. 
 
 ## Chat rendering
 
-Assistant replies render Markdown headings, lists, blockquotes, inline code, fenced code blocks, and tables. User messages use a bordered `YOU` card, assistant messages use timestamped `PAI` cards, and tool activity stays on compact single-line rows. Assistant text, tool rows, system notices, and later report text are mounted in chronological order, with a new assistant card when text resumes after a tool or notice. Every turn after the first starts with a labelled `TURN 02` divider and timestamp. The AI diff stream gives every change its own `DIFF 01` separator with path, additions, removals, and timestamp. `/sessions` and session details render as Markdown blocks that wrap cleanly in the chat pane.
+Assistant replies render Markdown headings, lists, blockquotes, inline code, fenced code blocks, and tables. User messages use a bordered `YOU` card, assistant messages use timestamped `PAI` cards, and tool activity stays on compact single-line rows. Assistant text, tool rows, system notices, and later report text are mounted in chronological order, with a new assistant card when text resumes after a tool or notice. Every turn after the first starts with a labelled `TURN 02` divider and timestamp. The AI diff stream gives every change its own `DIFF 01` separator with path, additions, removals, and timestamp, then renders the code with monochrome syntax highlighting and a closing rule. Clicking a file in the explorer opens a read-only preview with line numbers and monochrome syntax highlighting. `/sessions` and session details render as Markdown blocks that wrap cleanly in the chat pane.
 
 ## Prompt composer
 
@@ -181,7 +189,7 @@ Multiline pastes become a highlighted `[pasted N lines]` marker. The full text i
 
 Attach an image by pasting a path to a PNG, JPEG, WebP, or GIF file, or press `Ctrl+V` to read an image from the system clipboard. Clipboard images use `wl-paste` from wl-clipboard on Wayland, with `xclip` as the X11 fallback. Images become `[image-1]`, `[image-2]`, and are sent as multimodal content to vision-capable models.
 
-While Paicode works, the bottom of the chat pane shows an animated loading bar, the current action, elapsed time, and the Esc hint. Press `Esc` three times in quick succession to stop after the current step. Prompts submitted while Paicode is busy are queued and start automatically when the current task finishes. Use `/queue` to inspect them or `/queue clear` to remove them.
+While Paicode works, the bottom of the chat pane shows an animated loading bar, the current action, elapsed time, and the Esc hint. Press `Esc` once to stop immediately. Active provider streams are aborted and sandboxed shell process groups are killed. Prompts submitted while Paicode is busy are queued and start automatically when the current task finishes. Use `/queue` to inspect them or `/queue clear` to remove them.
 
 ## Rules and skills
 

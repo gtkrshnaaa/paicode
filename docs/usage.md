@@ -38,7 +38,7 @@ Use `/key` to add another key to the active provider. Use `/baseurl` to change t
 
 ## Send a task
 
-Type a request and press Enter. The agent streams text to the right pane, executes tools, and renders every file change in the center pane. The chat uses bordered user and timestamped assistant cards with a labelled turn divider between requests. Assistant text, tool rows, notices, and later reports stay in chronological order. The diff pane gives each change its own labelled separator with path, additions, removals, and timestamp. The bottom bar updates after each provider response.
+Type a request and press Enter. The agent streams text to the right pane, executes tools, and renders every file change in the center pane. The chat uses bordered user and timestamped assistant cards with a labelled turn divider between requests. Assistant text, tool rows, notices, and later reports stay in chronological order. The diff pane gives each change its own labelled header band with path, additions, removals, and timestamp, monochrome syntax highlighting, and a closing rule. Clicking a file opens a syntax-highlighted read-only preview. The bottom bar updates after each provider response.
 
 Useful prompts:
 
@@ -65,6 +65,15 @@ Every model request carries the full global and project `PAICODE.md` rules. This
 /contract
 /bugs
 ```
+
+Read-only discussion mode:
+
+```text
+/disscus compare the two authentication designs
+/discuss explain the tradeoffs in the current module layout
+```
+
+Discussion mode can read, search, explore, and run read-only shell inspection. It cannot write files, build artifacts, install packages, mutate git, or redirect shell output.
 
 Use `--single-agent` when a task is too small to justify the council:
 
@@ -141,7 +150,7 @@ Multiline paste is replaced with a highlighted `[pasted N lines]` marker. The fu
 
 Paste an image path or press `Ctrl+V` to attach an image from the clipboard. Clipboard images use `wl-paste` from wl-clipboard on Wayland, with `xclip` as the X11 fallback. Images appear as `[image-1]`, `[image-2]`, and are sent as multimodal content. Use a vision-capable model such as `deepseek-flash`.
 
-While the agent works, the bottom of the chat pane shows a moving loading bar, the current action, elapsed time, and the queue count. Press `Esc` three times in quick succession to stop after the current step. A prompt submitted while the agent is busy is queued and starts automatically after the current task. `/queue` lists queued prompts, `/queue clear` removes them, and `/stop` requests a stop.
+While the agent works, the bottom of the chat pane shows a moving loading bar, the current action, elapsed time, and the queue count. Press `Esc` once to stop immediately. Active provider streams are aborted and sandboxed shell process groups are killed. A prompt submitted while the agent is busy is queued and starts automatically after the current task. `/queue` lists queued prompts, `/queue clear` removes them, and `/stop` requests a stop.
 
 ## Host exploration
 

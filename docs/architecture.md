@@ -6,7 +6,7 @@ Paicode is split into a provider layer, a typed tool layer, a multi-agent counci
 
 ### Multi-agent layer
 
-`paicode/agents/` contains the 22-agent roster, typed build contract, council, parallel build coordinator, validator, SQLite audit store, and `MultiAgentRunner`. The council runs 22 parallel proposals, lead synthesis, and 22 parallel contract reviews. The lead freezes file ownership and work units. Active builders run concurrently with per-agent write allowlists. Agent 22 runs the validation matrix and produces structured findings. Findings are assigned to owners and repaired until green or the configured round and strike limits. The default path is multi-agent; `--single-agent` keeps the original loop available.
+`paicode/agents/` contains the 22-agent roster, typed build contract, council, parallel build coordinator, validator, SQLite audit store, and `MultiAgentRunner`. The council runs 22 parallel proposals, lead synthesis, and 22 parallel contract reviews. The lead freezes file ownership and work units. Active builders run concurrently with per-agent write allowlists. Agent 22 runs the validation matrix and produces structured findings. Findings are assigned to owners and repaired until green or the configured round and strike limits. The default path is multi-agent; `--single-agent` keeps the original loop available. `/disscus` uses `DiscussionRunner`, which reuses the single-agent loop with an empty write allowlist and a strict read-only shell policy.
 
 ### Provider layer
 
@@ -26,7 +26,7 @@ The OpenCode preset uses `https://opencode.ai/inference/openai/v1` for chat and 
 
 `explore` is the only tool that can read outside the workspace. It resolves the target, applies a sensitive-path denylist, requires a written reason, and returns the absolute path and scope. All write tools continue to use the workspace-confined path resolver.
 
-`registry.py` dispatches calls and converts security errors into tool results. `fs.py` implements atomic writes, surgical replacements, diffs, bytecode invalidation, and in-process syntax checks for Python and JSON. `shell.py` runs real bash commands with bounded output, process-group cancellation, secret scrubbing, and optional bubblewrap isolation. `sandbox.py` builds the bubblewrap command, hides the real home directory, mounts the workspace read-write, isolates package caches, and probes sandbox support. `search.py` provides bounded glob and regex search.
+`registry.py` dispatches calls and converts security errors into tool results. `fs.py` implements atomic writes, surgical replacements, diffs, bytecode invalidation, and in-process syntax checks for Python and JSON. `shell.py` runs real bash commands with bounded output, process-group cancellation, secret scrubbing, and optional bubblewrap isolation. `sandbox.py` builds the bubblewrap command, hides the real home directory, mounts the workspace read-write, isolates package caches, and probes sandbox support. `search.py` provides bounded glob and regex search. `paicode/tui/syntax.py` maps file types to Pygments lexers and renders monochrome token styles for diff lines. The file preview registers a matching TextArea theme.
 
 ### Agent loop
 
@@ -48,7 +48,7 @@ Assistant replies and command output are rendered with Textual Markdown widgets 
 
 The prompt composer stores multiline pastes and clipboard images as local attachments. It displays highlighted `[pasted N lines]` and `[image-N]` markers, expands the paste text on submission, and passes images to the agent as OpenAI-compatible multimodal content. Newline keys are handled before submit, and copy and text-paste shortcuts use the system clipboard helpers before falling back to the terminal clipboard.
 
-The chat pane keeps a two-line work status bar with an animated loading bar, current action, elapsed time, Esc hint, and queue count. Prompts submitted while a worker is active enter a local queue and start after the current turn finishes. The stop path uses a cooperative event checked between model turns and before each tool call.
+The chat pane keeps a two-line work status bar with an animated loading bar, current action, elapsed time, Esc hint, and queue count. Prompts submitted while a worker is active enter a local queue and start after the current turn finishes. The stop path closes active provider streams through a watchdog and checks the cooperative stop event before every tool call. Sandboxed shell process groups are terminated immediately.
 
 `paicode/tui/actions.py` implements slash commands. Provider and model dialogs are separate modal screens.
 
