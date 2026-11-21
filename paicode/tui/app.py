@@ -229,7 +229,9 @@ class PaiCodeApp(SlashActions, App):
         self._refresh_topbar()
         self._refresh_stats()
         self.chat.add_system(
-            f"Paicode {__version__}. Type a request or /help. File operations are limited to the project root."
+            f"Paicode {__version__}. Type a request or /help. "
+            "Workspace writes are limited to the project root. "
+            "Read-only host exploration is available with a reason."
         )
         brain = read_brain(self.root)
         if brain:

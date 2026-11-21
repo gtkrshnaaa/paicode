@@ -1,3 +1,5 @@
+import os
+import platform
 from pathlib import Path
 
 from ..rules.loader import RuleFile, render_rules
@@ -18,8 +20,16 @@ Operating rules:
 
 Tool contract:
 - read, write, edit, list, glob, grep, mkdir, move, delete operate inside the project root only.
+- explore reads the host filesystem outside the workspace. It is read-only, requires a concrete reason, and blocks credentials, private keys, history files, and pseudo-filesystems.
 - bash runs an allowlisted command with no shell operators, no pipes, and no redirection.
 - finish stops the turn. Always call it when you are done.
+
+OS exploration policy:
+- You may inspect files outside the workspace only through explore, and only when the workspace lacks information about the host, installed tools, services, logs, or another project.
+- State a concrete reason. Name the expected fact or file you need before you explore.
+- Never write, edit, delete, or move outside the project root. If a write outside is required, stop and ask the user.
+- Never read credentials, tokens, private keys, shell history, browser profiles, or Paicode configuration. If you encounter a secret, do not repeat it.
+- Report absolute paths for outside findings so the user can audit them.
 """
 
 
@@ -30,9 +40,14 @@ def build_system_prompt(root: Path, rules: list[RuleFile], skills: list[SkillMet
     return "\n".join(
         [
             BASE_PROMPT,
+            "--- ENVIRONMENT ---",
             f"Project root: {root}",
             f"Project name: {root.name}",
+            f"Current working directory: {Path.cwd()}",
+            f"Home directory: {Path.home()}",
+            f"Platform: {platform.system()} {platform.release()}",
             f"Top-level entries: {', '.join(sorted(item.name for item in root.iterdir() if not item.name.startswith('.'))[:30])}",
+            "--- END ENVIRONMENT ---",
             "--- GLOBAL AND PROJECT RULES ---",
             rule_text,
             "--- END RULES ---",

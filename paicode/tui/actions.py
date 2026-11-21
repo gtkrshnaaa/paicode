@@ -259,7 +259,9 @@ class SlashActions:
             "Steps: unlimited by default. Use --max-steps in headless mode to set a ceiling.\n"
             f"Context budget: {context_budget():,} characters. "
             "Override with PAICODE_CONTEXT_CHARS.\n"
-            "Repeated identical tool calls are stopped after five consecutive attempts."
+            "Repeated identical tool calls are stopped after five consecutive attempts.\n"
+            "Filesystem: writes are confined to the workspace. Read-only host exploration "
+            "is available through the explore tool with a required reason."
         )
 
     def _cmd_config(self, args: str) -> None:

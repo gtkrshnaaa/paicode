@@ -41,3 +41,21 @@ def test_rejects_shell_operators(project: Path, stats):
     tools = ShellTools(project, stats)
     with pytest.raises(ValueError, match="Shell operators"):
         tools.run("ls; whoami")
+
+
+def test_read_only_system_commands(project: Path, stats):
+    tools = ShellTools(project, stats)
+    assert tools.run("uname -a").ok
+    assert tools.run("df -h").ok
+
+
+def test_rejects_destructive_systemctl(project: Path, stats):
+    tools = ShellTools(project, stats)
+    with pytest.raises(ValueError, match="systemctl restart"):
+        tools.run("systemctl restart nginx")
+
+
+def test_rejects_destructive_journalctl(project: Path, stats):
+    tools = ShellTools(project, stats)
+    with pytest.raises(ValueError, match="Destructive journalctl"):
+        tools.run("journalctl --vacuum-size=10M")

@@ -30,6 +30,14 @@ ALLOWED = {
     "g++",
     "clang",
     "cmake",
+    "uname",
+    "df",
+    "free",
+    "ps",
+    "lscpu",
+    "lsblk",
+    "systemctl",
+    "journalctl",
 }
 
 GIT_READ_ONLY = {
@@ -46,6 +54,29 @@ GIT_READ_ONLY = {
 }
 
 PACKAGE_READ_ONLY = {"test", "run", "--version", "-v"}
+
+SYSTEMCTL_READ_ONLY = {
+    "cat",
+    "is-active",
+    "is-enabled",
+    "list-timers",
+    "list-unit-files",
+    "list-units",
+    "show",
+    "status",
+}
+
+JOURNALCTL_DESTRUCTIVE = (
+    "--vacuum-size",
+    "--vacuum-time",
+    "--vacuum-files",
+    "--rotate",
+    "--flush",
+    "--sync",
+    "--setup-keys",
+    "--relinquish-var",
+    "--smart-relinquish-var",
+)
 
 SENSITIVE_ENV_PARTS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 SENSITIVE_ENV_PREFIXES = (
@@ -112,6 +143,10 @@ class ShellTools:
             raise ValueError(f"go {sub} is not allowed.")
         if program == "cargo" and sub not in {"test", "build", "check", "clippy", "fmt", "--version"}:
             raise ValueError(f"cargo {sub} is not allowed.")
+        if program == "systemctl" and sub not in SYSTEMCTL_READ_ONLY:
+            raise ValueError(f"systemctl {sub} is not allowed. Only read-only systemctl commands are permitted.")
+        if program == "journalctl" and any(arg.startswith(JOURNALCTL_DESTRUCTIVE) for arg in args[1:]):
+            raise ValueError("Destructive journalctl flags are not allowed.")
 
     def _environment(self) -> dict:
         result = {}
@@ -122,6 +157,10 @@ class ShellTools:
             if any(upper.startswith(prefix) for prefix in SENSITIVE_ENV_PREFIXES):
                 continue
             result[key] = value
+        result["PAGER"] = "cat"
+        result["SYSTEMD_PAGER"] = "cat"
+        result["GIT_PAGER"] = "cat"
+        result["MANPAGER"] = "cat"
         return result
 
     def run(self, command: str, timeout: int = 0) -> ToolResult:

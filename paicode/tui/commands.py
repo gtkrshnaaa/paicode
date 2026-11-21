@@ -39,6 +39,9 @@ HELP_TEXT = "\n".join(
         "/connect opencode https://opencode.ai/inference/openai/v1",
         "/model deepseek-flash",
         "/connect custom https://example.com/v1",
+        "",
+        "Outside the workspace, Paicode can read host files with the explore tool and a required reason.",
+        "Writes remain inside the workspace.",
     ]
 )
 
