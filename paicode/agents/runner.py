@@ -12,6 +12,7 @@ from ..rules.loader import render_rules
 from .build import BuildCoordinator
 from .council import Council, CouncilError, _emit
 from .findings import ValidationResult
+from .report import LeadReporter
 from .store import AgentStore
 from .validator import Validator
 
@@ -50,6 +51,15 @@ class MultiAgentRunner:
         self.reports: dict = {}
         self.last_validation: ValidationResult | None = None
         self.phase = "idle"
+        self.reporter = LeadReporter(
+            provider,
+            self.client,
+            stats,
+            self.store,
+            self.session_id,
+            emit,
+            self.rules_text,
+        )
 
     def request_stop(self) -> None:
         self._stop_event.set()
@@ -134,15 +144,12 @@ class MultiAgentRunner:
             self._stop_event,
             self.rules_text,
         )
-        final_summary = "Work completed."
         for round_number in range(1, self.validation_rounds + 1):
             if self._stop_event.is_set():
-                final_summary = "Stopped by user."
                 break
             validation = validator.validate(self.contract, self.contract_id, round_number)
             self.last_validation = validation
             if validation.ok:
-                final_summary = validation.summary
                 break
             _emit(
                 self.emit,
@@ -152,7 +159,6 @@ class MultiAgentRunner:
                 ),
             )
             if not validation.findings:
-                final_summary = validation.summary
                 break
             for finding in validation.findings:
                 self.store.add_strike(self.session_id, finding.owner, finding.title)
@@ -164,10 +170,14 @@ class MultiAgentRunner:
                 break
             build.repair(self.contract, validation.findings)
             self.reports = build.reports
-        if self._stop_event.is_set():
-            final_summary = "Stopped by user."
-        _emit(self.emit, Finished(final_summary, max(1, self.stats.requests)))
+        stopped = self._stop_event.is_set()
+        final_summary = self._final_report(self.last_validation, stopped)
+        _emit(self.emit, Finished("Report delivered.", max(1, self.stats.requests)))
         return final_summary
+
+    def _final_report(self, validation: ValidationResult | None, stopped: bool) -> str:
+        self.reporter.emit = self.emit
+        return self.reporter.report(self.contract, self.reports, validation, stopped)
 
     def agent_status(self) -> list[dict]:
         return self.store.agent_status(self.session_id)

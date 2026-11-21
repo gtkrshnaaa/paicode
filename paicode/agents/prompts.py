@@ -215,6 +215,56 @@ Rules:
 {feedback}"""
 
 
+def lead_report_prompt(
+    contract: BuildContract,
+    reports: list[dict],
+    validation: dict,
+    changed_files: list[str],
+    stats_summary: str,
+    rules_text: str,
+    stopped: bool = False,
+) -> str:
+    report_text = "\n".join(
+        f"- agent {item.get('agent_id')}: {item.get('status')} - {item.get('summary', '')}"
+        for item in reports
+    ) or "- no builder reports"
+    findings = validation.get("findings", []) or []
+    finding_text = "\n".join(
+        f"- agent {item.get('owner')}: [{item.get('severity')}] {item.get('title')} "
+        f"in {item.get('file') or 'unknown'}"
+        for item in findings
+    ) or "- none"
+    return f"""{rules_header(rules_text)}
+You are Paicode agent 1, the Lead Architect. The work is finished. Write the final report directly to the user.
+
+Contract:
+{contract.markdown()}
+
+Builder reports:
+{report_text}
+
+Validation:
+- status: {validation.get('status', 'unknown')}
+- summary: {validation.get('summary', '')}
+- findings:
+{finding_text}
+
+Changed files:
+{chr(10).join(f"- {path}" for path in changed_files) or "- none"}
+
+Run statistics: {stats_summary}
+Stopped by user: {stopped}
+
+Write a concise, useful report in Markdown with these sections:
+## Summary
+## Delivered
+## Validation
+## Defects
+## Next steps
+
+State what actually changed, what passed, what failed or remains risky, and what the user should do next. Do not claim work that was not done. Keep it under 500 words. No emojis. No em dashes."""
+
+
 def validator_system_prompt(contract: BuildContract, rules_text: str) -> str:
     return f"""{rules_header(rules_text)}
 You are Paicode agent 22, the independent Validator. You are the release gate.
