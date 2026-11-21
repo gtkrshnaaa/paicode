@@ -38,7 +38,14 @@ def write_clipboard_text(text: str) -> bool:
         return False
     data = text.encode("utf-8")
     if shutil.which("wl-copy"):
-        if _write(["wl-copy", "--type", "text/plain;charset=utf-8"], data):
+        command = [
+            "wl-copy",
+            "--type",
+            "text/plain",
+            "--type",
+            "text/plain;charset=utf-8",
+        ]
+        if _write(command, data):
             return True
     if shutil.which("xclip") and os.getenv("DISPLAY"):
         if _write(["xclip", "-selection", "clipboard"], data):
