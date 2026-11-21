@@ -16,6 +16,7 @@ from .rules.loader import load_rules, rule_summary
 from .rules.skills import discover_skills, render_catalog
 from .db import Database
 from .sessions import SessionStore, format_sessions
+from .tools.sandbox import sandbox_available
 
 
 def _root(args) -> Path:
@@ -188,6 +189,7 @@ def _cmd_doctor(root: Path) -> int:
         print(f"Model: {provider.model or 'unset'}")
         print(f"Keys: {len(provider.api_keys)}")
     print(f"Tools: {', '.join(tools) or 'none'}")
+    print(f"Shell: {'bubblewrap sandbox' if sandbox_available() else 'direct execution'}")
     database = Database()
     database.initialize()
     counts = database.counts()
