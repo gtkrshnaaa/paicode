@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.3 - 2026-11-21
+
+### Fixed
+
+- `Shift+Enter` inserts a newline for Kitty keyboard protocol and xterm modifyOtherKeys sequences. `Ctrl+J` is available as a fallback on legacy terminals.
+- `Ctrl+Shift+C` copies the prompt selection or the full prompt text.
+- `Ctrl+Shift+V` pastes clipboard text without attaching images. `Ctrl+V` keeps the image-first paste behavior.
+- Copy and text paste write through `wl-copy` on Wayland and `xclip` on X11, with the terminal clipboard as a fallback.
+
 ## 0.8.2 - 2026-11-21
 
 ### Changed

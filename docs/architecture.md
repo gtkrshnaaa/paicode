@@ -42,7 +42,7 @@ The loop compacts old context by truncating tool output and dropping complete to
 
 Assistant replies and command output are rendered with Textual Markdown widgets inside role-labeled cards. Markdown headings, lists, code fences, and tables use the monochrome theme; tool activity is rendered as compact single-line rows.
 
-The prompt composer stores multiline pastes and clipboard images as local attachments. It displays highlighted `[pasted N lines]` and `[image-N]` markers, expands the paste text on submission, and passes images to the agent as OpenAI-compatible multimodal content.
+The prompt composer stores multiline pastes and clipboard images as local attachments. It displays highlighted `[pasted N lines]` and `[image-N]` markers, expands the paste text on submission, and passes images to the agent as OpenAI-compatible multimodal content. Newline keys are handled before submit, and copy and text-paste shortcuts use the system clipboard helpers before falling back to the terminal clipboard.
 
 The chat pane keeps a two-line work status bar with an animated loading bar, current action, elapsed time, Esc hint, and queue count. Prompts submitted while a worker is active enter a local queue and start after the current turn finishes. The stop path uses a cooperative event checked between model turns and before each tool call.
 

@@ -321,8 +321,7 @@ class PaiCodeApp(SlashActions, App):
         else:
             self.chat.add_system(
                 f"Paicode {__version__}. Type a request or /help. "
-                "Workspace writes are limited to the project root. "
-                "Read-only host exploration is available with a reason. "
+                "Shift+Enter newline. Ctrl+Shift+C/V copy/paste. Ctrl+V image. "
                 "Esc x3 stops a running task. Type while working to queue the next prompt."
             )
             provider = self.store.active()

@@ -100,7 +100,9 @@ It backs up the current database to a timestamped `.bak-*` file, drops all table
 
 ## Prompt composer
 
-The prompt expands upward with its content. `Ctrl+E` toggles a larger compose area, and `Shift+Enter` inserts a newline.
+The prompt expands upward with its content. `Ctrl+E` toggles a larger compose area, and `Shift+Enter` inserts a newline. `Ctrl+J` also inserts a newline and is the fallback for terminals that cannot report `Shift+Enter`.
+
+`Ctrl+Shift+C` copies the prompt selection, or the full prompt when nothing is selected. `Ctrl+Shift+V` pastes clipboard text only. Both use `wl-copy` and `wl-paste` on Wayland, fall back to `xclip` on X11, and also use the terminal clipboard. `Ctrl+V` keeps the image-first behavior.
 
 Multiline paste is replaced with a highlighted `[pasted N lines]` marker. The full text is restored when submitted; the chat history keeps the marker.
 

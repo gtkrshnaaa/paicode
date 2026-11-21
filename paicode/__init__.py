@@ -1,3 +1,3 @@
 """Paicode, a terminal coding agent with a multi-pane TUI."""
 
-__version__ = "0.8.2"
+__version__ = "0.8.3"
