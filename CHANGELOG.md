@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 - 2026-11-21
+
+### Fixed
+
+- Installer and `pai doctor` now report the SQLite database path instead of the retired JSON configuration path.
+
 ## 0.8.0 - 2026-11-21
 
 ### Added

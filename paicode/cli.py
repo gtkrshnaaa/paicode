@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.console import Console
 
 from . import __version__
-from .core.paths import config_file, project_root
+from .core.paths import project_root
 from .core.stats import UsageStats
 from .providers.client import ProviderClient
 from .providers.presets import get_preset
@@ -182,7 +182,6 @@ def _cmd_doctor(root: Path) -> int:
     print(f"Paicode: {__version__}")
     print(f"Python: {sys.version.split()[0]}")
     print(f"Project root: {root}")
-    print(f"Config: {config_file()}")
     print(f"Provider: {provider.name if provider else 'none'}")
     if provider:
         print(f"Base URL: {provider.base_url}")

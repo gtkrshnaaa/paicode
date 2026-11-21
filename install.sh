@@ -11,7 +11,8 @@ APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/paicode"
 VENV="$APP_DIR/venv"
 BIN_DIR="$HOME/.local/bin"
 LAUNCHER="$BIN_DIR/pai"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/paicode"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/paicode"
+DB_PATH="$STATE_DIR/paicode.db"
 
 MODE="install"
 DEV=0
@@ -301,7 +302,7 @@ if [[ "$MODE" == "uninstall" ]]; then
   rm -rf "$APP_DIR"
   printf '%-14s %s\n' "Removed" "$LAUNCHER"
   printf '%-14s %s\n' "Removed" "$APP_DIR"
-  printf '%-14s %s\n' "Kept" "$CONFIG_DIR"
+  printf '%-14s %s\n' "Kept" "$DB_PATH"
   printf '%s\n\n' "------------------------------------------------------------"
   exit 0
 fi
@@ -382,7 +383,7 @@ if [[ "$DEV" == "1" ]]; then
   printf '%s%-14s%s %s\n' "$DIM" "Run" "$RESET" "$TARGET_VENV/bin/pai"
 else
   printf '%s%-14s%s %s\n' "$DIM" "Launcher" "$RESET" "$LAUNCHER"
-  printf '%s%-14s%s %s\n' "$DIM" "Config" "$RESET" "$CONFIG_DIR/config.json"
+  printf '%s%-14s%s %s\n' "$DIM" "Database" "$RESET" "$DB_PATH"
   printf '%s%-14s%s %s\n' "$DIM" "Next" "$RESET" "pai"
 fi
 printf '%s%-14s%s %s\n' "$DIM" "Elapsed" "$RESET" "$((SECONDS - TOTAL_START))s"
