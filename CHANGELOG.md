@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.2 - 2026-11-21
+
+### Changed
+
+- Every AI diff now has a labelled separator with an index, path, additions, removals, and timestamp.
+- Diff lines use distinct monochrome treatments for additions, removals, hunks, and context.
+- Every chat turn after the first starts with a labelled turn divider and time.
+- User and assistant cards now use rounded borders, cleaner role labels, and consistent spacing.
+- Tool rows, system notices, panel borders, and the status bar have tighter visual hierarchy.
+- Added separator tests and a real Textual screenshot review.
+
 ## 0.10.1 - 2026-11-21
 
 ### Fixed
