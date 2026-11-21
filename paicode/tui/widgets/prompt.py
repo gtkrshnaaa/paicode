@@ -10,7 +10,7 @@ from textual.strip import Strip
 from textual.widgets import TextArea
 
 from ...agent.attachments import MAX_IMAGE_BYTES, ImageAttachment
-from ..clipboard import read_clipboard_image, read_clipboard_text
+from ..clipboard import read_clipboard_image, read_clipboard_text, write_clipboard_text
 
 
 @dataclass
@@ -29,10 +29,15 @@ IMAGE_SUFFIXES = {
 
 PLACEHOLDER_RE = re.compile(r"\[pasted \d+ lines?\]|\[image-\d+\]")
 PLACEHOLDER_STYLE = Style(bgcolor="#3a3a3a", color="#f5f5f5", bold=True)
+NEWLINE_KEYS = frozenset({"shift+enter", "shift+\r", "ctrl+j"})
+
+
+def _normalize_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 class PromptInput(TextArea):
-    DEFAULT_PLACEHOLDER = "Message Paicode or /help. Shift+Enter newline. Ctrl+E expand. Ctrl+V image."
+    DEFAULT_PLACEHOLDER = "Message Paicode or /help. Shift+Enter newline. Ctrl+V image."
     BUSY_PLACEHOLDER = "Paicode is working. Type to queue a prompt."
 
     class Submitted(Message):
@@ -88,6 +93,17 @@ class PromptInput(TextArea):
         return expanded
 
     async def _on_key(self, event: events.Key) -> None:
+        shortcut = event.key.lower()
+        if shortcut == "ctrl+shift+c":
+            event.prevent_default()
+            event.stop()
+            self.action_copy_prompt()
+            return
+        if shortcut == "ctrl+shift+v":
+            event.prevent_default()
+            event.stop()
+            self.action_paste_text()
+            return
         if self.suggestions_visible:
             if event.key == "down":
                 event.prevent_default()
@@ -120,18 +136,46 @@ class PromptInput(TextArea):
             event.stop()
             self.action_paste()
             return
-        if event.key == "enter" and not getattr(event, "shift", False):
+        if self._is_newline_key(event):
+            event.prevent_default()
+            event.stop()
+            self._replace_selection("\n")
+            self._fit_height()
+            return
+        if event.key == "enter":
             event.prevent_default()
             event.stop()
             self._submit()
             return
-        if event.key == "shift+enter":
-            event.prevent_default()
-            event.stop()
-            self.insert("\n")
-            self._fit_height()
-            return
         await super()._on_key(event)
+
+    @staticmethod
+    def _is_newline_key(event: events.Key) -> bool:
+        if event.key in NEWLINE_KEYS:
+            return True
+        return event.key == "enter" and event.character == "\n"
+
+    def _replace_selection(self, text: str) -> None:
+        result = self._replace_via_keyboard(text, *self.selection)
+        if result is not None:
+            self.move_cursor(result.end_location)
+
+    def action_copy_prompt(self) -> None:
+        text = self.selected_text or self.text
+        if not text:
+            self.app.notify("Nothing to copy.", severity="warning")
+            return
+        self.app.copy_to_clipboard(text)
+        write_clipboard_text(text)
+        self.app.notify("Copied prompt text.", timeout=1.2)
+
+    def action_paste_text(self) -> None:
+        text = _normalize_newlines(read_clipboard_text() or self.app.clipboard)
+        if not text:
+            self.app.notify("Clipboard has no text.", severity="warning")
+            return
+        self._replace_selection(text)
+        self._fit_height()
 
     def action_paste(self) -> None:
         image = read_clipboard_image()
@@ -141,7 +185,8 @@ class PromptInput(TextArea):
         text = read_clipboard_text()
         if text:
             if not self._handle_pasted_text(text):
-                self.insert(text)
+                self._replace_selection(text)
+                self._fit_height()
             return
         super().action_paste()
 
@@ -160,6 +205,7 @@ class PromptInput(TextArea):
         await super()._on_paste(event)
 
     def _handle_pasted_text(self, text: str) -> bool:
+        text = _normalize_newlines(text)
         if self._try_image_path(text):
             return True
 
@@ -168,7 +214,7 @@ class PromptInput(TextArea):
             unit = "line" if line_count == 1 else "lines"
             token = f"[pasted {line_count} {unit}]"
             self._pastes.append(PasteAttachment(token=token, text=text))
-            self.insert(token)
+            self._replace_selection(token)
             return True
         return False
 
@@ -195,7 +241,7 @@ class PromptInput(TextArea):
             return
         token = f"[image-{len(self._images) + 1}]"
         self._images.append(ImageAttachment(token=token, mime=mime, data=data))
-        self.insert(token)
+        self._replace_selection(token)
 
     def _submit(self) -> None:
         display, expanded, images = self.build_submission()
