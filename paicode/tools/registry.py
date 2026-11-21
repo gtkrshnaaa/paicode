@@ -19,6 +19,7 @@ class ToolRegistry:
         stop_event=None,
         allowed_write_paths: set[Path] | None = None,
         read_only_shell: bool = False,
+        strict_read_only_shell: bool = False,
     ):
         self.root = root
         self.stats = stats
@@ -32,6 +33,7 @@ class ToolRegistry:
             stats,
             stop_event=stop_event,
             read_only_workspace=read_only_shell,
+            strict_read_only=strict_read_only_shell,
         )
         self.explore_tools = ExploreTools(root, stats)
 

@@ -122,3 +122,41 @@ def shell_environment(sandboxed: bool) -> dict[str, str]:
             }
         )
     return result
+
+
+READ_ONLY_WRITE_COMMANDS = re.compile(
+    r"(^|[\s;&|])(rm|rmdir|mv|cp|touch|mkdir|chmod|chown|ln|tee|dd|truncate|shred|"
+    r"install|mkfs|mount|umount|wget|curl|scp|rsync|ssh|xargs|bash|sh|zsh|fish|source|nc|socat|telnet|ftp)\b"
+)
+READ_ONLY_PACKAGE_COMMANDS = re.compile(
+    r"(^|[\s;&|])(npm|pnpm|yarn|bun|pip|pip3|poetry|uv|cargo|go|make|cmake|"
+    r"gcc|g\+\+|clang|javac|tsc|docker|podman|systemctl|service|apt|apt-get|"
+    r"dnf|yum|pacman|snap|flatpak)\b"
+)
+READ_ONLY_GIT_MUTATION = re.compile(
+    r"\bgit\s+(add|commit|push|pull|fetch|merge|rebase|reset|checkout|switch|clean|"
+    r"stash|tag|rm|mv|apply|am|cherry-pick|revert|init|clone)\b"
+)
+READ_ONLY_GIT_CONFIG_WRITE = re.compile(r"\bgit\s+config\b(?!\s+(--get|--list|--get-all|--unset))")
+READ_ONLY_INLINE_EVAL = re.compile(
+    r"(^|[\s;&|])(python|python3|node|ruby|php)\s+(-c|-e|-r|--eval|--print)\b"
+)
+READ_ONLY_INLINE_EDIT = re.compile(r"(^|[\s;&|])(sed|perl)\s+(-[A-Za-z]*i|--in-place)\b")
+READ_ONLY_REDIRECT = re.compile(r"(^|[^>])>{1,2}(?!&)")
+
+
+def guard_read_only_command(command: str) -> None:
+    normalized = " ".join(command.split())
+    if READ_ONLY_REDIRECT.search(normalized):
+        raise ValueError("Output redirection is not allowed in discussion mode.")
+    checks = (
+        (READ_ONLY_WRITE_COMMANDS, "Write commands are not allowed in discussion mode."),
+        (READ_ONLY_PACKAGE_COMMANDS, "Build and package commands are not allowed in discussion mode."),
+        (READ_ONLY_GIT_MUTATION, "Git mutations are not allowed in discussion mode."),
+        (READ_ONLY_GIT_CONFIG_WRITE, "Git configuration writes are not allowed in discussion mode."),
+        (READ_ONLY_INLINE_EVAL, "Inline code evaluation is not allowed in discussion mode."),
+        (READ_ONLY_INLINE_EDIT, "In-place editing is not allowed in discussion mode."),
+    )
+    for pattern, message in checks:
+        if pattern.search(normalized):
+            raise ValueError(message)

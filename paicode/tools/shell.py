@@ -16,7 +16,7 @@ from .sandbox import (
     sandbox_command,
     sandbox_mode,
 )
-from .shell_policy import guard_command, shell_environment
+from .shell_policy import guard_command, guard_read_only_command, shell_environment
 from .types import ToolResult
 
 
@@ -28,12 +28,14 @@ class ShellTools:
         timeout: int = DEFAULT_TIMEOUT,
         stop_event=None,
         read_only_workspace: bool = False,
+        strict_read_only: bool = False,
     ):
         self.root = root
         self.stats = stats
         self.default_timeout = timeout
         self.stop_event = stop_event
         self.read_only_workspace = read_only_workspace
+        self.strict_read_only = strict_read_only
         self.sandboxed = sandbox_available()
         if sandbox_mode() in {"required", "strict"} and not self.sandboxed:
             raise RuntimeError("PAICODE_SHELL_SANDBOX requires bubblewrap, but it is unavailable.")
@@ -44,6 +46,8 @@ class ShellTools:
         if not command:
             raise ValueError("Empty command.")
         guard_command(command)
+        if self.strict_read_only:
+            guard_read_only_command(command)
         cwd_path = resolve_in_root(self.root, cwd or ".", must_exist=True)
         if not cwd_path.is_dir():
             raise ValueError("Shell working directory is not a directory.")

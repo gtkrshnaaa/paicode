@@ -1,6 +1,6 @@
 from textual import work
 
-from ..agents import MultiAgentRunner
+from ..agents import DiscussionRunner, MultiAgentRunner
 from ..agents.store import AgentStore
 from ..agent.loop import context_budget
 from ..core.atomic import atomic_write_text
@@ -330,6 +330,19 @@ class SlashActions:
                 f"`{row['file'] or 'unknown'}`: {row['message'] or row['actual']}"
             )
         self.chat.add_markdown_system("\n".join(lines))
+
+    def _cmd_disscus(self, args: str) -> None:
+        prompt = args.strip()
+        if not prompt:
+            self.chat.add_system("Usage: /disscus <prompt>. Discussion mode is read-only.")
+            return
+        if self.busy:
+            self.chat.add_system("Stop the current task before starting a discussion.")
+            return
+        self._start_prompt(prompt, [], prompt, mode="discussion")
+
+    def _cmd_discuss(self, args: str) -> None:
+        self._cmd_disscus(args)
 
     def _cmd_stop(self, args: str) -> None:
         if self._active_runner is None:

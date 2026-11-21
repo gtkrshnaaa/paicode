@@ -132,13 +132,11 @@ def sandbox_command(
         "/dev",
         "--proc",
         "/proc",
-        "--bind",
-        str(cache),
-        "/tmp/paicode-cache",
     ]
     if read_only_workspace:
         args.extend(["--overlay-src", str(root), "--tmp-overlay", str(root)])
     else:
+        args.extend(["--bind", str(cache), "/tmp/paicode-cache"])
         args.extend(["--bind", str(root), str(root)])
     args.extend([*_optional_binds(), "--chdir", str(cwd)])
     network = os.getenv("PAICODE_SANDBOX_NETWORK", "1").strip().lower()
