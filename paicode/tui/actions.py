@@ -254,6 +254,28 @@ class SlashActions:
     def _cmd_stats(self, args: str) -> None:
         self.chat.add_system(self.stats.detailed())
 
+    def _cmd_stop(self, args: str) -> None:
+        if self._active_runner is None:
+            self.chat.add_system("No task is running.")
+            return
+        self._request_stop()
+
+    def _cmd_queue(self, args: str) -> None:
+        if args.strip().lower() == "clear":
+            count = len(self._prompt_queue)
+            self._prompt_queue.clear()
+            self.chat.set_queue(0)
+            self.chat.add_system(f"Cleared {count} queued prompt(s).")
+            return
+        if not self._prompt_queue:
+            self.chat.add_system("No prompts queued.")
+            return
+        lines = ["Queued prompts:"]
+        for index, (_, images, display) in enumerate(self._prompt_queue, start=1):
+            suffix = f" ({len(images)} image(s))" if images else ""
+            lines.append(f"{index}. {display[:120]}{suffix}")
+        self.chat.add_system("\n".join(lines))
+
     def _cmd_limits(self, args: str) -> None:
         self.chat.add_system(
             "Steps: unlimited by default. Use --max-steps in headless mode to set a ceiling.\n"

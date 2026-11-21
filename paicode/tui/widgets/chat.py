@@ -3,6 +3,8 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Markdown, Static
 from rich.text import Text
 
+from .work_status import WorkStatus
+
 
 class ChatPane(Vertical):
     def __init__(self):
@@ -12,12 +14,31 @@ class ChatPane(Vertical):
 
     def compose(self) -> ComposeResult:
         yield VerticalScroll(id="chat-scroll")
+        yield WorkStatus()
 
     def on_mount(self) -> None:
         self.border_title = "Chat"
 
     def _scroll(self) -> VerticalScroll:
         return self.query_one("#chat-scroll", VerticalScroll)
+
+    def _status(self) -> WorkStatus:
+        return self.query_one(WorkStatus)
+
+    def begin_work(self) -> None:
+        self._status().begin()
+
+    def end_work(self) -> None:
+        self._status().end()
+
+    def set_work_message(self, message: str) -> None:
+        self._status().set_message(message)
+
+    def set_queue(self, count: int) -> None:
+        self._status().set_queue(count)
+
+    def set_stopping(self) -> None:
+        self._status().set_stopping()
 
     def add_user(self, text: str) -> None:
         content = Text.assemble(("You\n", "bold #8a8a8a"), (text, "#d4d4d4"))

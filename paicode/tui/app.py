@@ -1,8 +1,10 @@
+import time
 from pathlib import Path
 
-from textual import work
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
+from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from .. import __version__
@@ -73,6 +75,15 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     border: round #262626;
     background: #0b0b0c;
     padding: 1 0 0 0;
+}
+#chat-scroll {
+    height: 1fr;
+}
+#chat-status {
+    height: 2;
+    background: #111111;
+    color: #8a8a8a;
+    padding: 0 1;
 }
 #suggestions {
     display: none;
@@ -205,6 +216,10 @@ class PaiCodeApp(SlashActions, App):
         self._tool_line = None
         self._suggestions = []
         self._suggestion_index = 0
+        self._prompt_queue = []
+        self._active_runner = None
+        self._escape_count = 0
+        self._last_escape = 0.0
 
     def compose(self) -> ComposeResult:
         yield Static("Paicode", id="topbar")
@@ -231,7 +246,8 @@ class PaiCodeApp(SlashActions, App):
         self.chat.add_system(
             f"Paicode {__version__}. Type a request or /help. "
             "Workspace writes are limited to the project root. "
-            "Read-only host exploration is available with a reason."
+            "Read-only host exploration is available with a reason. "
+            "Esc x3 stops a running task. Type while working to queue the next prompt."
         )
         brain = read_brain(self.root)
         if brain:
@@ -307,26 +323,60 @@ class PaiCodeApp(SlashActions, App):
         self._hide_suggestions()
 
     def on_prompt_input_submitted(self, event: PromptInput.Submitted) -> None:
-        text = event.value.strip()
-        if not text:
+        display = event.display.strip()
+        expanded = event.expanded
+        if not display:
             return
         if self._suggestions:
-            if text == "/":
+            if display == "/":
                 self.prompt.apply_completion("/")
                 self._refresh_suggestions("/")
                 return
-            if not any(text == f"/{spec.name}" for spec in self._suggestions):
+            if not any(display == f"/{spec.name}" for spec in self._suggestions):
                 self._accept_suggestion()
                 return
         self._hide_suggestions()
-        if self._handle_slash(text):
+        if self._handle_slash(display):
             return
-        self._start_prompt(text)
+        self._start_prompt(expanded, event.images, display)
 
-    def _start_prompt(self, text: str) -> None:
-        if self.busy:
-            self.chat.add_system("A task is already running. Wait for it to finish.")
+    def on_key(self, event: events.Key) -> None:
+        if event.key != "escape" or not self.busy:
             return
+        if isinstance(self.screen, ModalScreen):
+            return
+        now = time.monotonic()
+        if now - self._last_escape > 1.2:
+            self._escape_count = 0
+        self._last_escape = now
+        self._escape_count += 1
+        remaining = 3 - self._escape_count
+        if remaining > 0:
+            self.chat.set_work_message(f"press Esc {remaining} more to stop")
+        else:
+            self._escape_count = 0
+            self._request_stop()
+        event.prevent_default()
+        event.stop()
+
+    def _request_stop(self) -> None:
+        if self._active_runner is None:
+            return
+        self._active_runner.request_stop()
+        self.chat.set_stopping()
+        self.chat.add_system("Stop requested. Paicode will stop after the current step.")
+
+    def _start_prompt(self, text: str, images=None, display: str | None = None) -> None:
+        images = images or []
+        display = display or text
+        if self.busy:
+            self._prompt_queue.append((text, images, display))
+            self.chat.set_queue(len(self._prompt_queue))
+            self.chat.add_system(
+                f"Queued prompt {len(self._prompt_queue)}. It will run after the current task."
+            )
+            return
+
         provider = self.store.active()
         if provider is None or not provider.api_keys:
             self.chat.add_system("No provider configured. Use /connect deepseek or /connect opencode.")
@@ -336,20 +386,18 @@ class PaiCodeApp(SlashActions, App):
             self.chat.add_system("No model selected. Use /models, then /model.")
             self._fetch_models(open_modal=True)
             return
+
         self.busy = True
         self._reload_context()
-        self.chat.add_user(text)
+        self.chat.add_user(display)
         self.chat.begin_assistant()
-        self.diff.add_note(f"Task: {text[:220]}")
+        self.chat.begin_work()
+        self.chat.set_queue(len(self._prompt_queue))
+        self.chat.set_work_message("thinking")
+        self.diff.add_note(f"Task: {display[:220]}")
+        self.prompt.placeholder = PromptInput.BUSY_PLACEHOLDER
         self._refresh_stats()
-        self._run_agent(text)
-
-    @work(thread=True, exclusive=True)
-    def _run_agent(self, text: str) -> None:
         try:
-            provider = self.store.active()
-            if provider is None:
-                raise RuntimeError("No active provider.")
             runner = AgentRunner(
                 self.root,
                 provider,
@@ -358,7 +406,36 @@ class PaiCodeApp(SlashActions, App):
                 self.skills,
                 emit=lambda event: self.call_from_thread(self._handle_event, event),
             )
-            runner.run(text)
+        except Exception as exc:
+            self.chat.add_system(f"Could not start the task: {exc}")
+            self._finish_work()
+            return
+        self._active_runner = runner
+        self._run_agent(runner, text, images)
+
+    def _start_next_queued(self) -> None:
+        if self.busy or not self._prompt_queue:
+            return
+        text, images, display = self._prompt_queue.pop(0)
+        self.chat.set_queue(len(self._prompt_queue))
+        self._start_prompt(text, images, display)
+
+    def _finish_work(self) -> None:
+        self.busy = False
+        self._active_runner = None
+        self._tool_line = None
+        self.chat.end_work()
+        self.chat.set_queue(len(self._prompt_queue))
+        self.prompt.placeholder = PromptInput.DEFAULT_PLACEHOLDER
+        self._refresh_stats()
+        self.prompt.focus()
+        if self._prompt_queue:
+            self.set_timer(0.2, self._start_next_queued)
+
+    @work(thread=True, exclusive=False)
+    def _run_agent(self, runner, text: str, images) -> None:
+        try:
+            runner.run(text, images=images)
         except Exception as exc:
             self.call_from_thread(self._handle_event, ErrorEvent(f"{type(exc).__name__}: {exc}"))
 
@@ -368,11 +445,13 @@ class PaiCodeApp(SlashActions, App):
         elif isinstance(event, ReasoningDelta):
             return
         elif isinstance(event, ToolStarted):
+            self.chat.set_work_message(f"{event.name} ...")
             self._tool_line = self.chat.add_tool(
                 event.name, "running", self._summarize_arguments(event.arguments)
             )
         elif isinstance(event, ToolFinished):
             status = "ok" if event.ok else "failed"
+            self.chat.set_work_message("thinking")
             if self._tool_line is not None:
                 self.chat.update_tool(self._tool_line, event.name, status, event.output)
                 self._tool_line = None
@@ -386,19 +465,16 @@ class PaiCodeApp(SlashActions, App):
             self._refresh_stats()
         elif isinstance(event, UsageUpdated):
             self.chat.end_assistant()
+            self.chat.set_work_message("thinking")
             self._refresh_stats()
         elif isinstance(event, Finished):
             self.chat.end_assistant()
             self.chat.add_system(f"Finished in {event.steps} step(s): {event.message[:400]}")
-            self.busy = False
-            self._refresh_stats()
-            self.prompt.focus()
+            self._finish_work()
         elif isinstance(event, ErrorEvent):
             self.chat.end_assistant()
             self.chat.add_system(f"Error: {event.message}")
-            self.busy = False
-            self._refresh_stats()
-            self.prompt.focus()
+            self._finish_work()
 
     def _summarize_arguments(self, arguments: dict) -> str:
         for key in ("command", "path", "pattern", "name", "source", "summary"):
