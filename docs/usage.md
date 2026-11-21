@@ -1,80 +1,117 @@
-# Usage & Commands
+# Usage
 
-Paicode is designed to be invoked from the command line. It operates on the directory where it was launched.
-
-## Starting Paicode
-
-### Single Action Mode
-If you have a quick task or query, you can pass it directly as an argument:
+## Start the interface
 
 ```bash
-pai "find all instances of the calculate_tax function"
+pai
+pai --path /path/to/project
 ```
 
-### Interactive Auto Mode
-For continuous interaction and complex tasks, enter the interactive mode. Paicode will maintain context of the conversation and the project state.
+The current directory is the project root unless `--path` or `PAICODE_ROOT` is set.
+
+## Connect a provider
+
+Use `/connect` without arguments to open the provider dialog. A preset name prefills the base URL:
+
+```text
+/connect deepseek
+/connect opencode
+/connect custom https://gateway.example.com/v1
+```
+
+The dialog asks for the provider name, base URL, and API key. The key is stored with mode `0600` in `~/.config/paicode/config.json`.
+
+Use `/key` to add another key to the active provider. Use `/baseurl` to change the endpoint without re-entering keys.
+
+## Select a model
+
+```text
+/models
+/model
+```
+
+`/models` refreshes the provider catalog. `/model` opens the selector when a catalog is cached. A direct model name skips the dialog:
+
+```text
+/model deepseek-flash
+```
+
+## Send a task
+
+Type a request and press Enter. The agent streams text to the right pane, executes tools, and renders every file change in the center pane. The bottom bar updates after each provider response.
+
+Useful prompts:
+
+```text
+Find the retry logic and make it use exponential backoff.
+Add tests for the parser and run them.
+Read the deployment script and explain the failure modes.
+```
+
+## Rules
+
+`/rules` lists the loaded rule files. `/init` creates a project `PAICODE.md` template.
+
+Global rules live at `~/.config/paicode/PAICODE.md`. Project rules live at `<project>/PAICODE.md`. When the project file is absent, `AGENTS.md` is used as a fallback.
+
+## Skills
+
+`/skills` lists installed skills. `/skill <name>` prints one. The agent also sees the catalog and can load a skill itself when the description matches the task.
+
+Global skills: `~/.config/paicode/skills/<name>/SKILL.md`.
+
+Project skills: `<project>/.paicode/skills/<name>/SKILL.md`.
+
+A skill file starts with YAML frontmatter:
+
+```markdown
+---
+name: api-review
+description: Review API handlers for input validation and error propagation.
+---
+
+# API Review
+...
+```
+
+## Headless commands
 
 ```bash
-pai auto
+pai run "Add a health check endpoint"
+pai run --diff "Refactor the parser"
+pai --path ../service run "Run the tests and fix failures"
+pai models
+pai doctor
+pai config show
 ```
 
-## Available Internal Commands
+`pai doctor` prints the version, project root, config path, provider status, available tools, rules, and skills.
 
-Paicode interacts with your files via a predefined set of commands. These are executed by the agent internally based on your natural language requests:
+## Slash command reference
 
-- `MKDIR::path`
-  Creates a new directory at the specified path.
+```text
+/help
+/connect [preset] [base_url]
+/key [value]
+/baseurl [url]
+/provider [name]
+/models
+/model [name]
+/rules
+/skills
+/skill <name>
+/stats
+/config
+/init
+/refresh
+/clear
+/new
+/exit
+```
 
-- `TOUCH::path`
-  Creates an empty file at the specified path.
+## Keyboard shortcuts
 
-- `WRITE::path::description`
-  Writes entirely new content to a file. 
-
-- `MODIFY::path::description`
-  Applies surgical edits (Search & Replace) to an existing file. This is preferred for large files to conserve tokens and reduce errors.
-
-- `READ::path`
-  Reads the content of a file into the agent's context.
-
-- `LIST_PATH::path`
-  Lists the files and subdirectories within a specific directory.
-
-- `RM::path`
-  Removes a file or directory.
-
-- `MV::source::destination`
-  Moves or renames a file or directory.
-
-- `TREE::path`
-  Generates a tree representation of the directory structure.
-
-- `SEARCH::pattern::path`
-  Conducts a Ripgrep search for a specific pattern within the given path.
-
-- `MAP_ROOT::path`
-  Analyzes the project structure to identify the technology stack (e.g., Python, Node.js, PHP) and summarize key dependencies.
-
-- `RUN_COMMAND::command`
-  Executes a safe bash command (e.g., `git status`, `pytest`, `npm install`). The `cd` command is blocked to prevent losing working directory context. Includes a timeout mechanism to prevent hanging.
-
-- `DIAGNOSE`
-  Captures a snapshot of the live system state, including processes consuming the most memory (`ps aux`) and active network ports (`netstat` / `lsof`).
-
-- `SNIFF_LOGS::pattern`
-  Searches for error patterns across common log directories automatically.
-
-- `PROFILE::script_path`
-  Profiles a Python script using `cProfile` and returns a summary of the most time-consuming functions.
-
-- `FINISH::message`
-  Signals the completion of a task iteration.
-
-## Keyboard Shortcuts in Interactive Mode
-
-- `Ctrl+C` (once): Interrupts the current AI response. Useful if the agent is outputting an incorrect plan. The session remains active.
-- `Ctrl+C` (twice): Exits the session completely.
-- `exit` or `quit`: Exits the session safely.
-
-## Project History
-When you run `pai auto`, Paicode creates a `.pai_history/` directory in the current working directory. This folder contains detailed logs of the session's commands, the agent's internal thought processes, and the execution results.
+- `Ctrl+L` clears the chat and diff panes.
+- `Ctrl+R` refreshes the file explorer.
+- `F1` shows help.
+- `Ctrl+C` exits the application.

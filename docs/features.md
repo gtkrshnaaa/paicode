@@ -1,37 +1,45 @@
-# Features & Capabilities
+# Features
 
-Paicode operates as a localized autonomous agent capable of performing a variety of software engineering tasks by inspecting and manipulating files directly on the user's system.
+## Multi-pane terminal interface
 
-## Core Capabilities
+The Textual interface keeps the project tree, AI diffs, conversation, and usage statistics visible at the same time. File changes stream into the center pane as unified diffs generated from the old and new file contents.
 
-1. **File System Operations**
-   Paicode can read, write, move, rename, and delete files and directories. It builds an understanding of your project by reading the directory tree and file contents before attempting modifications.
+## Provider independence
 
-2. **Surgical Code Editing**
-   Instead of rewriting entire files, Paicode uses a Search & Replace protocol. It identifies the exact lines to change and applies modifications iteratively, significantly reducing token consumption and minimizing logical drift.
+Any OpenAI-compatible endpoint works. Configure a base URL and key from the prompt with `/connect`. The provider layer discovers models through the provider's models endpoint and stores the result for instant switching.
 
-3. **Pattern Searching**
-   Using Ripgrep under the hood, Paicode can search for variable definitions, function names, or specific error patterns across an entire repository quickly.
+## Model switching
 
-4. **Architectural Mapping**
-   Paicode can "map" the root of a project to determine the foundational technology stack (e.g., Laravel, React, Django). It summarizes key configuration files like `package.json` or `requirements.txt` to gather context about the environment.
+`/models` fetches the provider catalog and `/model` opens a selector. Direct selection also works: `/model deepseek-v4-pro`.
 
-5. **Safe Terminal Execution**
-   Paicode can execute terminal commands (e.g., running unit tests, installing dependencies, checking git status). Destructive operations and context-breaking commands like `cd` are filtered out. Command execution is limited by timeouts to prevent hanging processes.
+## Key rotation
 
-## Advanced Primitives
+A provider can hold multiple API keys. When a key returns an authentication or rate-limit error, the client marks a cooldown and retries with the next key. The active key is never printed.
 
-1. **Self-Healing Execution Loop**
-   Paicode evaluates the results of its own actions. If an action fails (e.g., a test fails after code modification, or a syntax error is introduced), Paicode autonomously attempts to diagnose and fix the issue without requiring user intervention.
+## Surgical editing
 
-2. **System Diagnosics**
-   Paicode can inspect live system states using native Linux tools. It can check for currently running processes consuming high memory (using `ps aux`) and list active network ports (using `netstat` and `lsof`).
+The `edit` tool replaces an exact string and rejects ambiguous matches unless `replace_all` is set. The result is written atomically and returned as a unified diff. This preserves the original token-efficient editing model.
 
-3. **Log Sniffing**
-   Paicode can search for error patterns automatically within common log directories (`/var/log`, `storage/logs`, `logs/`) to contextualize issues.
+## Typed tools
 
-4. **Architectural Guardrails**
-   Before determining that a coding task is complete, Paicode conducts an internal architectural audit. It checks the modifications for common security vulnerabilities (e.g., SQL Injection, XSS), proper error handling, and separation of concerns.
+The model receives JSON schemas for every tool instead of a text command protocol. Prompts, validation, and dispatch share one source of truth, so a tool cannot exist in the dispatcher while being invisible to the model.
 
-5. **Performance Profiling**
-   Paicode is equipped to run Python scripts under `cProfile` and measure execution time. It uses these empirical datasets to identify bottlenecks in the code.
+## Deterministic verification
+
+Python and JSON writes run an in-process syntax check. Shell commands return real exit codes. The agent loop never asks another model whether a step passed.
+
+## Rules and skills
+
+Global and project `PAICODE.md` files are injected into the system prompt. Skills are discovered from `~/.config/paicode/skills` and `<project>/.paicode/skills`, listed with their descriptions, and loaded on demand through the `skill` tool.
+
+## Persistent session state
+
+`.pai_brain/session.md` records the last request, summary, changed files, and token totals. On the next launch, Paicode shows the previous session state. `.pai_history` keeps an append-only log.
+
+## Usage statistics
+
+The bottom bar tracks prompt, completion, and total tokens, request count, files read, files created, files edited, and commands executed. `/stats` shows the same data with elapsed time.
+
+## Headless operation
+
+`pai run` uses the same agent loop without the TUI. `--diff` prints file diffs, which makes the command usable in scripts and CI.
