@@ -27,6 +27,7 @@ class BuildCoordinator:
         emit,
         stop_event,
         concurrency: int = 20,
+        rules_text: str = "",
     ):
         self.root = root
         self.provider = provider
@@ -37,12 +38,13 @@ class BuildCoordinator:
         self.emit = emit
         self.stop_event = stop_event
         self.concurrency = max(1, int(concurrency))
+        self.rules_text = rules_text
         self.reports: dict[int, BuildReport] = {}
         self.tasks: dict[int, str] = {}
         self.changes: list[tuple[str, str, list[str]]] = []
 
     def _brief(self, contract: BuildContract, units: list[WorkUnit], findings: list[Finding] | None) -> str:
-        return builder_system_prompt(contract, units, findings=findings)
+        return builder_system_prompt(contract, units, self.rules_text, findings=findings)
 
     def _run_builder(
         self,

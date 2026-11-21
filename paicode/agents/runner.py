@@ -8,6 +8,7 @@ from ..agent.loop import AgentRunner
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
 from ..providers.store import ProviderConfig
+from ..rules.loader import render_rules
 from .build import BuildCoordinator
 from .council import Council, CouncilError, _emit
 from .findings import ValidationResult
@@ -32,6 +33,7 @@ class MultiAgentRunner:
         self.provider = provider
         self.stats = stats
         self.rules = rules
+        self.rules_text = render_rules(rules)
         self.skills = skills
         self.emit = emit
         self.session_id = session_id or f"run-{uuid4().hex[:8]}"
@@ -95,6 +97,7 @@ class MultiAgentRunner:
             self.emit,
             self._stop_event,
             self.concurrency,
+            self.rules_text,
         )
         self.contract = council.run(user_text)
         self.contract_id = self.store.save_contract(self.session_id, self.contract)
@@ -117,6 +120,7 @@ class MultiAgentRunner:
             self.emit,
             self._stop_event,
             self.concurrency,
+            self.rules_text,
         )
         self.reports = build.build(self.contract, self.contract_id)
         validator = Validator(
@@ -128,6 +132,7 @@ class MultiAgentRunner:
             self.session_id,
             self.emit,
             self._stop_event,
+            self.rules_text,
         )
         final_summary = "Work completed."
         for round_number in range(1, self.validation_rounds + 1):

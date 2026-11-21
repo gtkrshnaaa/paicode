@@ -38,7 +38,6 @@ OS exploration policy:
 
 def build_system_prompt(root: Path, rules: list[RuleFile], skills: list[SkillMeta]) -> str:
     rule_text = render_rules(rules)
-    rule_text = truncate_text(rule_text, 100_000)
     catalog = truncate_text(render_catalog(skills), 20_000)
     return "\n".join(
         [

@@ -5,6 +5,14 @@ from .contract import BuildContract, WorkUnit
 from .findings import Finding
 from .roles import AgentRole, role_for
 
+def rules_header(rules_text: str) -> str:
+    return f"""MANDATORY GLOBAL AND PROJECT RULES
+These rules are part of every request and override convenience, speed, or style preferences.
+{rules_text}
+END MANDATORY GLOBAL AND PROJECT RULES
+"""
+
+
 SKIP_DIRS = {
     ".git",
     ".venv",
@@ -41,8 +49,9 @@ def repo_snapshot(root: Path, limit: int = 16_000) -> str:
     return "\n".join(lines)[:limit]
 
 
-def proposal_prompt(role: AgentRole, request: str, context: str) -> str:
-    return f"""You are Paicode agent {role.id}, {role.title}.
+def proposal_prompt(role: AgentRole, request: str, context: str, rules_text: str) -> str:
+    return f"""{rules_header(rules_text)}
+You are Paicode agent {role.id}, {role.title}.
 Role: {role.description}
 
 The user requested:
@@ -67,12 +76,13 @@ Return only JSON with this shape:
 Keep the response under 1200 words. Use relative paths only. Never include secrets."""
 
 
-def synthesis_prompt(request: str, context: str, proposals: list[dict]) -> str:
+def synthesis_prompt(request: str, context: str, proposals: list[dict], rules_text: str) -> str:
     rendered = "\n\n".join(
         f"AGENT {item.get('agent', '?')}: {json.dumps(item, ensure_ascii=False)[:2500]}"
         for item in proposals
     )
-    return f"""You are Paicode agent 1, the Lead Architect. Synthesize the council proposals into one frozen build contract.
+    return f"""{rules_header(rules_text)}
+You are Paicode agent 1, the Lead Architect. Synthesize the council proposals into one frozen build contract.
 
 User request:
 {request}
@@ -119,8 +129,9 @@ Rules:
 - Keep relative paths. No secrets. Return JSON only."""
 
 
-def contract_review_prompt(role: AgentRole, request: str, contract: BuildContract) -> str:
-    return f"""You are Paicode agent {role.id}, {role.title}.
+def contract_review_prompt(role: AgentRole, request: str, contract: BuildContract, rules_text: str) -> str:
+    return f"""{rules_header(rules_text)}
+You are Paicode agent {role.id}, {role.title}.
 Role: {role.description}
 
 Review this frozen-candidate contract for the user request:
@@ -138,12 +149,13 @@ Return only JSON:
 Object only for a concrete correctness, ownership, interface, test, security, or feasibility problem. Do not object for style preference."""
 
 
-def finalize_prompt(contract: BuildContract, reviews: list[dict]) -> str:
+def finalize_prompt(contract: BuildContract, reviews: list[dict], rules_text: str) -> str:
     rendered = "\n\n".join(
         f"AGENT {item.get('agent', '?')}: {json.dumps(item, ensure_ascii=False)[:1500]}"
         for item in reviews
     )
-    return f"""You are Paicode agent 1, the Lead Architect. Resolve the contract reviews and return the final frozen contract.
+    return f"""{rules_header(rules_text)}
+You are Paicode agent 1, the Lead Architect. Resolve the contract reviews and return the final frozen contract.
 
 Current contract:
 {json.dumps(contract.to_dict(), ensure_ascii=False)}
@@ -154,7 +166,7 @@ Reviews:
 Apply only concrete required changes. Return the same JSON shape as the current contract. Validate that owners are agents 2 to 21, work_units is at most 20, every file has one owner, and no file is both shared and owned."""
 
 
-def builder_system_prompt(contract: BuildContract, units: list[WorkUnit], findings: list[Finding] | None = None) -> str:
+def builder_system_prompt(contract: BuildContract, units: list[WorkUnit], rules_text: str, findings: list[Finding] | None = None) -> str:
     owner = units[0].owner
     owned = "\n".join(f"- {path}" for unit in units for path in unit.files)
     all_files = "\n".join(
@@ -173,7 +185,8 @@ def builder_system_prompt(contract: BuildContract, units: list[WorkUnit], findin
             f"Fix: {item.fix or item.message or 'restore contract conformance'}"
             for item in findings
         )
-    return f"""You are Paicode agent {owner}, {role_for(owner).title}, a builder in a parallel team.
+    return f"""{rules_header(rules_text)}
+You are Paicode agent {owner}, {role_for(owner).title}, a builder in a parallel team.
 You are working inside a frozen build contract. Other builders are working at the same time.
 
 Contract:
@@ -202,8 +215,9 @@ Rules:
 {feedback}"""
 
 
-def validator_system_prompt(contract: BuildContract) -> str:
-    return f"""You are Paicode agent 22, the independent Validator. You are the release gate.
+def validator_system_prompt(contract: BuildContract, rules_text: str) -> str:
+    return f"""{rules_header(rules_text)}
+You are Paicode agent 22, the independent Validator. You are the release gate.
 
 Contract:
 {contract.markdown()}

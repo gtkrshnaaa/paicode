@@ -68,6 +68,7 @@ class Council:
         emit,
         stop_event,
         concurrency: int = 20,
+        rules_text: str = "",
     ):
         self.root = root
         self.provider = provider
@@ -78,6 +79,7 @@ class Council:
         self.emit = emit
         self.stop_event = stop_event
         self.concurrency = max(1, int(concurrency))
+        self.rules_text = rules_text
         self.proposals: list[dict] = []
         self.reviews: list[dict] = []
         self.contract: BuildContract | None = None
@@ -91,7 +93,7 @@ class Council:
             model=self.provider.model,
         )
         try:
-            payload = _ask_json(self.client, self.stats, proposal_prompt(role, request, context))
+            payload = _ask_json(self.client, self.stats, proposal_prompt(role, request, context, self.rules_text))
             payload.setdefault("agent", role.id)
             payload.setdefault("role", role.title)
             self.store.add_message(
@@ -118,7 +120,7 @@ class Council:
             payload = _ask_json(
                 self.client,
                 self.stats,
-                contract_review_prompt(role, request, self.contract),
+                contract_review_prompt(role, request, self.contract, self.rules_text),
             )
             payload.setdefault("agent", role.id)
             payload.setdefault("verdict", "approve")
@@ -155,7 +157,7 @@ class Council:
         contract_payload = _ask_json(
             self.client,
             self.stats,
-            synthesis_prompt(request, context, self.proposals),
+            synthesis_prompt(request, context, self.proposals, self.rules_text),
         )
         self.contract = BuildContract.from_dict(contract_payload)
         errors = self.contract.validate()
@@ -164,6 +166,7 @@ class Council:
                 request,
                 context,
                 [{"agent": "validation", "errors": errors, "previous": contract_payload}],
+                self.rules_text,
             )
             contract_payload = _ask_json(self.client, self.stats, repair)
             self.contract = BuildContract.from_dict(contract_payload)
@@ -196,7 +199,7 @@ class Council:
             final_payload = _ask_json(
                 self.client,
                 self.stats,
-                finalize_prompt(self.contract, self.reviews),
+                finalize_prompt(self.contract, self.reviews, self.rules_text),
             )
             final_contract = BuildContract.from_dict(final_payload)
             errors = final_contract.validate()

@@ -26,6 +26,7 @@ class Validator:
         session_id: str,
         emit,
         stop_event,
+        rules_text: str = "",
     ):
         self.root = root
         self.provider = provider
@@ -35,6 +36,7 @@ class Validator:
         self.session_id = session_id
         self.emit = emit
         self.stop_event = stop_event
+        self.rules_text = rules_text
 
     def _precheck(self, contract: BuildContract) -> tuple[bool, str, list[Finding]]:
         findings: list[Finding] = []
@@ -91,7 +93,7 @@ class Validator:
                 return
 
         prompt = (
-            validator_system_prompt(contract)
+            validator_system_prompt(contract, self.rules_text)
             + "\n\nDeterministic precheck output:\n"
             + (precheck_output or "No test command was configured.")
             + "\n\nValidate the integrated workspace now. Return JSON through finish."
