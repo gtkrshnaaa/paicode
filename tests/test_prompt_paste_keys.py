@@ -56,6 +56,23 @@ async def test_ctrl_shift_v_replaces_selection(
         assert prompt.cursor_location == (0, 3)
 
 
+async def test_ctrl_shift_v_inserts_at_cursor(
+    project: Path, config_home: Path, monkeypatch
+):
+    monkeypatch.setattr(prompt_module, "read_clipboard_text", lambda: "XY")
+    app = PaiCodeApp(project, ProviderStore())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", PromptInput)
+        prompt.focus()
+        prompt.text = "abcd"
+        prompt.move_cursor((0, 2))
+        await pilot.press("ctrl+shift+v")
+        await pilot.pause()
+        assert prompt.text == "abXYcd"
+        assert prompt.cursor_location == (0, 4)
+
+
 async def test_ctrl_shift_v_ignores_image_only_clipboard(
     project: Path, config_home: Path, monkeypatch
 ):
