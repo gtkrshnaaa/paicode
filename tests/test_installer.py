@@ -17,6 +17,7 @@ def test_installer_help_documents_remote_and_local_modes():
     assert "--remote" in result.stdout
     assert "--ref" in result.stdout
     assert "--dev" in result.stdout
+    assert "--quiet" in result.stdout
 
 
 def test_installer_contains_no_credentials():
