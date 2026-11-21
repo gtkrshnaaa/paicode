@@ -11,13 +11,20 @@ from .types import ToolResult
 
 
 class ToolRegistry:
-    def __init__(self, root: Path, stats, skills: list[SkillMeta], stop_event=None):
+    def __init__(
+        self,
+        root: Path,
+        stats,
+        skills: list[SkillMeta],
+        stop_event=None,
+        allowed_write_paths: set[Path] | None = None,
+    ):
         self.root = root
         self.stats = stats
         self.skills = skills
         self.finished = False
         self.summary = ""
-        self.files = FileTools(root, stats)
+        self.files = FileTools(root, stats, allowed_write_paths=allowed_write_paths)
         self.search = SearchTools(root, stats)
         self.shell = ShellTools(root, stats, stop_event=stop_event)
         self.explore_tools = ExploreTools(root, stats)

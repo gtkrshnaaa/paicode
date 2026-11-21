@@ -5,6 +5,7 @@ import stat
 from pathlib import Path
 
 from ..core.atomic import atomic_write_text
+from ..core.errors import PathSecurityError
 from ..core.paths import EXCLUDED_DIRS, MAX_TEXT_BYTES, SENSITIVE_NAMES, display_path, resolve_in_root
 from .diff import looks_binary, unified_diff
 from .types import ToolResult
@@ -24,9 +25,26 @@ def _clear_bytecode(path: Path) -> None:
 
 
 class FileTools:
-    def __init__(self, root: Path, stats):
+    def __init__(self, root: Path, stats, allowed_write_paths: set[Path] | None = None):
         self.root = root
         self.stats = stats
+        self.allowed_write_paths = (
+            {path.resolve() for path in allowed_write_paths}
+            if allowed_write_paths is not None
+            else None
+        )
+
+    def _check_write(self, target: Path, allow_parent: bool = False) -> None:
+        if self.allowed_write_paths is None:
+            return
+        resolved = target.resolve()
+        if resolved in self.allowed_write_paths:
+            return
+        if allow_parent and any(resolved in allowed.parents for allowed in self.allowed_write_paths):
+            return
+        raise PathSecurityError(
+            f"Agent does not own write path '{display_path(self.root, resolved)}'."
+        )
 
     def _read_text(self, path: Path) -> str:
         if not path.is_file():
@@ -56,6 +74,7 @@ class FileTools:
         if len(content) > 20_000_000:
             raise ValueError("Content exceeds the 20,000,000 character limit.")
         target = resolve_in_root(self.root, path)
+        self._check_write(target)
         old = ""
         existed = target.exists()
         if existed:
@@ -81,6 +100,7 @@ class FileTools:
 
     def edit(self, path: str, old_string: str, new_string: str, replace_all: bool = False) -> ToolResult:
         target = resolve_in_root(self.root, path, must_exist=True)
+        self._check_write(target)
         text = self._read_text(target)
         if old_string == new_string:
             raise ValueError("old_string and new_string are identical.")
@@ -126,12 +146,15 @@ class FileTools:
 
     def mkdir(self, path: str) -> ToolResult:
         target = resolve_in_root(self.root, path)
+        self._check_write(target, allow_parent=True)
         target.mkdir(parents=True, exist_ok=True)
         return ToolResult(ok=True, output=f"Created directory {display_path(self.root, target)}", kind="mkdir")
 
     def move(self, source: str, destination: str) -> ToolResult:
         src = resolve_in_root(self.root, source, must_exist=True)
         dest = resolve_in_root(self.root, destination)
+        self._check_write(src)
+        self._check_write(dest, allow_parent=True)
         if dest.exists():
             raise ValueError(f"Destination '{destination}' already exists.")
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -145,6 +168,7 @@ class FileTools:
 
     def delete(self, path: str, recursive: bool = False) -> ToolResult:
         target = resolve_in_root(self.root, path, must_exist=True)
+        self._check_write(target)
         if target == self.root.resolve():
             raise ValueError("Refusing to delete the project root.")
         if target.is_dir():
