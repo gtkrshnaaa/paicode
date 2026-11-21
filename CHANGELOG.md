@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4 - 2026-11-21
+
+### Changed
+
+- Hidden scrollbars across the chat, diff, explorer, prompt, preview, and option lists while preserving wheel and keyboard scrolling.
+
 ## 0.5.3 - 2026-11-21
 
 ### Added
