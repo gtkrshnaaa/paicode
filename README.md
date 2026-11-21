@@ -77,7 +77,7 @@ The interface has four regions:
 
 - Left: project file explorer. Select a file to preview it.
 - Center: AI diff history for the current session. Every create, write, and surgical edit is rendered as a unified diff. The history is restored when the same session is reopened; a new session starts empty.
-- Right: chat, streaming assistant text, and tool activity.
+- Right: chat with role-labeled user and assistant cards, rendered Markdown, and compact tool activity.
 - Bottom: token usage, request count, file counters, command count, provider, and model.
 
 ## Slash commands
@@ -130,6 +130,10 @@ pai --s-7f3a9c2d
 ```
 
 Inside the TUI, `/sessions` lists all sessions with the current session marked. `/session <id>` switches to another session and restores its workspace, chat, and diff history. `/session new` starts a fresh session in the current workspace. `/session` with no argument shows the current session details.
+
+## Chat rendering
+
+Assistant replies render Markdown headings, lists, blockquotes, inline code, fenced code blocks, and tables. User messages use a `You` card, assistant messages use a `Pai` card, and tool activity stays on compact single-line rows. `/sessions` and session details render as Markdown blocks that wrap cleanly in the chat pane.
 
 ## Prompt composer
 

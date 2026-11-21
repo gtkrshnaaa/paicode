@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.2 - 2026-11-21
+
+### Changed
+
+- Chat pane is wider, with inset content padding and dedicated user and assistant cards.
+- User messages carry a `You` label; assistant messages carry a `Pai` label and a card container.
+- Assistant Markdown renders headings, lists, blockquotes, inline code, fenced code blocks, and tables with monochrome styling.
+- Tool activity renders as compact single-line rows with ellipsized detail.
+- `/sessions` and current-session details render as Markdown blocks instead of a wide fixed table.
+
 ## 0.8.1 - 2026-11-21
 
 ### Fixed
