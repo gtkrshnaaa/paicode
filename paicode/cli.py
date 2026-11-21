@@ -14,7 +14,8 @@ from .providers.presets import get_preset
 from .providers.store import ProviderStore
 from .rules.loader import load_rules, rule_summary
 from .rules.skills import discover_skills, render_catalog
-from .sessions import SessionStore, format_sessions, sessions_root
+from .db import Database
+from .sessions import SessionStore, format_sessions
 
 
 def _root(args) -> Path:
@@ -160,6 +161,8 @@ def _cmd_sessions() -> int:
 
 
 def _expand_session_args(argv: list[str]) -> list[str]:
+    if not any(argument.startswith("--s-") for argument in argv):
+        return list(argv)
     store = SessionStore()
     expanded = []
     for argument in argv:
@@ -186,7 +189,12 @@ def _cmd_doctor(root: Path) -> int:
         print(f"Model: {provider.model or 'unset'}")
         print(f"Keys: {len(provider.api_keys)}")
     print(f"Tools: {', '.join(tools) or 'none'}")
-    print(f"Sessions: {sessions_root()} ({len(SessionStore().list())})")
+    database = Database()
+    database.initialize()
+    counts = database.counts()
+    print(f"Database: {database.path}")
+    print(f"Sessions: {counts['sessions']}")
+    print(f"Provider presets: {counts['provider_presets']}")
     print(rule_summary(load_rules(root)))
     skills = discover_skills(root)
     print(f"Skills: {len(skills)}")
@@ -203,6 +211,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"Paicode {__version__}")
     parser.add_argument("--path", default="", help="Project root. Defaults to the current directory.")
     parser.add_argument("--session", default="", help="Open a session by ID or unique prefix.")
+    parser.add_argument(
+        "--reset-db",
+        action="store_true",
+        help="Back up the database, drop every table, migrate fresh, and seed provider presets.",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Run one prompt without the TUI.")
@@ -245,6 +258,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     raw_args = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(_expand_session_args(raw_args))
+
+    if args.reset_db:
+        result = Database().reset()
+        print("Paicode database reset")
+        print("----------------------")
+        print(f"Database:  {result['path']}")
+        print(f"Backup:    {result['backup'] or 'none'}")
+        print(f"Migrations:{result['migrations']:>2}")
+        print(f"Seeded:    {len(result['seeded'])} provider presets")
+        print("Providers: " + ", ".join(result["seeded"]))
+        return 0
 
     if args.command in {"session-lists", "sessions"}:
         return _cmd_sessions()

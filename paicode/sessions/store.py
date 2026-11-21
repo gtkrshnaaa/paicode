@@ -1,13 +1,14 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
-from ..core.atomic import atomic_write_text, file_lock
+from ..db import Database
 from .models import SessionData, SessionRecord, new_session_id, now_iso
 from .sanitize import sanitize_diffs, sanitize_messages, sanitize_transcript
 
 
-def sessions_root() -> Path:
+def legacy_sessions_root() -> Path:
     override = os.getenv("PAICODE_STATE_DIR")
     if override:
         return Path(override).expanduser().resolve() / "sessions"
@@ -16,39 +17,131 @@ def sessions_root() -> Path:
 
 
 class SessionStore:
-    def __init__(self, root: Path | None = None):
-        self.root = Path(root) if root else sessions_root()
-        self.index_path = self.root / "index.json"
+    def __init__(self, db: Database | None = None):
+        self.db = db or Database()
+        self.db.initialize()
+        self._migrate_legacy_json()
 
-    def _ensure(self) -> None:
-        self.root.mkdir(parents=True, exist_ok=True)
+    def _migrate_legacy_json(self) -> None:
+        legacy = legacy_sessions_root()
+        index_path = legacy / "index.json"
+        if not index_path.exists():
+            return
+        with self.db.connection() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        if count:
+            return
         try:
-            os.chmod(self.root, 0o700)
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        records = index.get("sessions", []) if isinstance(index, dict) else []
+        for record in records:
+            session_id = str(record.get("id", ""))
+            if not session_id:
+                continue
+            session_file = legacy / f"{session_id}.json"
+            if not session_file.exists():
+                continue
+            try:
+                payload = json.loads(session_file.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            payload.setdefault("id", session_id)
+            payload.setdefault("workspace", record.get("workspace", ""))
+            payload.setdefault("created_at", record.get("created_at", ""))
+            payload.setdefault("last_opened_at", record.get("last_opened_at", ""))
+            payload.setdefault("title", record.get("title", ""))
+            data = SessionData.from_dict(payload)
+            self._insert(data)
+        target = legacy.with_name(
+            f"{legacy.name}.migrated-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        )
+        try:
+            legacy.rename(target)
         except OSError:
             pass
 
-    def _read_index(self) -> dict:
-        if not self.index_path.exists():
-            return {"version": 1, "sessions": []}
-        try:
-            data = json.loads(self.index_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {"version": 1, "sessions": []}
-        if not isinstance(data, dict) or not isinstance(data.get("sessions"), list):
-            return {"version": 1, "sessions": []}
-        return data
+    def _insert(self, data: SessionData) -> None:
+        data.messages = sanitize_messages(data.messages)
+        data.transcript = sanitize_transcript(data.transcript)
+        data.diffs = sanitize_diffs(data.diffs)
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO sessions
+                    (id, workspace, created_at, last_opened_at, title, stats_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    data.record.id,
+                    data.record.workspace,
+                    data.record.created_at,
+                    data.record.last_opened_at,
+                    data.record.title,
+                    json.dumps(data.stats),
+                ),
+            )
+            self._replace_children(conn, data)
 
-    def _write_index(self, data: dict) -> None:
-        self._ensure()
-        atomic_write_text(self.index_path, json.dumps(data, indent=2), mode=0o600)
-
-    def _session_path(self, session_id: str) -> Path:
-        return self.root / f"{session_id}.json"
+    def _replace_children(self, conn, data: SessionData) -> None:
+        conn.execute("DELETE FROM session_messages WHERE session_id = ?", (data.record.id,))
+        conn.execute("DELETE FROM session_transcript WHERE session_id = ?", (data.record.id,))
+        conn.execute("DELETE FROM session_diffs WHERE session_id = ?", (data.record.id,))
+        for index, message in enumerate(data.messages):
+            conn.execute(
+                """
+                INSERT INTO session_messages
+                    (session_id, seq, role, content_json, tool_calls_json, tool_call_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    data.record.id,
+                    index,
+                    str(message.get("role", "")),
+                    json.dumps(message.get("content")),
+                    json.dumps(message.get("tool_calls")) if message.get("tool_calls") else None,
+                    message.get("tool_call_id"),
+                ),
+            )
+        for index, entry in enumerate(data.transcript):
+            conn.execute(
+                """
+                INSERT INTO session_transcript
+                    (session_id, seq, kind, text, name, status, detail)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    data.record.id,
+                    index,
+                    str(entry.get("kind", "")),
+                    entry.get("text"),
+                    entry.get("name"),
+                    entry.get("status"),
+                    entry.get("detail"),
+                ),
+            )
+        for index, diff in enumerate(data.diffs):
+            conn.execute(
+                """
+                INSERT INTO session_diffs
+                    (session_id, seq, path, diff, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    data.record.id,
+                    index,
+                    str(diff.get("path", "")),
+                    str(diff.get("diff", "")),
+                    str(diff.get("created_at", "")),
+                ),
+            )
 
     def create(self, workspace: str | Path, title: str = "") -> SessionData:
-        self._ensure()
-        index = self._read_index()
-        existing = {record.get("id", "") for record in index["sessions"]}
+        with self.db.connection() as conn:
+            existing = {
+                row["id"] for row in conn.execute("SELECT id FROM sessions").fetchall()
+            }
         session_id = new_session_id(existing)
         stamp = now_iso()
         resolved = str(Path(workspace).expanduser().resolve())
@@ -63,56 +156,115 @@ class SessionStore:
         self.save(data)
         return data
 
+    def _record(self, row) -> SessionRecord:
+        return SessionRecord(
+            id=row["id"],
+            workspace=row["workspace"],
+            created_at=row["created_at"],
+            last_opened_at=row["last_opened_at"],
+            title=row["title"],
+        )
+
     def list(self) -> list[SessionRecord]:
-        index = self._read_index()
-        records = [SessionRecord.from_dict(item) for item in index["sessions"] if item.get("id")]
-        return sorted(records, key=lambda record: record.last_opened_at, reverse=True)
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sessions ORDER BY last_opened_at DESC"
+            ).fetchall()
+        return [self._record(row) for row in rows]
 
     def find(self, query: str) -> SessionRecord | None:
         query = (query or "").strip()
         if not query:
             return None
-        records = self.list()
-        for record in records:
-            if record.id == query:
-                return record
-        matches = [record for record in records if record.id.startswith(query)]
-        return matches[0] if len(matches) == 1 else None
+        with self.db.connection() as conn:
+            row = conn.execute("SELECT * FROM sessions WHERE id = ?", (query,)).fetchone()
+            if row:
+                return self._record(row)
+            rows = conn.execute(
+                "SELECT * FROM sessions WHERE id LIKE ? ORDER BY last_opened_at DESC",
+                (query + "%",),
+            ).fetchall()
+        return self._record(rows[0]) if len(rows) == 1 else None
 
     def get(self, session_id: str) -> SessionData | None:
         record = self.find(session_id)
         if record is None:
             return None
-        path = self._session_path(record.id)
-        if not path.exists():
-            return SessionData(record=record)
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return SessionData(record=record)
-        data.setdefault("id", record.id)
-        data.setdefault("workspace", record.workspace)
-        data.setdefault("created_at", record.created_at)
-        data.setdefault("last_opened_at", record.last_opened_at)
-        data.setdefault("title", record.title)
-        return SessionData.from_dict(data)
+        with self.db.connection() as conn:
+            row = conn.execute("SELECT * FROM sessions WHERE id = ?", (record.id,)).fetchone()
+            if row is None:
+                return None
+            messages = []
+            for item in conn.execute(
+                "SELECT * FROM session_messages WHERE session_id = ? ORDER BY seq",
+                (record.id,),
+            ).fetchall():
+                messages.append(
+                    {
+                        "role": item["role"],
+                        "content": json.loads(item["content_json"]) if item["content_json"] else None,
+                        "tool_calls": json.loads(item["tool_calls_json"])
+                        if item["tool_calls_json"]
+                        else None,
+                        "tool_call_id": item["tool_call_id"],
+                    }
+                )
+            transcript = []
+            for item in conn.execute(
+                "SELECT * FROM session_transcript WHERE session_id = ? ORDER BY seq",
+                (record.id,),
+            ).fetchall():
+                entry = {"kind": item["kind"]}
+                for key in ("text", "name", "status", "detail"):
+                    if item[key] is not None:
+                        entry[key] = item[key]
+                transcript.append(entry)
+            diffs = [
+                {
+                    "path": item["path"],
+                    "diff": item["diff"],
+                    "created_at": item["created_at"],
+                }
+                for item in conn.execute(
+                    "SELECT * FROM session_diffs WHERE session_id = ? ORDER BY seq",
+                    (record.id,),
+                ).fetchall()
+            ]
+            stats = json.loads(row["stats_json"] or "{}")
+        return SessionData(
+            record=record,
+            messages=messages,
+            transcript=transcript,
+            diffs=diffs,
+            stats=stats,
+        )
 
     def save(self, data: SessionData) -> None:
-        self._ensure()
         data.messages = sanitize_messages(data.messages)
         data.transcript = sanitize_transcript(data.transcript)
         data.diffs = sanitize_diffs(data.diffs)
-        atomic_write_text(
-            self._session_path(data.record.id),
-            json.dumps(data.to_dict(), indent=2),
-            mode=0o600,
-        )
-        with file_lock(self.index_path):
-            index = self._read_index()
-            sessions = [item for item in index["sessions"] if item.get("id") != data.record.id]
-            sessions.append(data.record.to_dict())
-            index["sessions"] = sessions
-            self._write_index(index)
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO sessions
+                    (id, workspace, created_at, last_opened_at, title, stats_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    workspace = excluded.workspace,
+                    last_opened_at = excluded.last_opened_at,
+                    title = excluded.title,
+                    stats_json = excluded.stats_json
+                """,
+                (
+                    data.record.id,
+                    data.record.workspace,
+                    data.record.created_at,
+                    data.record.last_opened_at,
+                    data.record.title,
+                    json.dumps(data.stats),
+                ),
+            )
+            self._replace_children(conn, data)
 
     def touch(self, session_id: str) -> SessionData | None:
         data = self.get(session_id)

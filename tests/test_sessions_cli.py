@@ -31,6 +31,15 @@ def test_dynamic_session_flag_expands(tmp_path: Path, config_home: Path):
     assert _expand_session_args(["--unknown"]) == ["--unknown"]
 
 
+def test_reset_db_cli_reports_backup_and_seeded_presets(config_home: Path, capsys):
+    code = main(["--reset-db"])
+    output = capsys.readouterr().out
+    assert code == 0
+    assert "Paicode database reset" in output
+    assert "Seeded:" in output
+    assert "deepseek, opencode, openai" in output
+
+
 def test_main_creates_a_new_session_for_current_workspace(
     tmp_path: Path, config_home: Path, monkeypatch
 ):

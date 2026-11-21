@@ -24,7 +24,7 @@ from .events import (
     UsageUpdated,
 )
 from .prompts import build_system_prompt
-from .session import SessionState, append_history, write_brain
+from .session import SessionState
 
 
 DEFAULT_CONTEXT_CHARS = 2_500_000
@@ -290,15 +290,6 @@ class AgentRunner:
             self._send(ErrorEvent(_redact(f"{type(exc).__name__}: {exc}")))
 
         self.session.last_summary = final_text
-        try:
-            write_brain(self.session, self.stats)
-            append_history(
-                self.root,
-                self.session.last_request,
-                f"Summary: {final_text}\nChanged: {', '.join(self.session.changed_files)}",
-            )
-        except OSError:
-            pass
         if not failed:
             self._send(Finished(final_text or "Task finished.", steps))
         return final_text

@@ -6,7 +6,7 @@ from .models import (
     new_session_id,
     now_iso,
 )
-from .store import SessionStore, sessions_root
+from .store import SessionStore, legacy_sessions_root
 
 __all__ = [
     "SessionData",
@@ -17,5 +17,5 @@ __all__ = [
     "format_sessions",
     "new_session_id",
     "now_iso",
-    "sessions_root",
+    "legacy_sessions_root",
 ]

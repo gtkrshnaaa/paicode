@@ -40,5 +40,5 @@ def test_agent_loop_executes_write_and_finish(project: Path):
         assert stats.total_tokens == 68
         assert any(isinstance(event, ToolFinished) and event.name == "write" and event.ok for event in events)
         assert isinstance(events[-1], Finished)
-        assert (project / ".pai_brain" / "session.md").is_file()
-        assert (project / ".pai_history").is_dir()
+        assert not (project / ".pai_brain").exists()
+        assert not (project / ".pai_history").exists()

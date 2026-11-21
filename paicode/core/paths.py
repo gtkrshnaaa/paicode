@@ -135,14 +135,6 @@ def config_file() -> Path:
     return config_dir() / "config.json"
 
 
-def state_dir(root: Path) -> Path:
-    return root / ".pai_brain"
-
-
-def history_dir(root: Path) -> Path:
-    return root / ".pai_history"
-
-
 def is_inside(root: Path, candidate: Path) -> bool:
     try:
         return os.path.commonpath([str(root.resolve()), str(candidate.resolve())]) == str(root.resolve())
