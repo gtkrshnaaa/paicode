@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.2 - 2026-11-21
+
+### Added
+
+- Remote installer through `curl | bash`, with a GitHub source archive download and the same isolated environment as the local installer.
+- `--ref`, `--remote`, `PAICODE_REF`, and `PAICODE_SOURCE_URL` installer options.
+- Prominent quick install section in the README with a two-step inspection alternative.
+
+### Changed
+
+- `install.sh` now detects local checkout mode and piped remote mode automatically.
+- Installer help documents both local and remote workflows.
+
 ## 0.5.1 - 2026-11-21
 
 ### Changed
