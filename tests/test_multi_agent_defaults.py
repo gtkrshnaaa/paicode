@@ -50,6 +50,33 @@ async def test_tui_start_prompt_uses_multi_agent_runner(
         app.busy = False
 
 
+async def test_agents_command_lists_council(
+    project: Path, config_home: Path, monkeypatch
+):
+    from paicode.agents import MultiAgentRunner
+
+    app = PaiCodeApp(project, ProviderStore())
+    app.store.upsert("fake", "http://127.0.0.1:9/v1", api_key="test", model="fake")
+    app.store.set_active("fake")
+    provider = app.store.active()
+    runner = MultiAgentRunner(
+        project, provider, app.stats, [], [], emit=lambda event: None,
+        session_id="agents-test",
+    )
+    runner.agent_status = lambda: [
+        {"agent_id": 1, "role": "Lead Architect", "phase": "council", "status": "done", "total_tokens": 10},
+        {"agent_id": 2, "role": "Frontend Shell", "phase": "build", "status": "done", "total_tokens": 20},
+    ]
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app._active_runner = runner
+        app._cmd_agents("")
+        await pilot.pause()
+        text = " ".join(str(entry.get("text", "")) for entry in app.chat.transcript)
+        assert "Agent 1 Lead Architect" in text
+        assert "Agent 2 Frontend Shell" in text
+
+
 def test_doctor_reports_multi_agent(config_home: Path, capsys):
     code = main(["doctor"])
     output = capsys.readouterr().out
