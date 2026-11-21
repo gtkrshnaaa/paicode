@@ -28,6 +28,7 @@ class LeadReporter:
         session_id: str,
         emit,
         rules_text: str,
+        stop_event=None,
     ):
         self.provider = provider
         self.client = client
@@ -36,6 +37,7 @@ class LeadReporter:
         self.session_id = session_id
         self.emit = emit
         self.rules_text = rules_text
+        self.stop_event = stop_event
 
     def _payload(
         self,
@@ -125,7 +127,7 @@ class LeadReporter:
             self.rules_text,
         )
         try:
-            result = self.client.stream([{"role": "user", "content": prompt}], None)
+            result = self.client.stream([{"role": "user", "content": prompt}], None, stop_event=self.stop_event)
             self.stats.record_usage(
                 result.usage.prompt_tokens,
                 result.usage.completion_tokens,

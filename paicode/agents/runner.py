@@ -67,6 +67,7 @@ class MultiAgentRunner:
             self.session_id,
             self.emit,
             self.rules_text,
+            self._stop_event,
         )
 
     def _enqueue(self, event) -> None:

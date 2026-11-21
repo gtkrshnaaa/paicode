@@ -126,6 +126,7 @@ class AgentRunner:
         allowed_write_paths: set[Path] | None = None,
         stop_event: threading.Event | None = None,
         read_only_shell: bool = False,
+        strict_read_only_shell: bool = False,
     ):
         self.root = root
         self.provider = provider
@@ -143,6 +144,7 @@ class AgentRunner:
             stop_event=self._stop_event,
             allowed_write_paths=allowed_write_paths,
             read_only_shell=read_only_shell,
+            strict_read_only_shell=strict_read_only_shell,
         )
         self.session = SessionState(root=root)
         restored = [
@@ -199,6 +201,7 @@ class AgentRunner:
                     TOOL_SCHEMAS,
                     on_text=lambda chunk: self._send(TextDelta(chunk)),
                     on_reasoning=lambda chunk: self._send(ReasoningDelta(chunk)),
+                    stop_event=self._stop_event,
                 )
                 self.stats.record_usage(
                     result.usage.prompt_tokens,

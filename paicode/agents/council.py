@@ -48,8 +48,8 @@ def parallel_map(items, worker, max_workers: int, stop_event=None) -> list:
     return results
 
 
-def _ask_json(client: ProviderClient, stats: UsageStats, prompt: str) -> dict:
-    result = client.stream([{"role": "user", "content": prompt}], None)
+def _ask_json(client: ProviderClient, stats: UsageStats, prompt: str, stop_event=None) -> dict:
+    result = client.stream([{"role": "user", "content": prompt}], None, stop_event=stop_event)
     stats.record_usage(result.usage.prompt_tokens, result.usage.completion_tokens, result.usage.total_tokens)
     if not (result.text or "").strip():
         raise CouncilError("Model returned an empty council response.")
@@ -93,7 +93,7 @@ class Council:
             model=self.provider.model,
         )
         try:
-            payload = _ask_json(self.client, self.stats, proposal_prompt(role, request, context, self.rules_text))
+            payload = _ask_json(self.client, self.stats, proposal_prompt(role, request, context, self.rules_text), self.stop_event)
             payload.setdefault("agent", role.id)
             payload.setdefault("role", role.title)
             self.store.add_message(
@@ -121,6 +121,7 @@ class Council:
                 self.client,
                 self.stats,
                 contract_review_prompt(role, request, self.contract, self.rules_text),
+                self.stop_event,
             )
             payload.setdefault("agent", role.id)
             payload.setdefault("verdict", "approve")
@@ -161,6 +162,7 @@ class Council:
             self.client,
             self.stats,
             synthesis_prompt(request, context, self.proposals, self.rules_text),
+            self.stop_event,
         )
         self.contract = BuildContract.from_dict(contract_payload)
         errors = self.contract.validate()
@@ -171,7 +173,7 @@ class Council:
                 [{"agent": "validation", "errors": errors, "previous": contract_payload}],
                 self.rules_text,
             )
-            contract_payload = _ask_json(self.client, self.stats, repair)
+            contract_payload = _ask_json(self.client, self.stats, repair, self.stop_event)
             self.contract = BuildContract.from_dict(contract_payload)
             errors = self.contract.validate()
         if errors:
@@ -209,6 +211,7 @@ class Council:
                 self.client,
                 self.stats,
                 finalize_prompt(self.contract, self.reviews, self.rules_text),
+                self.stop_event,
             )
             final_contract = BuildContract.from_dict(final_payload)
             errors = final_contract.validate()
