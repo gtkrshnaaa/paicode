@@ -1,4 +1,5 @@
 import os
+import queue
 import threading
 from pathlib import Path
 from uuid import uuid4
@@ -36,7 +37,14 @@ class MultiAgentRunner:
         self.rules = rules
         self.rules_text = render_rules(rules)
         self.skills = skills
-        self.emit = emit
+        self._user_emit = emit
+        self._event_queue: queue.Queue = queue.Queue()
+        self._event_stop = object()
+        self._event_thread = threading.Thread(
+            target=self._dispatch_events, name="paicode-events", daemon=True
+        )
+        self._event_thread.start()
+        self.emit = self._enqueue
         self.session_id = session_id or f"run-{uuid4().hex[:8]}"
         self.concurrency = concurrency or int(os.getenv("PAICODE_AGENT_CONCURRENCY", "22") or 22)
         self.concurrency = max(1, min(22, self.concurrency))
@@ -57,9 +65,31 @@ class MultiAgentRunner:
             stats,
             self.store,
             self.session_id,
-            emit,
+            self.emit,
             self.rules_text,
         )
+
+    def _enqueue(self, event) -> None:
+        self._event_queue.put(event)
+
+    def _dispatch_events(self) -> None:
+        while True:
+            event = self._event_queue.get()
+            if event is self._event_stop:
+                self._event_queue.task_done()
+                break
+            try:
+                self._user_emit(event)
+            except Exception:
+                pass
+            finally:
+                self._event_queue.task_done()
+
+    def _flush_events(self) -> None:
+        if not self._event_thread.is_alive():
+            return
+        self._event_queue.put(self._event_stop)
+        self._event_thread.join(timeout=10)
 
     def request_stop(self) -> None:
         self._stop_event.set()
@@ -69,19 +99,22 @@ class MultiAgentRunner:
         _emit(self.emit, AgentPhase(phase, detail, active, total))
 
     def run(self, user_text: str, images=None) -> str:
-        if images:
-            return self._single_agent(user_text, images)
         try:
-            return self._multi(user_text)
-        except CouncilError as exc:
-            if self._stop_event.is_set():
-                _emit(self.emit, ErrorEvent("Stopped by user."))
+            if images:
+                return self._single_agent(user_text, images)
+            try:
+                return self._multi(user_text)
+            except CouncilError as exc:
+                if self._stop_event.is_set():
+                    _emit(self.emit, ErrorEvent("Stopped by user."))
+                    return ""
+                self._phase("fallback", str(exc)[:300])
+                return self._single_agent(user_text, None)
+            except Exception as exc:
+                _emit(self.emit, ErrorEvent(f"{type(exc).__name__}: {exc}"))
                 return ""
-            self._phase("fallback", str(exc)[:300])
-            return self._single_agent(user_text, None)
-        except Exception as exc:
-            _emit(self.emit, ErrorEvent(f"{type(exc).__name__}: {exc}"))
-            return ""
+        finally:
+            self._flush_events()
 
     def _single_agent(self, user_text: str, images) -> str:
         runner = AgentRunner(
