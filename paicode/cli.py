@@ -13,6 +13,7 @@ from .providers.client import ProviderClient
 from .providers.presets import get_preset
 from .providers.store import ProviderStore
 from .settings import load_settings
+from .checkpoints import CheckpointStore
 from .mcp import get_mcp_manager
 from .rules.loader import load_rules, rule_summary
 from .rules.skills import discover_skills, render_catalog
@@ -200,6 +201,26 @@ def _expand_session_args(argv: list[str]) -> list[str]:
     return expanded
 
 
+def _cmd_rewind(root: Path, checkpoint_id: str) -> int:
+    store = CheckpointStore(root)
+    if not checkpoint_id:
+        rows = store.list(limit=20)
+        if not rows:
+            print("No checkpoints yet.")
+            return 0
+        for row in rows:
+            print(f"{row.id}  {row.created_at}  files={len(row.files)}")
+        return 0
+    checkpoint, restored = store.restore("" if checkpoint_id == "latest" else checkpoint_id)
+    if checkpoint is None:
+        print(f"Checkpoint '{checkpoint_id}' was not found.", file=sys.stderr)
+        return 1
+    print(f"Restored {checkpoint.id}: {len(restored)} file(s)")
+    for path in restored:
+        print(f"  {path}")
+    return 0
+
+
 def _cmd_mcp(root: Path, action: str, server: str) -> int:
     manager = get_mcp_manager(root, load_settings(root))
     rows = manager.status()
@@ -329,6 +350,9 @@ def _build_parser() -> argparse.ArgumentParser:
         child = config_sub.add_parser(name)
         child.add_argument("value")
 
+    rewind_parser = subparsers.add_parser("rewind", help="List or restore file checkpoints.")
+    rewind_parser.add_argument("checkpoint", nargs="?", default="", help="Checkpoint ID prefix or 'latest'.")
+
     mcp_parser = subparsers.add_parser("mcp", help="Inspect configured MCP servers and tools.")
     mcp_parser.add_argument("action", nargs="?", default="status", choices=["status", "tools", "resources", "prompts"])
     mcp_parser.add_argument("server", nargs="?", default="")
@@ -379,6 +403,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_doctor(root)
     if args.command == "mcp":
         return _cmd_mcp(root, args.action, args.server)
+    if args.command == "rewind":
+        return _cmd_rewind(root, args.checkpoint)
 
     from .tui.app import PaiCodeApp
 

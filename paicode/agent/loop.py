@@ -10,6 +10,7 @@ from ..providers.client import ProviderClient
 from ..providers.store import ProviderConfig
 from ..rules.loader import RuleFile
 from ..rules.skills import SkillMeta
+from ..settings import load_settings
 from ..tools.registry import ToolRegistry
 from ..tools.types import ToolResult
 from .attachments import ImageAttachment
@@ -136,6 +137,7 @@ class AgentRunner:
         self.skills = skills
         self.client = client or ProviderClient(provider)
         self._stop_event = stop_event or threading.Event()
+        self.settings = load_settings(root)
         self.registry = ToolRegistry(
             root,
             stats,
@@ -156,6 +158,89 @@ class AgentRunner:
 
     def request_stop(self) -> None:
         self._stop_event.set()
+
+    def _context_size(self) -> int:
+        return sum(_content_size(message.get("content")) for message in self.messages)
+
+    def _split_context(self, keep_last: int) -> tuple[list[dict], list[dict], list[dict]]:
+        system = [message for message in self.messages if message.get("role") == "system"]
+        rest = [message for message in self.messages if message.get("role") != "system"]
+        cut = max(0, len(rest) - keep_last)
+        while cut > 0:
+            if rest[cut].get("role") == "tool":
+                cut -= 1
+                continue
+            previous = rest[cut - 1]
+            if previous.get("role") == "assistant" and previous.get("tool_calls"):
+                cut -= 1
+                continue
+            break
+        return system, rest[:cut], rest[cut:]
+
+    def _summarize(self, older: list[dict], prior: list[str]) -> str:
+        lines = []
+        if prior:
+            lines.append("Previous compacted history:")
+            lines.extend(prior)
+        for message in older[-80:]:
+            content = message.get("content")
+            if isinstance(content, list):
+                content = " ".join(
+                    str(part.get("text", "")) for part in content if isinstance(part, dict)
+                )
+            lines.append(f"{message.get('role', 'unknown')}: {str(content or '')[:3000]}")
+        transcript = "\n".join(lines)[:80_000]
+        prompt = (
+            "Summarize this coding session for another agent that must continue the work. "
+            "Keep decisions, files changed, interfaces, test commands, failures, open tasks, "
+            "and user constraints. Be dense and factual. Do not call tools."
+        )
+        result = self.client.stream(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": transcript},
+            ],
+            [],
+            stop_event=self._stop_event,
+        )
+        self.stats.record_usage(
+            result.usage.prompt_tokens,
+            result.usage.completion_tokens,
+            result.usage.total_tokens,
+        )
+        return (result.text or "").strip()[:30_000]
+
+    def _compact_context(self) -> None:
+        budget = context_budget()
+        threshold = self.settings.compaction_threshold_chars or max(20_000, int(budget * 0.8))
+        if self._context_size() <= threshold:
+            return
+        system, older, recent = self._split_context(self.settings.compaction_keep_last)
+        if not older:
+            return
+        prior = [
+            str(message.get("content", ""))
+            for message in system
+            if str(message.get("content", "")).startswith("[COMPACTED HISTORY]")
+        ]
+        base_system = [
+            message
+            for message in system
+            if not str(message.get("content", "")).startswith("[COMPACTED HISTORY]")
+        ]
+        self.registry.hooks.run("pre_compact", {"older_messages": len(older)})
+        try:
+            summary = self._summarize(older, prior)
+        except Exception:
+            summary = ""
+        if summary:
+            self.messages = [
+                *base_system,
+                {"role": "system", "content": "[COMPACTED HISTORY]\n" + summary},
+                *recent,
+            ]
+        else:
+            self.messages = compact_messages(self.messages)
 
     def _send(self, event) -> None:
         try:
@@ -194,7 +279,7 @@ class AgentRunner:
                     self._send(ErrorEvent(f"Configured step limit reached after {steps} model turns."))
                     break
                 steps += 1
-                self.messages = compact_messages(self.messages)
+                self._compact_context()
                 result = self.client.stream(
                     self.messages,
                     self.registry.schemas,

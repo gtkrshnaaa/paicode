@@ -4,6 +4,7 @@ import shutil
 import stat
 from pathlib import Path
 
+from ..checkpoints import CheckpointStore
 from ..core.atomic import atomic_write_text
 from ..core.errors import PathSecurityError
 from ..core.paths import EXCLUDED_DIRS, MAX_TEXT_BYTES, SENSITIVE_NAMES, display_path, resolve_in_root
@@ -25,9 +26,10 @@ def _clear_bytecode(path: Path) -> None:
 
 
 class FileTools:
-    def __init__(self, root: Path, stats, allowed_write_paths: set[Path] | None = None):
+    def __init__(self, root: Path, stats, allowed_write_paths: set[Path] | None = None, checkpoints: CheckpointStore | None = None):
         self.root = root
         self.stats = stats
+        self.checkpoints = checkpoints or CheckpointStore(root)
         self.allowed_write_paths = (
             {path.resolve() for path in allowed_write_paths}
             if allowed_write_paths is not None
@@ -81,6 +83,7 @@ class FileTools:
             if target.is_dir():
                 raise ValueError("Target is a directory.")
             old = self._read_text(target)
+        self.checkpoints.capture([target])
         mode = stat.S_IMODE(target.stat().st_mode) if existed else 0o644
         atomic_write_text(target, content, mode=mode)
         _clear_bytecode(target)
@@ -112,6 +115,7 @@ class FileTools:
                 f"old_string is ambiguous ({occurrences} matches). Provide more context or set replace_all."
             )
         updated = text.replace(old_string, new_string) if replace_all else text.replace(old_string, new_string, 1)
+        self.checkpoints.capture([target])
         mode = stat.S_IMODE(target.stat().st_mode)
         atomic_write_text(target, updated, mode=mode)
         _clear_bytecode(target)
@@ -157,6 +161,7 @@ class FileTools:
         self._check_write(dest, allow_parent=True)
         if dest.exists():
             raise ValueError(f"Destination '{destination}' already exists.")
+        self.checkpoints.capture([src, dest])
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dest))
         return ToolResult(
@@ -171,6 +176,8 @@ class FileTools:
         self._check_write(target)
         if target == self.root.resolve():
             raise ValueError("Refusing to delete the project root.")
+        captured = list(target.rglob("*")) if target.is_dir() else [target]
+        self.checkpoints.capture([item for item in captured if item.is_file()])
         if target.is_dir():
             if recursive:
                 shutil.rmtree(target)

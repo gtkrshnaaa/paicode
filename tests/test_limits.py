@@ -100,3 +100,28 @@ def test_compact_messages_drops_old_groups_when_over_budget():
 def test_context_budget_environment_override(monkeypatch):
     monkeypatch.setenv("PAICODE_CONTEXT_CHARS", "123456")
     assert context_budget() == 123456
+
+
+def test_split_context_never_starts_with_orphan_tool_result(project: Path):
+    from paicode.agent.loop import AgentRunner
+    from paicode.providers.store import ProviderConfig
+
+    provider = ProviderConfig(
+        name="fake",
+        base_url="http://127.0.0.1:9/v1",
+        api_keys=["test"],
+        model="fake",
+    )
+    runner = AgentRunner(project, provider, UsageStats(), [], [], emit=lambda event: None)
+    runner.messages = [
+        {"role": "system", "content": "rules"},
+        {"role": "user", "content": "build it"},
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "1"}]},
+        {"role": "tool", "tool_call_id": "1", "content": "created"},
+        {"role": "assistant", "content": "done"},
+        {"role": "user", "content": "next"},
+    ]
+    system, older, recent = runner._split_context(keep_last=2)
+    assert system[0]["content"] == "rules"
+    assert recent[0]["role"] != "tool"
+    assert older

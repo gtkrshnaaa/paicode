@@ -17,6 +17,7 @@ SLASH_COMMANDS = [
     SlashCommandSpec("model", "/model [name]", "choose a model"),
     SlashCommandSpec("models", "/models", "fetch models from the active provider"),
     SlashCommandSpec("mcp", "/mcp [tools|resources|prompts]", "inspect MCP servers and tools"),
+    SlashCommandSpec("rewind", "/rewind [id|latest]", "list or restore file checkpoints"),
     SlashCommandSpec("rules", "/rules", "show loaded PAICODE.md files"),
     SlashCommandSpec("skills", "/skills", "list installed skills"),
     SlashCommandSpec("skill", "/skill <name>", "print a skill"),

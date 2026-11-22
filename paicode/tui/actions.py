@@ -8,6 +8,7 @@ from ..providers.client import ProviderClient
 from ..providers.presets import get_preset
 from ..mcp import get_mcp_manager
 from ..settings import load_settings
+from ..checkpoints import CheckpointStore
 from ..rules.loader import load_rules, render_rules, rule_summary
 from ..rules.skills import discover_skills, find_skill, load_skill_text, render_catalog
 from ..sessions import (
@@ -376,6 +377,30 @@ class SlashActions:
             "Repeated identical tool calls are stopped after five consecutive attempts.\n"
             "Filesystem: writes are confined to the workspace. Read-only host exploration "
             "is available through the explore tool with a required reason."
+        )
+
+    def _cmd_rewind(self, args: str) -> None:
+        store = CheckpointStore(self.root)
+        value = args.strip()
+        if not value:
+            rows = store.list(limit=20)
+            if not rows:
+                self.chat.add_system("No checkpoints yet.")
+                return
+            lines = ["## Checkpoints", ""]
+            for row in rows:
+                lines.append(f"- `{row.id}` {row.created_at} files={len(row.files)}")
+            self.chat.add_markdown_system("\n".join(lines))
+            return
+        checkpoint, restored = store.restore("" if value == "latest" else value)
+        if checkpoint is None:
+            self.chat.add_system(f"Checkpoint '{value}' was not found.")
+            return
+        self.diff.add_note(f"Rewound {len(restored)} file(s) to checkpoint {checkpoint.id}.")
+        self._reload_context()
+        self.query_one("#explorer").refresh_tree()
+        self.chat.add_system(
+            f"Restored checkpoint {checkpoint.id}: " + ", ".join(restored[:20])
         )
 
     def _cmd_mcp(self, args: str) -> None:
