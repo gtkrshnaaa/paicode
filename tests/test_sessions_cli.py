@@ -88,3 +88,39 @@ def test_main_opens_dynamic_session_workspace(
     assert code == 0
     assert captured["root"] == workspace.resolve()
     assert captured["session_id"] == created.record.id
+
+
+def test_session_lists_flag_outputs_complete_info(
+    tmp_path: Path, config_home: Path, capsys
+):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    store = SessionStore()
+    created = store.create(workspace, title="flag-session")
+    code = main(["--session-lists"])
+    output = capsys.readouterr().out
+    assert code == 0
+    assert created.record.id in output
+    assert str(workspace.resolve()) in output
+    assert "CREATED" in output
+    assert "LAST OPENED" in output
+    assert "flag-session" in output
+
+
+def test_sessions_flag_alias_outputs_sessions(
+    tmp_path: Path, config_home: Path, capsys
+):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    created = SessionStore().create(workspace, title="alias-session")
+    code = main(["--sessions"])
+    output = capsys.readouterr().out
+    assert code == 0
+    assert created.record.id in output
+
+
+def test_session_lists_flag_empty_database(config_home: Path, capsys):
+    code = main(["--session-lists"])
+    output = capsys.readouterr().out
+    assert code == 0
+    assert "No sessions yet" in output

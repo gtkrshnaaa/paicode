@@ -245,6 +245,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Bypass the 22-agent council for a small task.",
     )
+    parser.add_argument(
+        "--session-lists",
+        "--sessions",
+        action="store_true",
+        dest="session_lists",
+        help="List every Paicode session with workspace and timestamps.",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Run one prompt without the TUI.")
@@ -293,6 +300,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     raw_args = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(_expand_session_args(raw_args))
+
+    if args.session_lists:
+        return _cmd_sessions()
 
     if args.reset_db:
         result = Database().reset()
