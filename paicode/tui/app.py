@@ -400,7 +400,7 @@ class PaiCodeApp(SlashActions, App):
                     f"Keys: {len(provider.api_keys)}"
                 )
             else:
-                self.chat.add_system("No provider configured. Use /connect deepseek or /connect opencode.")
+                self.chat.add_system("No provider configured. Use /connect deepseek or /connect openrouter.")
             self.chat.reset_transcript()
 
         for entry in self.session.diffs:
@@ -598,7 +598,7 @@ class PaiCodeApp(SlashActions, App):
 
         provider = self.store.active()
         if provider is None or not provider.api_keys:
-            self.chat.add_system("No provider configured. Use /connect deepseek or /connect opencode.")
+            self.chat.add_system("No provider configured. Use /connect deepseek or /connect openrouter.")
             self._cmd_connect("")
             return
         if not provider.model:

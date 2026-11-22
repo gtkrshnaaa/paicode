@@ -14,9 +14,7 @@ Paicode is split into a provider layer, a typed tool layer, a multi-agent counci
 
 - `client.py` streams chat completions, assembles tool call deltas, records usage, and rotates API keys on authentication or rate-limit failures. User messages may include text and image parts.
 - `store.py` persists providers, base URLs, keys, selected models, and cached model lists in the SQLite `providers`, `provider_keys`, `provider_models`, and `settings` tables.
-- `presets.py` defines DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google OpenAI compatibility, and custom providers.
-
-The OpenCode preset uses `https://opencode.ai/inference/openai/v1` for chat and `https://opencode.ai/inference/v1/models` for discovery.
+- `presets.py` defines DeepSeek, OpenAI, OpenRouter, Google OpenAI compatibility, and custom providers.
 
 ### Tool layer
 

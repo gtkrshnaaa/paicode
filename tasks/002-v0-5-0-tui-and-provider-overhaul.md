@@ -16,7 +16,7 @@ Replace the Gemini-only text-command loop with an OpenAI-compatible provider lay
 - [x] OpenAI-compatible provider layer with base URL, API key, dynamic model discovery, and streaming tool calls
 - [x] Slash commands inside the TUI: /help, /connect, /key, /baseurl, /provider, /models, /model, /rules, /skills, /skill, /stats, /clear, /exit
 - [x] Textual TUI: file explorer left, AI diff stream center, chat right, token/file statistics bottom
-- [x] PAICODE.md and project/global skill discovery following the OpenCode layout
+- [x] PAICODE.md and project/global skill discovery following the project-local layout
 - [x] Agenticway paicode edition with rules, skills, and installer in en/ and id_en/
 - [x] Root install.sh installs a launcher to ~/.local/bin and works from any directory
 - [x] Unit tests, TUI tests, and a local OpenAI-compatible SSE integration test pass

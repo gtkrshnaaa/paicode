@@ -11,7 +11,6 @@ from ..providers.store import ProviderConfig
 from ..rules.loader import RuleFile
 from ..rules.skills import SkillMeta
 from ..tools.registry import ToolRegistry
-from ..tools.schemas import TOOL_SCHEMAS
 from ..tools.types import ToolResult
 from .attachments import ImageAttachment
 from .events import (
@@ -198,7 +197,7 @@ class AgentRunner:
                 self.messages = compact_messages(self.messages)
                 result = self.client.stream(
                     self.messages,
-                    TOOL_SCHEMAS,
+                    self.registry.schemas,
                     on_text=lambda chunk: self._send(TextDelta(chunk)),
                     on_reasoning=lambda chunk: self._send(ReasoningDelta(chunk)),
                     stop_event=self._stop_event,

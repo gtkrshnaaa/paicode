@@ -17,7 +17,7 @@ class ProviderModal(ModalScreen[dict | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="modal-card"):
             yield Label("Connect provider", classes="modal-title")
-            yield Static("Presets: deepseek, opencode, openai, openrouter, google, custom", classes="hint")
+            yield Static("Presets: deepseek, openai, openrouter, google, custom", classes="hint")
             yield Input(placeholder="Provider name", value=self.default_name, id="provider-name")
             yield Input(placeholder="Base URL", id="provider-url")
             yield Input(placeholder="API key", password=True, id="provider-key")

@@ -15,7 +15,7 @@ Use `/connect` without arguments to open the provider dialog. A preset name pref
 
 ```text
 /connect deepseek
-/connect opencode
+/connect openrouter
 /connect custom https://gateway.example.com/v1
 ```
 
@@ -148,7 +148,7 @@ Inside Paicode, `/sessions` lists all sessions with the current one marked. `/se
 pai --reset-db
 ```
 
-It backs up the current database to a timestamped `.bak-*` file, drops all tables, runs migrations, and seeds provider presets. The seeded order starts with DeepSeek, OpenCode, OpenAI, OpenRouter, and Google, followed by other OpenAI-compatible providers. API keys are removed by the reset; they remain available in the backup file.
+It backs up the current database to a timestamped `.bak-*` file, drops all tables, runs migrations, and seeds provider presets. The seeded order starts with DeepSeek, OpenAI, OpenRouter, Google, and other OpenAI-compatible providers. API keys are removed by the reset; they remain available in the backup file.
 
 ## Prompt composer
 

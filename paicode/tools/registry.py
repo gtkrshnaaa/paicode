@@ -2,7 +2,10 @@ import json
 from pathlib import Path
 
 from ..core.errors import PathSecurityError
+from ..mcp import get_mcp_manager
 from ..rules.skills import SkillMeta, find_skill, load_skill_text
+from ..settings import load_settings
+from ..tools.schemas import TOOL_SCHEMAS
 from .explore import ExploreTools
 from .fs import FileTools
 from .search import SearchTools
@@ -20,6 +23,7 @@ class ToolRegistry:
         allowed_write_paths: set[Path] | None = None,
         read_only_shell: bool = False,
         strict_read_only_shell: bool = False,
+        enable_mcp: bool | None = None,
     ):
         self.root = root
         self.stats = stats
@@ -36,6 +40,17 @@ class ToolRegistry:
             strict_read_only=strict_read_only_shell,
         )
         self.explore_tools = ExploreTools(root, stats)
+        self.settings = load_settings(root)
+        if enable_mcp is None:
+            enable_mcp = not (read_only_shell or strict_read_only_shell)
+        self.mcp = get_mcp_manager(root, self.settings) if enable_mcp else None
+
+    @property
+    def schemas(self) -> list[dict]:
+        schemas = list(TOOL_SCHEMAS)
+        if self.mcp is not None:
+            schemas.extend(self.mcp.schemas())
+        return schemas
 
     def execute(self, name: str, arguments: dict | str) -> ToolResult:
         if isinstance(arguments, str):
@@ -102,4 +117,6 @@ class ToolRegistry:
             self.finished = True
             self.summary = str(args.get("summary", "")).strip()
             return ToolResult(True, self.summary or "Task complete.", kind="finish")
+        if name.startswith("mcp__") and self.mcp is not None:
+            return self.mcp.call(name, args)
         return ToolResult(False, f"Error: Unknown tool '{name}'.")

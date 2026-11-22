@@ -45,7 +45,7 @@ def test_presets_are_seeded(config_home: Path):
     store = ProviderStore()
     presets = store.presets()
     names = [preset["name"] for preset in presets]
-    assert names[:3] == ["deepseek", "opencode", "openai"]
+    assert names[:3] == ["deepseek", "openai", "openrouter"]
     assert "groq" in names
     assert "ollama" in names
 

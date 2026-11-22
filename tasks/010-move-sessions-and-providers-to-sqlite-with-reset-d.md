@@ -19,7 +19,7 @@ Replace JSON session files and JSON provider configuration with one SQLite datab
 - [x] Legacy JSON provider config and JSON session files migrate into the database
 - [x] No `.pai_brain` or `.pai_history` writes from the agent loop
 - [x] `pai --reset-db` backs up, drops, migrates, and seeds presets
-- [x] Seeder includes DeepSeek, OpenCode, OpenAI, OpenRouter, Google, Groq, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, Moonshot, Zhipu, DashScope, MiniMax, NVIDIA, Hyperbolic, Novita, DeepInfra, Ollama, LM Studio, and custom
+- [x] Seeder includes DeepSeek, OpenAI, OpenRouter, Google, Groq, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, Moonshot, Zhipu, DashScope, MiniMax, NVIDIA, Hyperbolic, Novita, DeepInfra, Ollama, LM Studio, and custom
 - [x] Auto-migrate and auto-seed on normal startup
 - [x] Tests cover schema, seeding, reset backup, provider migration, session migration, and store behavior
 - [x] Documentation updated and version bumped to 0.8.0

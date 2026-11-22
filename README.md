@@ -1,6 +1,6 @@
 # Paicode
 
-Paicode is a smart-routed multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
+Paicode is a smart-routed multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
 
 Agent 1 receives every request first. It triages the request and decides whether to answer alone, use read-only discussion mode, or deploy the 22-agent council. Read-only analysis, summaries, audits, and planning stay with one agent. Any write touching more than one file, scaffolding, feature work, or large refactor goes to the team. `--single-agent` remains available for small tasks.
 
@@ -113,7 +113,7 @@ The interface has four regions:
 | `/new` | Start a fresh session. |
 | `/exit` | Quit Paicode. |
 
-Provider presets: `deepseek`, `opencode`, `openai`, `openrouter`, `google`, and `custom`. Any OpenAI-compatible base URL works.
+Provider presets: `deepseek`, `openai`, `openrouter`, `google`, and `custom`. Any OpenAI-compatible base URL works.
 
 Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
 
@@ -199,7 +199,7 @@ While Paicode works, the bottom of the chat pane shows an animated loading bar, 
 
 ## Rules and skills
 
-Paicode follows the OpenCode placement convention.
+Paicode follows a project-local placement convention.
 
 Global:
 
@@ -251,7 +251,7 @@ Reset the database with a fresh migration and provider seed:
 pai --reset-db
 ```
 
-The reset creates a timestamped backup of the existing database, drops every table, runs migrations, and seeds provider base URLs. API keys are database data, so a reset removes them; the backup preserves the previous state. The seeder includes DeepSeek, OpenCode, OpenAI, OpenRouter, Google, Groq, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, SambaNova, Moonshot, Zhipu, DashScope, MiniMax, NVIDIA, Hyperbolic, Novita, DeepInfra, GitHub Models, Ollama, LM Studio, and a custom entry.
+The reset creates a timestamped backup of the existing database, drops every table, runs migrations, and seeds provider base URLs. API keys are database data, so a reset removes them; the backup preserves the previous state. The seeder includes DeepSeek, OpenAI, OpenRouter, Google, Groq, Mistral, xAI, Together, Fireworks, Perplexity, Cerebras, SambaNova, Moonshot, Zhipu, DashScope, MiniMax, NVIDIA, Hyperbolic, Novita, DeepInfra, GitHub Models, Ollama, LM Studio, and a custom entry.
 
 Each provider stores its base URL, API keys, selected model, cached model list, and optional models URL. Multiple keys are rotated automatically when a provider returns an authentication or rate-limit error.
 

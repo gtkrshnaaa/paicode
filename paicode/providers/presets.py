@@ -15,12 +15,6 @@ PRESETS: dict[str, ProviderPreset] = {
         base_url="https://api.deepseek.com/v1",
         model="deepseek-flash",
     ),
-    "opencode": ProviderPreset(
-        name="opencode",
-        base_url="https://opencode.ai/inference/openai/v1",
-        model="deepseek-v4.1-flash",
-        models_url="https://opencode.ai/inference/v1/models",
-    ),
     "openai": ProviderPreset(
         name="openai",
         base_url="https://api.openai.com/v1",

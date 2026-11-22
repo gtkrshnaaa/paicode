@@ -45,7 +45,7 @@ HELP_TEXT = "\n".join(
         "",
         "Examples:",
         "/connect deepseek",
-        "/connect opencode https://opencode.ai/inference/openai/v1",
+        "/connect openrouter https://openrouter.ai/api/v1",
         "/model deepseek-flash",
         "/connect custom https://example.com/v1",
         "",

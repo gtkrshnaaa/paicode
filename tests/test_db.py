@@ -9,7 +9,7 @@ from paicode.providers.presets import PRESETS
 def test_initialize_seeds_presets_and_secures_database(config_home: Path):
     database = Database()
     seeded = database.initialize()
-    assert seeded[:3] == ["deepseek", "opencode", "openai"]
+    assert seeded[:3] == ["deepseek", "openai", "openrouter"]
     assert len(seeded) == len(PRESETS)
     counts = database.counts()
     assert counts["provider_presets"] == len(PRESETS)
@@ -35,7 +35,7 @@ def test_reset_backs_up_and_creates_a_fresh_seeded_database(config_home: Path):
     assert result["backup"] is not None
     assert result["backup"].exists()
     assert result["migrations"] == 2
-    assert result["seeded"][:3] == ["deepseek", "opencode", "openai"]
+    assert result["seeded"][:3] == ["deepseek", "openai", "openrouter"]
 
     counts = database.counts()
     assert counts["providers"] == 0

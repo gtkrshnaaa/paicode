@@ -209,7 +209,7 @@
 
 - One SQLite database for sessions, transcripts, diffs, model messages, stats, providers, keys, models, and provider presets.
 - `pai --reset-db` backs up the database, drops every table, migrates fresh, and seeds provider base URLs.
-- Provider preset seeder ordered with DeepSeek, OpenCode, OpenAI, OpenRouter, Google, and additional OpenAI-compatible providers.
+- Provider preset seeder ordered with DeepSeek, OpenAI, OpenRouter, Google, and additional OpenAI-compatible providers.
 - Automatic migration of legacy `~/.config/paicode/config.json` provider configuration and JSON session files into SQLite.
 
 ### Changed
@@ -319,7 +319,7 @@
 ### Added
 
 - OpenAI-compatible provider layer with streaming chat completions, tool calls, usage reporting, and multi-key rotation.
-- DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google OpenAI compatibility, and custom provider presets.
+- DeepSeek, OpenAI, OpenRouter, Google OpenAI compatibility, and custom provider presets.
 - Textual multi-pane interface with a file explorer, AI diff stream, chat pane, and live session statistics.
 - In-TUI slash commands for provider setup, keys, base URLs, provider and model switching, rules, skills, statistics, configuration, and session control.
 - `PAICODE.md` global and project rules with `AGENTS.md` compatibility fallback.

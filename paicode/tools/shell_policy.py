@@ -5,7 +5,6 @@ SECRET_ENV_PARTS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 SECRET_ENV_PREFIXES = (
     "OPENAI_",
     "DEEPSEEK_",
-    "ANTHROPIC_",
     "GOOGLE_",
     "GITHUB_",
     "GH_",

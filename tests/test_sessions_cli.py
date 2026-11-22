@@ -37,7 +37,7 @@ def test_reset_db_cli_reports_backup_and_seeded_presets(config_home: Path, capsy
     assert code == 0
     assert "Paicode database reset" in output
     assert "Seeded:" in output
-    assert "deepseek, opencode, openai" in output
+    assert "deepseek, openai, openrouter" in output
 
 
 def test_main_creates_a_new_session_for_current_workspace(

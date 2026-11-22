@@ -86,7 +86,6 @@ SYSTEM_BLOCKED_RELATIVE = {
     ".config/gh",
     ".config/google-chrome",
     ".config/microsoft-edge",
-    ".config/opencode",
     ".config/paicode",
     ".local/share/keyrings",
     ".local/share/paicode",
