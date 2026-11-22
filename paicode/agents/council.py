@@ -1,7 +1,8 @@
 import json
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from ..agent.events import AgentPhase, AgentStatus
+from ..agent.events import AgentAction, AgentPhase, AgentStatus
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
 from ..providers.store import ProviderConfig
@@ -84,7 +85,11 @@ class Council:
         self.reviews: list[dict] = []
         self.contract: BuildContract | None = None
 
+    def _action(self, role: AgentRole, kind: str, detail: str, status: str = "running") -> None:
+        _emit(self.emit, AgentAction(role.id, role.title, kind, detail, status, datetime.now().strftime("%H:%M:%S")))
+
     def _role_prompt(self, role: AgentRole, request: str, context: str) -> dict:
+        self._action(role, "council", "submitting proposal")
         run_id = self.store.create_run(
             self.session_id,
             role.id,
@@ -101,6 +106,7 @@ class Council:
                 json.dumps(payload, ensure_ascii=False),
             )
             self.store.finish_run(run_id, "done", str(payload.get("understanding", ""))[:2000])
+            self._action(role, "council", "proposal submitted", "done")
             _emit(self.emit, AgentStatus(role.id, role.title, "council-proposal", "done", str(payload.get("understanding", ""))[:200]))
             return payload
         except Exception as exc:
@@ -109,6 +115,7 @@ class Council:
 
     def _review(self, role: AgentRole, request: str) -> dict:
         assert self.contract is not None
+        self._action(role, "review", "reviewing contract")
         run_id = self.store.create_run(
             self.session_id,
             role.id,
@@ -133,6 +140,7 @@ class Council:
                 json.dumps(payload, ensure_ascii=False),
             )
             self.store.finish_run(run_id, "done", detail or verdict)
+            self._action(role, "review", detail or verdict, "done")
             _emit(self.emit, AgentStatus(role.id, role.title, "council-review", verdict, detail))
             return payload
         except Exception as exc:
@@ -155,6 +163,7 @@ class Council:
             raise CouncilError("Stopped by user.")
 
         _emit(self.emit, AgentPhase("council", "lead synthesis", 0, 1))
+        self._action(role_for(1), "think", "synthesizing the contract")
         run_id = self.store.create_run(
             self.session_id, 1, role_for(1).title, "council-synthesis", model=self.provider.model
         )
@@ -184,6 +193,7 @@ class Council:
             json.dumps(self.contract.to_dict(), ensure_ascii=False),
         )
         self.store.finish_run(run_id, "done", self.contract.feature)
+        self._action(role_for(1), "think", "contract synthesized", "done")
         _emit(self.emit, AgentStatus(1, role_for(1).title, "council-synthesis", "done", self.contract.feature))
 
         _emit(self.emit, AgentPhase("council", "contract review", 0, len(ROSTER)))
@@ -207,6 +217,7 @@ class Council:
         _emit(self.emit, AgentPhase("council", summary, len(self.reviews), len(ROSTER)))
         if objections and not self.stop_event.is_set():
             _emit(self.emit, AgentPhase("council", "lead arbitration", 0, 1))
+            self._action(role_for(1), "think", "arbitrating contract objections")
             final_payload = _ask_json(
                 self.client,
                 self.stats,

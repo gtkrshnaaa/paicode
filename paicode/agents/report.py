@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ..agent.events import AgentPhase, AgentStatus, TextDelta, UsageUpdated
+from ..agent.events import AgentAction, AgentPhase, AgentStatus, TextDelta, UsageUpdated
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
 from ..providers.store import ProviderConfig
@@ -115,6 +115,7 @@ class LeadReporter:
             _emit(self.emit, TextDelta("\n\n" + fallback + "\n"))
             return fallback
         _emit(self.emit, AgentPhase("report", "lead report", 0, 1))
+        _emit(self.emit, AgentAction(1, role_for(1).title, "report", "writing final report", "running"))
         run_id = self.store.create_run(
             self.session_id, 1, role_for(1).title, "final-report", model=self.provider.model
         )
@@ -139,6 +140,7 @@ class LeadReporter:
                 raise RuntimeError("Lead report was empty.")
             self.store.add_message(run_id, self.session_id, 1, "final-report", "report", text)
             self.store.finish_run(run_id, "done", summary=text[:2000])
+            _emit(self.emit, AgentAction(1, role_for(1).title, "report", "final report delivered", "done"))
             _emit(self.emit, AgentStatus(1, role_for(1).title, "final-report", "done", text[:220]))
             _emit(self.emit, TextDelta("\n\n" + text + "\n"))
             return text

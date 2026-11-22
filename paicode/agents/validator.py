@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from ..agent.events import AgentPhase, AgentStatus, UsageUpdated
+from ..agent.events import AgentAction, AgentPhase, AgentStatus, ToolFinished, ToolStarted, UsageUpdated
+from .actions import tool_detail, tool_kind
 from ..agent.loop import AgentRunner
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
@@ -89,7 +90,11 @@ class Validator:
         local_stats = UsageStats()
 
         def on_event(event) -> None:
-            if isinstance(event, UsageUpdated):
+            if isinstance(event, ToolStarted):
+                _emit(self.emit, AgentAction(22, role_for(22).title, tool_kind(event.name), tool_detail(event.arguments), "running"))
+            elif isinstance(event, ToolFinished):
+                _emit(self.emit, AgentAction(22, role_for(22).title, tool_kind(event.name), (event.output or "").splitlines()[0][:120] if event.output else "", "done" if event.ok else "failed"))
+            elif isinstance(event, UsageUpdated):
                 return
 
         prompt = (

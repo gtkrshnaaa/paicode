@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-from ..agent.events import AgentPhase, AgentStatus, TextDelta, ToolFinished, UsageUpdated
+from ..agent.events import AgentAction, AgentPhase, AgentStatus, TextDelta, ToolFinished, ToolStarted, UsageUpdated
+from .actions import tool_detail, tool_kind
 from ..agent.loop import AgentRunner
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
@@ -80,7 +81,28 @@ class BuildCoordinator:
         )
 
         def on_event(event) -> None:
-            if isinstance(event, ToolFinished):
+            if isinstance(event, ToolStarted):
+                _emit(
+                    self.emit,
+                    AgentAction(
+                        owner,
+                        role.title,
+                        tool_kind(event.name),
+                        tool_detail(event.arguments),
+                        "running",
+                    ),
+                )
+            elif isinstance(event, ToolFinished):
+                _emit(
+                    self.emit,
+                    AgentAction(
+                        owner,
+                        role.title,
+                        tool_kind(event.name),
+                        (event.output or "").splitlines()[0][:120] if event.output else "",
+                        "done" if event.ok else "failed",
+                    ),
+                )
                 changed.extend(event.changed)
                 if event.diff:
                     self.changes.append((owner, event.diff, event.changed))
