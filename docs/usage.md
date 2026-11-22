@@ -129,12 +129,14 @@ description: Review API handlers for input validation and error propagation.
 Every `pai` launch creates a new session for the current workspace. The chat transcript, AI diff history, model context, usage statistics, provider configuration, and keys are stored in the Paicode SQLite database at `~/.local/state/paicode/paicode.db`.
 
 ```bash
+pai --session-lists
 pai session-lists
+pai --sessions
 pai --session s-7f3a9c2d
 pai --s-7f3a9c2d
 ```
 
-`pai session-lists` shows the session ID, workspace path, creation timestamp, last-opened timestamp, and title. Opening a session switches to its workspace and restores its chat and diff history.
+`pai --session-lists`, `pai session-lists`, and `pai --sessions` are equivalent and show the session ID, workspace path, creation timestamp, last-opened timestamp, and title. Opening a session switches to its workspace and restores its chat and diff history.
 
 Inside Paicode, `/sessions` lists all sessions with the current one marked. `/session <id>` switches, and `/session new` creates a fresh session in the current workspace. `/session` alone shows the current ID, workspace, creation time, last-opened time, and title.
 

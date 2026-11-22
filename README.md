@@ -165,10 +165,12 @@ Every `pai` launch creates a new session for the current workspace. Sessions per
 List every session from anywhere:
 
 ```bash
+pai --session-lists
 pai session-lists
+pai --sessions
 ```
 
-Each row includes the session ID, workspace path, creation timestamp, last-opened timestamp, and title.
+Each row includes the session ID, workspace path, creation timestamp, last-opened timestamp, and title. The flag and subcommand forms are equivalent.
 
 Open a session and its workspace directly:
 

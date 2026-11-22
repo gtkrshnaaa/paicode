@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1 - 2026-11-22
+
+### Added
+
+- `pai --session-lists` root flag as an equivalent to `pai session-lists`.
+- `pai --sessions` alias.
+- Flag-form tests for complete session output and the empty-database message.
+
 ## 0.12.0 - 2026-11-22
 
 ### Added
