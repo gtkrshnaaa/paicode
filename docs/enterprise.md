@@ -40,7 +40,13 @@ Local audit data is stored in SQLite and, when enabled, JSONL telemetry:
 - Agent runs, contracts, ownership, findings, and strikes in the audit tables
 - Tool and run events in `telemetry/events.jsonl`
 
-Export or ship these files to the organization's logging platform. The schema is stable within a minor release. Prompt text and file contents are not written to telemetry.
+Export a structured audit bundle with:
+
+```bash
+pai audit --out audit.json
+```
+
+The bundle contains sessions, agent runs, contracts, validation runs, and findings. Prompt text and file contents are not written to telemetry. Ship the bundle or state directory to the organization's logging platform. The schema is stable within a minor release.
 
 ## Data handling
 

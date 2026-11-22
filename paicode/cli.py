@@ -212,6 +212,31 @@ def _expand_session_args(argv: list[str]) -> list[str]:
     return expanded
 
 
+def _cmd_audit(out: str) -> int:
+    from .audit_export import export_audit
+
+    target = Path(out).expanduser().resolve()
+    result = export_audit(target)
+    print(f"Audit written to {result['path']}")
+    print(
+        f"Sessions: {result['sessions']} | runs: {result['agent_runs']} | "
+        f"contracts: {result['contracts']} | findings: {result['findings']} | "
+        f"validations: {result['validation_runs']}"
+    )
+    return 0
+
+
+def _cmd_policy(root: Path) -> int:
+    settings = load_settings(root)
+    print(f"Permission mode: {settings.permission_mode}")
+    for rule in settings.permissions:
+        print(f"{rule.action:<8} {rule.resource:<40} {rule.effect}")
+    budget = settings.budget
+    print(f"Budget tokens: {budget.max_tokens or 'unlimited'}")
+    print(f"Budget cost: ${budget.max_cost_usd:.2f}" if budget.max_cost_usd else "Budget cost: unlimited")
+    return 0
+
+
 def _cmd_telemetry(root: Path, tail: int) -> int:
     from .telemetry import Telemetry
 
@@ -431,6 +456,11 @@ def _build_parser() -> argparse.ArgumentParser:
         child = config_sub.add_parser(name)
         child.add_argument("value")
 
+    audit_parser = subparsers.add_parser("audit", help="Export sessions, runs, contracts, and findings.")
+    audit_parser.add_argument("--out", default="paicode-audit.json")
+
+    subparsers.add_parser("policy", help="Show permission mode, rules, and budgets.")
+
     telemetry_parser = subparsers.add_parser("telemetry", help="Show local telemetry status and recent events.")
     telemetry_parser.add_argument("--tail", type=int, default=20)
 
@@ -508,6 +538,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_bench(args.manifest, args.mode, args.repeat, args.out, args.max_steps)
     if args.command == "telemetry":
         return _cmd_telemetry(root, args.tail)
+    if args.command == "audit":
+        return _cmd_audit(args.out)
+    if args.command == "policy":
+        return _cmd_policy(root)
 
     from .tui.app import PaiCodeApp
 

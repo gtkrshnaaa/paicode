@@ -157,6 +157,16 @@ Events cover run start, tool calls, compaction, and run end with token and cost 
 - Windows: run inside WSL or a container. Native shell and sandbox integration are not implemented.
 - CI: Linux runs the full suite, macOS runs the platform and integration subset. Release artifacts are built on Linux.
 
+## Audit and policy inspection
+
+```bash
+pai policy
+pai audit --out audit.json
+pai telemetry --tail 50
+```
+
+`pai policy` prints the active permission mode, rules, and budget. `pai audit` exports sessions, agent runs, contracts, validation runs, and findings without provider keys.
+
 ## Operational references
 
 - [Enterprise deployment](enterprise.md)
