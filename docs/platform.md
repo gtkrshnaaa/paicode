@@ -20,8 +20,9 @@ Project values override global values with a deep merge. Lists are replaced, not
   "budget": {
     "max_tokens": 2000000,
     "max_cost_usd": 5.0,
-    "prompt_price_per_million": 0.27,
-    "completion_price_per_million": 1.10
+    "prompt_price_per_million": 0.30,
+    "cache_hit_price_per_million": 0.006,
+    "completion_price_per_million": 1.20
   },
   "compaction_threshold_chars": 1500000,
   "compaction_keep_last": 8,
@@ -78,7 +79,9 @@ Modes:
 
 ## Budgets
 
-`max_tokens` and `max_cost_usd` cap a session. Cost is estimated from the configured per-million token prices. When a cap is crossed, the current run stops with a budget error before the next model request. `/budget` shows the live total.
+`max_tokens` and `max_cost_usd` cap a session. Cost is estimated from the configured per-million token prices, including separate cache hit and cache miss input prices. When a cap is crossed, the current run stops with a budget error before the next model request. `/budget` shows the live total, cache hit and cache miss tokens, and the active prices. If prices are unset, cost remains zero; Paicode does not hardcode provider prices.
+
+`PAICODE_MAX_OUTPUT_TOKENS` caps output per model turn. The default is 8,192. `PAICODE_SOLO_MAX_STEPS` caps solo turns and defaults to 60.
 
 ## Context compaction
 

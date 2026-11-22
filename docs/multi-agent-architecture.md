@@ -1,8 +1,8 @@
 # Multi-Agent Architecture
 
-Paicode is smart-routed by default. Agent 1 triages every request before code is written. Read-only analysis, summaries, audits, plans, and discussion stay with one read-only agent. A small edit touching exactly one file may use Agent 1 alone. Any expected multi-file write, scaffolding, feature, migration, or large refactor is forced into the 22-agent team. The council freezes a build contract, assigns one owner per file, and then active builders execute in parallel. An independent validator tests the integrated result and routes defects back to the owning builder until the work is clean or the repair budget is exhausted.
+Paicode uses a solo planner by default. The solo agent plans, edits, verifies, and performs at most one repair pass. The 22-agent council is an explicit opt-in for mass parallel work through `/team` or `--team`. When selected, the council freezes a build contract, assigns one owner per file, and then active builders execute in parallel. An independent validator tests the integrated result and routes defects back to the owning builder until the work is clean or the repair budget is exhausted.
 
-`--single-agent` remains available for small tasks. The default path is the 22-agent council.
+Team mode is not the default because the fixed proposal and review rounds, parallel builders, and repair loops cost more than a single agent.
 
 ## Roster
 
@@ -132,8 +132,9 @@ Each run stores session, phase, agent, role, status, timestamps, model, token us
 
 ## TUI and CLI
 
-- `pai` and `pai run` use multi-agent by default.
-- `--single-agent` bypasses the council.
+- `pai` and `pai run` use solo mode by default.
+- `/team <prompt>` or `--team` opts in to the council.
+- `--single-agent` uses the plain loop without the planning pass.
 - `/agents` lists all 22 agents, phase, status, owned files, and strikes.
 - `/contract` shows the frozen contract.
 - `/bugs` shows current findings.

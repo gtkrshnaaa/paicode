@@ -19,7 +19,7 @@ Binding to a non-loopback interface exposes the API to the network. Use a token,
 | GET | `/api/sessions` | List sessions |
 | POST | `/api/sessions` | Create a session with `workspace` and optional `title` |
 | GET | `/api/sessions/{id}` | Session record, messages, transcript, diffs, and stats |
-| POST | `/api/sessions/{id}/prompt` | Start a run with `prompt`, returns `run_id` |
+| POST | `/api/sessions/{id}/prompt` | Start a solo run with `prompt` and optional `team: true`, returns `run_id` |
 | GET | `/api/runs/{id}/events` | Server-sent events for the run |
 
 Server-sent events use the same typed objects as the terminal interface: `TextDelta`, `ToolStarted`, `ToolFinished`, `AgentPhase`, `AgentStatus`, `AgentAction`, `UsageUpdated`, `Finished`, and `ErrorEvent`.
@@ -33,6 +33,8 @@ client = PaicodeClient("http://127.0.0.1:8765", "token")
 print(client.health())
 session = client.create_session("/work/project", "api demo")
 run = client.prompt(session["id"], "Add a health check endpoint.")
+# Team mode is opt-in:
+# client.prompt(session["id"], "Mass migration", team=True)
 print(client.events_url(run["run_id"]))
 ```
 

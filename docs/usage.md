@@ -48,13 +48,16 @@ Add tests for the parser and run them.
 Read the deployment script and explain the failure modes.
 ```
 
-## Smart routing and council
+## Solo default and opt-in team
 
-Agent 1 triages every request before any work starts:
+One agent plans, edits, and verifies by default. A cheap planning call marks the request read-only or write, then the agent keeps a todo list, edits surgically, and runs configured diagnostics with one bounded repair pass. Output per turn is capped at 8,192 tokens by default.
 
-- Read-only analysis, explanation, summary, audit, and planning use one read-only agent.
-- A small edit touching exactly one file may use Agent 1 alone.
-- Any write touching more than one file, scaffolding, a new feature, a migration, or a large refactor uses the 22-agent team.
+Read-only analysis, explanation, summary, audit, and planning stay in the read-only discussion runner. Write work uses the solo agent. Team mode is opt-in:
+
+```text
+/team build the full dashboard
+pai --team "refactor the scheduler"
+```
 
 When the team is selected:
 
@@ -69,6 +72,7 @@ The rightmost Agent Rail shows every agent, its status, and its nested turn hist
 Every model request carries the full global and project `PAICODE.md` rules. This includes single-agent turns, all council calls, builder turns, and validator turns. Rules are never silently truncated by the default limits and are placed first for provider prefix caching.
 
 ```text
+/team <prompt>
 /agents
 /contract
 /bugs

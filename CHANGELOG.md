@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.15.0 - 2026-11-22
+
+### Changed
+
+- Solo mode is now the default for the TUI and headless runs.
+- Solo mode runs one cheap planning call, keeps a live todo list, applies surgical edits, runs configured diagnostics, and performs at most one repair pass.
+- The 22-agent team is opt-in through `/team <prompt>` or `--team`.
+- Output per model turn is capped at 8,192 tokens by default through `PAICODE_MAX_OUTPUT_TOKENS`.
+- Benchmark modes are now solo versus team, with plain single-agent available for baselines.
+
+### Added
+
+- Cache hit and cache miss token tracking from provider usage.
+- Cache-aware cost estimation with separate input, cache hit, and output prices.
+- `todo` tool for the live task checklist.
+- Solo step cap through `PAICODE_SOLO_MAX_STEPS`, default 60.
+
 ## 0.14.1 - 2026-11-22
 
 ### Fixed

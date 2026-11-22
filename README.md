@@ -1,8 +1,8 @@
 # Paicode
 
-Paicode is a smart-routed multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry, with MCP, lifecycle hooks, local plugins, checkpoints, permission policy, budgets, a local API, and a benchmark harness. It works with DeepSeek, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
+Paicode is a cost-aware terminal coding harness with a solo planner as the default, plus an opt-in 22-agent team for mass parallel work. It reads, searches, edits, and runs real bash commands through a typed tool registry, with MCP, lifecycle hooks, local plugins, checkpoints, permission policy, budgets, a local API, and a benchmark harness. It works with DeepSeek, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
 
-Agent 1 receives every request first. It triages the request and decides whether to answer alone, use read-only discussion mode, or deploy the 22-agent council. Read-only analysis, summaries, audits, and planning stay with one agent. Any write touching more than one file, scaffolding, feature work, or large refactor goes to the team. `--single-agent` remains available for small tasks.
+One agent plans, edits, and verifies by default. The plan is a short JSON contract, the agent keeps a live todo list, and configured diagnostics run after edits with one bounded repair pass. Team mode is opt-in with `/team <prompt>` or `--team` because the extra agents and repair loops cost more.
 
 ## Quick install
 
@@ -102,6 +102,7 @@ The interface has five regions:
 | `/session [id or new]` | Show the current session, switch sessions, or start a new one. |
 | `/disscus <prompt>` | Start read-only discussion mode. |
 | `/discuss <prompt>` | Alias for `/disscus`. |
+| `/team <prompt>` | Run one prompt with the 22-agent team. |
 | `/agents` | Show the 22-agent council state. |
 | `/contract` | Show the frozen build contract. |
 | `/bugs` | Show current validation findings. |
@@ -125,9 +126,19 @@ Provider presets: `deepseek`, `openai`, `openrouter`, `google`, and `custom`. An
 
 Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
 
-## Smart routing and council
+## Solo default and opt-in team
 
-Agent 1 triages every prompt first. Read-only analysis, explanation, summary, audit, and planning use one read-only agent. A small one-file edit may use Agent 1 alone. Any work expected to touch more than one file, plus scaffolding, features, migrations, and large refactors, is forced to the 22-agent team.
+Every prompt starts in solo mode. The agent runs one cheap planning call, creates a todo list, inspects the smallest useful file set, edits surgically, and verifies with configured diagnostics. If diagnostics fail, it gets one bounded repair pass. Output per model turn is capped at 8,192 tokens by default, and the context budget is compacted with a model summary when needed.
+
+Read-only requests are detected during planning and routed to the read-only discussion runner. There is no 22-agent council call on the default path.
+
+Team mode is explicit:
+
+```text
+/team build the billing dashboard with tests
+pai --team "refactor the scheduler"
+pai run --team "migrate the database layer"
+```
 
 For team work, Agent 1 is the lead and contract owner. Agents 2 to 21 are 20 identical universal builders with no specialties. Agent 22 is the independent validator. The lead assigns one file or one cohesive sub-feature flow per builder, one work unit per builder, up to 20 builders.
 
@@ -146,10 +157,11 @@ The rightmost Agent Rail shows all 22 agents with status, nested turn count, tim
 The full design is in [docs/multi-agent-architecture.md](docs/multi-agent-architecture.md).
 
 ```bash
-pai                                  # multi-agent TUI
-pai run "build the feature"          # multi-agent headless
-pai --single-agent                   # single-agent TUI
-pai run --single-agent "small task"  # single-agent headless
+pai                                  # solo TUI
+pai run "build the feature"          # solo headless
+pai --single-agent                   # plain loop without the planning pass
+pai --team                           # opt in to the 22-agent team
+pai run --team "mass migration"      # opt in from headless mode
 ```
 
 Discussion mode is read-only. It can inspect files, search, explore, and run read-only git and shell commands, but it cannot write, edit, delete, build, install packages, redirect output, or mutate git state.
@@ -256,7 +268,7 @@ pai bench benchmarks/smoke.json --mode both
 pai --path /path/to/project run "Summarize this repository"
 ```
 
-`pai run --json` emits newline-delimited event objects for CI and editor integrations. `pai serve` starts the local HTTP API and web console. `pai bench` runs the same task in single-agent and smart-routed modes, records pass or fail, wall time, tokens, and cost, and writes JSON results with `--out`.
+`pai run --json` emits newline-delimited event objects for CI and editor integrations. `pai serve` starts the local HTTP API and web console. `pai bench` runs the same task in solo and team modes, records pass or fail, wall time, tokens, and cost, and writes JSON results with `--out`.
 
 ## Configuration
 

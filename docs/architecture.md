@@ -6,7 +6,7 @@ Paicode is split into a provider layer, a platform layer, a typed tool layer, a 
 
 ### Multi-agent layer
 
-`paicode/agents/` contains the 22-agent roster, typed build contract, council, parallel build coordinator, validator, SQLite audit store, and `MultiAgentRunner`. The council runs 22 parallel proposals, lead synthesis, and 22 parallel contract reviews. The lead freezes file ownership and work units. Active builders run concurrently with per-agent write allowlists. Agent 22 runs the validation matrix and produces structured findings. Findings are assigned to owners and repaired until green or the configured round and strike limits. The default path is smart-routed. `SmartRunner` performs an Agent 1 triage call, then routes to a read-only discussion runner, a one-file single writer, or the 22-agent council. Multi-file and mass write work is forced to the team. `--single-agent` keeps the original loop available. The TUI Agent Rail receives `AgentAction` events and shows each agent status plus nested turn history. `/disscus` uses `DiscussionRunner`, which reuses the single-agent loop with an empty write allowlist and a strict read-only shell policy.
+`paicode/agents/` contains the 22-agent roster, typed build contract, council, parallel build coordinator, validator, SQLite audit store, and `MultiAgentRunner`. The council runs 22 parallel proposals, lead synthesis, and 22 parallel contract reviews. The lead freezes file ownership and work units. Active builders run concurrently with per-agent write allowlists. Agent 22 runs the validation matrix and produces structured findings. Findings are assigned to owners and repaired until green or the configured round and strike limits. The default path is solo. `SoloRunner` runs one cheap planning call, routes read-only work to the discussion runner, and otherwise runs one planning agent with a todo list, output cap, diagnostics, and one repair pass. The 22-agent council is opt-in through `/team` or `--team`. `--single-agent` keeps the original loop without the planning pass. The TUI Agent Rail receives `AgentAction` events and shows each agent status plus nested turn history. `/disscus` uses `DiscussionRunner`, which reuses the single-agent loop with an empty write allowlist and a strict read-only shell policy.
 
 ### Provider layer
 
@@ -22,9 +22,9 @@ Paicode is split into a provider layer, a platform layer, a typed tool layer, a 
 
 ### Tool layer
 
-`paicode/tools/` exposes fifteen built-in typed tools to the model through OpenAI function calling:
+`paicode/tools/` exposes sixteen built-in typed tools to the model through OpenAI function calling:
 
-`read`, `write`, `edit`, `list`, `glob`, `grep`, `bash`, `explore`, `skill`, `diagnostics`, `mkdir`, `move`, `delete`, and `finish`.
+`read`, `write`, `edit`, `list`, `glob`, `grep`, `bash`, `explore`, `skill`, `todo`, `diagnostics`, `mkdir`, `move`, `delete`, and `finish`.
 
 MCP and plugin tools are added to the same schema list at runtime. Read-only runs never receive them.
 
