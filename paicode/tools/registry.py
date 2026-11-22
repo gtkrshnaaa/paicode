@@ -56,9 +56,9 @@ class ToolRegistry:
 
     @property
     def schemas(self) -> list[dict]:
-        blocked = {"diagnostics"}
+        blocked: set[str] = set()
         if self.read_only:
-            blocked.update({"write", "edit", "mkdir", "move", "delete"})
+            blocked.update({"diagnostics", "write", "edit", "mkdir", "move", "delete"})
         schemas = [
             schema for schema in TOOL_SCHEMAS if schema["function"]["name"] not in blocked
         ]
