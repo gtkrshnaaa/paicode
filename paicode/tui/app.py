@@ -3,7 +3,7 @@ from pathlib import Path
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Static
 
 from .. import __version__
@@ -31,6 +31,7 @@ from .actions import SlashActions
 from .commands import filter_commands
 from .messages import FileSelected
 from .modals.preview import FilePreviewScreen
+from .screen import PaiCodeScreen
 from .theme import MONOCHROME
 from ..agents.actions import tool_kind
 from .widgets.agent_rail import AgentRail
@@ -353,6 +354,9 @@ class PaiCodeApp(SlashActions, App):
         self._prompt_queue = []
         self._active_runner = None
         self._stop_requested = False
+
+    def get_default_screen(self) -> Screen:
+        return PaiCodeScreen(id="_default")
 
     def compose(self) -> ComposeResult:
         yield Static("Paicode", id="topbar")
