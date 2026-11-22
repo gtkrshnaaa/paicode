@@ -249,6 +249,8 @@ pai models
 pai doctor
 pai mcp status
 pai rewind
+pai policy
+pai audit --out audit.json
 pai serve
 pai bench benchmarks/smoke.json --mode both
 pai --path /path/to/project run "Summarize this repository"

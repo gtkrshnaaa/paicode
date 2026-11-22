@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.1 - 2026-11-22
+
+### Fixed
+
+- Server startup details flush immediately so automation can read the bound port.
+
+### Added
+
+- `pai audit --out <file>` exports sessions, agent runs, contracts, validation runs, and findings without provider keys.
+- `pai policy` prints the active permission mode, rules, and budgets.
+
 ## 0.14.0 - 2026-11-22
 
 ### Added

@@ -2,7 +2,7 @@
 id: "027"
 title: "Post-release hardening: audit export, policy inspection, and server startup reliability"
 type: "fix"
-status: "in-progress"
+status: "done"
 created_at: "2026-11-22"
 updated_at: "2026-11-22"
 ---
