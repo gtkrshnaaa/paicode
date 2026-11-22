@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+from paicode.cli import main
 from paicode.mcp import reset_mcp_manager
 from paicode.tools.registry import ToolRegistry
 from paicode.core.stats import UsageStats
@@ -89,5 +90,21 @@ def test_read_only_registry_hides_mcp_tools(project: Path, config_home: Path):
         result = registry.execute("mcp__demo__echo", {"text": "blocked"})
         assert result.ok is False
         assert "Unknown tool" in result.output
+    finally:
+        reset_mcp_manager(project)
+
+
+def test_mcp_cli_status_and_tools(project: Path, config_home: Path, capsys):
+    server = project / "fake_mcp.py"
+    server.write_text(SERVER, encoding="utf-8")
+    write_settings(project, [sys.executable, str(server)])
+    reset_mcp_manager(project)
+    try:
+        assert main(["--path", str(project), "mcp", "status"]) == 0
+        status = capsys.readouterr().out
+        assert "demo: stdio connected tools=1" in status
+        assert main(["--path", str(project), "mcp", "tools"]) == 0
+        tools = capsys.readouterr().out
+        assert "mcp__demo__echo" in tools
     finally:
         reset_mcp_manager(project)

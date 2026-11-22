@@ -6,6 +6,8 @@ from ..agent.loop import context_budget
 from ..core.atomic import atomic_write_text
 from ..providers.client import ProviderClient
 from ..providers.presets import get_preset
+from ..mcp import get_mcp_manager
+from ..settings import load_settings
 from ..rules.loader import load_rules, render_rules, rule_summary
 from ..rules.skills import discover_skills, find_skill, load_skill_text, render_catalog
 from ..sessions import (
@@ -375,6 +377,44 @@ class SlashActions:
             "Filesystem: writes are confined to the workspace. Read-only host exploration "
             "is available through the explore tool with a required reason."
         )
+
+    def _cmd_mcp(self, args: str) -> None:
+        parts = args.split()
+        action = parts[0].lower() if parts else "status"
+        server = parts[1] if len(parts) > 1 else ""
+        manager = get_mcp_manager(self.root, load_settings(self.root))
+        if action == "tools":
+            schemas = manager.schemas()
+            if not schemas:
+                self.chat.add_system("No MCP tools are available.")
+                return
+            lines = ["## MCP Tools", ""]
+            for schema in schemas:
+                function = schema.get("function", {})
+                lines.append(f"- `{function.get('name')}`: {function.get('description', '')}")
+            self.chat.add_markdown_system("\n".join(lines))
+            return
+        if action in {"resources", "prompts"}:
+            if not server:
+                self.chat.add_system(f"Usage: /mcp {action} <server>")
+                return
+            try:
+                items = manager.resources(server) if action == "resources" else manager.prompts(server)
+            except Exception as exc:
+                self.chat.add_system(f"MCP {action} failed: {exc}")
+                return
+            self.chat.add_system("\n".join(str(item.get("uri") or item.get("name") or item) for item in items) or "None.")
+            return
+        rows = manager.status()
+        if not rows:
+            self.chat.add_system("No MCP servers configured. Add mcp.servers in .paicode/settings.json.")
+            return
+        lines = ["## MCP Servers", ""]
+        for row in rows:
+            state = "connected" if row.connected else "failed"
+            detail = f"{row.tools} tools" if row.connected else row.error
+            lines.append(f"- **{row.name}** ({row.transport}): {state}, {detail}")
+        self.chat.add_markdown_system("\n".join(lines))
 
     def _cmd_config(self, args: str) -> None:
         self.chat.add_system(self.store.redacted())

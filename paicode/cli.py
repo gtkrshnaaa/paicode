@@ -12,6 +12,8 @@ from .core.stats import UsageStats
 from .providers.client import ProviderClient
 from .providers.presets import get_preset
 from .providers.store import ProviderStore
+from .settings import load_settings
+from .mcp import get_mcp_manager
 from .rules.loader import load_rules, rule_summary
 from .rules.skills import discover_skills, render_catalog
 from .db import Database
@@ -198,6 +200,41 @@ def _expand_session_args(argv: list[str]) -> list[str]:
     return expanded
 
 
+def _cmd_mcp(root: Path, action: str, server: str) -> int:
+    manager = get_mcp_manager(root, load_settings(root))
+    rows = manager.status()
+    if action == "status":
+        if not rows:
+            print("No MCP servers configured. Add them under mcp.servers in .paicode/settings.json.")
+            return 0
+        for row in rows:
+            state = "connected" if row.connected else "failed"
+            detail = f" tools={row.tools}" if row.connected else f" {row.error}"
+            print(f"{row.name}: {row.transport} {state}{detail}")
+        return 0
+    if action == "tools":
+        for schema in manager.schemas():
+            function = schema.get("function", {})
+            print(f"{function.get('name')}: {function.get('description', '')}")
+        return 0
+    if action == "resources":
+        if not server:
+            print("Usage: pai mcp resources <server>", file=sys.stderr)
+            return 1
+        for item in manager.resources(server):
+            print(f"{item.get('uri', '')} {item.get('name', '')}")
+        return 0
+    if action == "prompts":
+        if not server:
+            print("Usage: pai mcp prompts <server>", file=sys.stderr)
+            return 1
+        for item in manager.prompts(server):
+            print(f"{item.get('name', '')}: {item.get('description', '')}")
+        return 0
+    print(f"Unknown MCP action: {action}", file=sys.stderr)
+    return 1
+
+
 def _cmd_doctor(root: Path) -> int:
     store = ProviderStore()
     provider = store.active()
@@ -292,6 +329,10 @@ def _build_parser() -> argparse.ArgumentParser:
         child = config_sub.add_parser(name)
         child.add_argument("value")
 
+    mcp_parser = subparsers.add_parser("mcp", help="Inspect configured MCP servers and tools.")
+    mcp_parser.add_argument("action", nargs="?", default="status", choices=["status", "tools", "resources", "prompts"])
+    mcp_parser.add_argument("server", nargs="?", default="")
+
     subparsers.add_parser("doctor", help="Show environment, provider, rules, and skill status.")
     return parser
 
@@ -336,6 +377,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_config(args)
     if args.command == "doctor":
         return _cmd_doctor(root)
+    if args.command == "mcp":
+        return _cmd_mcp(root, args.action, args.server)
 
     from .tui.app import PaiCodeApp
 
