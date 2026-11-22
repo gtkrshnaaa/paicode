@@ -38,7 +38,7 @@ Use `/key` to add another key to the active provider. Use `/baseurl` to change t
 
 ## Send a task
 
-Type a request and press Enter. The agent streams text to the right pane, executes tools, and renders every file change in the center pane. The chat uses bordered user and timestamped assistant cards with a labelled turn divider between requests. Assistant text, tool rows, notices, and later reports stay in chronological order. The diff pane gives each change its own labelled header band with path, additions, removals, and timestamp, monochrome syntax highlighting, and a closing rule. Clicking a file opens a syntax-highlighted read-only preview. The bottom bar updates after each provider response.
+Type a request and press Enter. Agent 1 first triages the request, then streams the result, executes tools, and renders every file change in the center pane. The rightmost Agent Rail shows all 22 agents and their nested actions. The chat uses bordered user and timestamped assistant cards with a labelled turn divider between requests. Assistant text, tool rows, notices, and later reports stay in chronological order. The diff pane gives each change its own labelled header band with path, additions, removals, and timestamp, monochrome syntax highlighting, and a closing rule. Clicking a file opens a syntax-highlighted read-only preview. The bottom bar updates after each provider response.
 
 Useful prompts:
 
@@ -48,15 +48,23 @@ Add tests for the parser and run them.
 Read the deployment script and explain the failure modes.
 ```
 
-## Multi-agent council
+## Smart routing and council
 
-Feature requests run through 22 agents by default:
+Agent 1 triages every request before any work starts:
+
+- Read-only analysis, explanation, summary, audit, and planning use one read-only agent.
+- A small edit touching exactly one file may use Agent 1 alone.
+- Any write touching more than one file, scaffolding, a new feature, a migration, or a large refactor uses the 22-agent team.
+
+When the team is selected:
 
 - Agent 1 leads the council and owns the frozen contract.
 - Agents 2 to 21 are builders.
 - Agent 22 validates tests and contract conformance.
 
 The council submits 22 proposals in parallel, the lead freezes file ownership and interfaces, and all 22 agents review the contract. Only builders with assigned files activate, and they build in parallel. Agent 22 tests the integrated workspace and sends structured findings to the owning builder. Repair repeats until green, three strikes, or five rounds. The lead closes every run with a report covering the summary, delivered files, validation result, defects, and next steps.
+
+The rightmost Agent Rail shows every agent, its status, and its nested turn history with timestamps for council, thinking, read, create, edit, delete, list, command, explore, and skill actions.
 
 Every model request carries the full global and project `PAICODE.md` rules. This includes single-agent turns, all council calls, builder turns, and validator turns. Rules are never silently truncated by the default limits and are placed first for provider prefix caching.
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.0 - 2026-11-22
+
+### Added
+
+- Agent 1 triage before every prompt. `SmartRunner` classifies intent, expected file count, and routes to read-only discussion, one-file single-agent work, or the 22-agent team.
+- Multi-file, scaffolding, feature, migration, and unknown-size write work is forced to the team.
+- The Agent Rail on the right shows all 22 agents with status, nested turn count, timestamps, and read, create, edit, delete, list, command, explore, skill, council, and validation actions.
+- Council, builder, validator, triage, and final report produce `AgentAction` events for the rail.
+- TUI layout includes a dedicated 34-column Agent Rail.
+
+### Changed
+
+- TUI and headless default now use `SmartRunner`, not unconditional multi-agent.
+- `/agents` and the Agent Rail stay available for both single and team routes.
+- Chat, diff, and rail share monochrome styling and chronological event delivery.
+
 ## 0.11.0 - 2026-11-22
 
 ### Added

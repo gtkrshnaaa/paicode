@@ -2,7 +2,7 @@
 
 Paicode is a multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
 
-Every feature request starts with a lead-driven council. All 22 agents review the request, the lead freezes a contract with file ownership and interfaces, only the needed builders work in parallel, and agent 22 validates the integrated result. `--single-agent` remains available for small tasks.
+Agent 1 receives every request first. It triages the request and decides whether to answer alone, use read-only discussion mode, or deploy the 22-agent council. Read-only analysis, summaries, audits, and planning stay with one agent. Any write touching more than one file, scaffolding, feature work, or large refactor goes to the team. `--single-agent` remains available for small tasks.
 
 ## Quick install
 
@@ -117,9 +117,11 @@ Provider presets: `deepseek`, `opencode`, `openai`, `openrouter`, `google`, and 
 
 Typing `/` in the prompt opens a filtered command palette. Type more characters to narrow it, use Up and Down to move, Tab to complete, and Escape to dismiss. Enter accepts a partial command or runs an exact one.
 
-## Multi-agent council
+## Smart routing and council
 
-Agent 1 is the lead and contract owner. Agents 2 to 21 are builders with frontend, backend, database, auth, test, integration, accessibility, performance, DevOps, documentation, data, quality, and observability roles. Agent 22 is the independent validator.
+Agent 1 triages every prompt first. Read-only analysis, explanation, summary, audit, and planning use one read-only agent. A small one-file edit may use Agent 1 alone. Any work expected to touch more than one file, plus scaffolding, features, migrations, and large refactors, is forced to the 22-agent team.
+
+For team work, Agent 1 is the lead and contract owner. Agents 2 to 21 are builders with frontend, backend, database, auth, test, integration, accessibility, performance, DevOps, documentation, data, quality, and observability roles. Agent 22 is the independent validator.
 
 The council runs in three stages:
 
@@ -130,6 +132,8 @@ The council runs in three stages:
 Only builders with assigned work units are activated. All active builders are dispatched together before any completion is collected, so they start in parallel rather than in sequence. Each builder may edit only its owned files, and the diff report is flushed as one batch after the build. Agent 22 starts only after every builder finishes, then runs the full test and acceptance matrix, files structured findings against the owning builder, and repeats the repair loop until green, three strikes, or five validation rounds. The lead always closes with a user-facing report covering the summary, delivered files, validation result, defects, and next steps. If the report model fails or the run is stopped, a deterministic report is emitted instead.
 
 Every model request, from a single prompt to all 22 council calls, builder turns, and validator turns, carries the full global and project `PAICODE.md` rule envelope. Rules are never silently truncated and are placed first for provider prefix caching.
+
+The rightmost Agent Rail shows all 22 agents with status, nested turn count, timestamps, and their latest read, create, edit, delete, list, command, explore, and skill actions.
 
 The full design is in [docs/multi-agent-architecture.md](docs/multi-agent-architecture.md).
 

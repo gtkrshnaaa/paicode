@@ -1,6 +1,6 @@
 # Multi-Agent Architecture
 
-Paicode is multi-agent by default. Every feature request enters a 22-agent council before code is written. The council freezes a build contract, assigns one owner per file, and then active builders execute in parallel. An independent validator tests the integrated result and routes defects back to the owning builder until the work is clean or the repair budget is exhausted.
+Paicode is smart-routed by default. Agent 1 triages every request before code is written. Read-only analysis, summaries, audits, plans, and discussion stay with one read-only agent. A small edit touching exactly one file may use Agent 1 alone. Any expected multi-file write, scaffolding, feature, migration, or large refactor is forced into the 22-agent team. The council freezes a build contract, assigns one owner per file, and then active builders execute in parallel. An independent validator tests the integrated result and routes defects back to the owning builder until the work is clean or the repair budget is exhausted.
 
 `--single-agent` remains available for small tasks. The default path is the 22-agent council.
 
@@ -70,6 +70,10 @@ The lead resolves conflicts. The contract is validated before review: at least o
 ### Round 3: contract review
 
 All 22 agents review the draft in parallel and return approve, approve with note, or objection with a concrete required change. The lead resolves objections and freezes contract version 1. Objections are normal council input, not errors; the chat shows one compact objection count while `/agents` keeps the per-agent verdict and required changes. No production file is written before this freeze.
+
+## Live agent rail
+
+The rightmost pane shows all 22 agents with status, nested turn count, timestamps, and their latest council, thinking, read, create, edit, delete, list, command, explore, and skill actions. Council, builders, validator, triage, and the final report emit `AgentAction` events. The rail keeps the last six nested turns per agent and scrolls independently.
 
 ## Build phase
 
