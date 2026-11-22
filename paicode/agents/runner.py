@@ -10,6 +10,7 @@ from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
 from ..providers.store import ProviderConfig
 from ..rules.loader import render_rules
+from .audit import changed_files
 from .build import BuildCoordinator
 from .council import Council, CouncilError, _emit
 from .findings import ValidationResult
@@ -58,6 +59,7 @@ class MultiAgentRunner:
         self.contract_id = ""
         self.reports: dict = {}
         self.last_validation: ValidationResult | None = None
+        self.baseline_changes: set[str] = set()
         self.phase = "idle"
         self.reporter = LeadReporter(
             provider,
@@ -166,6 +168,7 @@ class MultiAgentRunner:
             self.concurrency,
             self.rules_text,
         )
+        self.baseline_changes = changed_files(self.root, self.stats, self._stop_event)
         self.reports = build.build(self.contract, self.contract_id)
         validator = Validator(
             self.root,
@@ -177,6 +180,7 @@ class MultiAgentRunner:
             self.emit,
             self._stop_event,
             self.rules_text,
+            self.baseline_changes,
         )
         for round_number in range(1, self.validation_rounds + 1):
             if self._stop_event.is_set():

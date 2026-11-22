@@ -2,6 +2,7 @@ from pathlib import Path
 
 from ..agent.events import AgentAction, AgentPhase, AgentStatus, ToolFinished, ToolStarted, UsageUpdated
 from .actions import tool_detail, tool_kind
+from .audit import changed_files, unowned_changes
 from ..agent.loop import AgentRunner
 from ..core.stats import UsageStats
 from ..providers.client import ProviderClient
@@ -28,6 +29,7 @@ class Validator:
         emit,
         stop_event,
         rules_text: str = "",
+        baseline_changes: set[str] | None = None,
     ):
         self.root = root
         self.provider = provider
@@ -38,6 +40,7 @@ class Validator:
         self.emit = emit
         self.stop_event = stop_event
         self.rules_text = rules_text
+        self.baseline_changes = baseline_changes or set()
 
     def _precheck(self, contract: BuildContract) -> tuple[bool, str, list[Finding]]:
         findings: list[Finding] = []
@@ -56,6 +59,22 @@ class Validator:
                         message=f"Agent {owner}, {path} is missing. This is a contract violation. Create it and report back.",
                     )
                 )
+        allowed = set(contract.ownership()) | set(contract.shared_files)
+        changes = changed_files(self.root, self.stats, self.stop_event)
+        for path in unowned_changes(changes, self.baseline_changes, allowed):
+            findings.append(
+                Finding(
+                    owner=1,
+                    severity="major",
+                    title=f"Unowned file changed: {path}",
+                    file=path,
+                    expected="Only contract-owned or shared files change",
+                    actual="File changed outside the ownership map",
+                    command="git status --porcelain --untracked-files=all",
+                    fix="Move the change into an owned file or update the frozen contract",
+                    message=f"Agent 1, {path} changed outside the contract. Reconcile the board before release.",
+                )
+            )
         command = contract.commands.get("test", "").strip()
         output = ""
         ok = not findings
