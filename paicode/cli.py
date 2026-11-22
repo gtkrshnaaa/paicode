@@ -46,7 +46,7 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, sing
         UsageUpdated,
     )
     from .agent.loop import AgentRunner
-    from .agents import MultiAgentRunner
+    from .agents import SmartRunner
 
     store = ProviderStore()
     provider = _require_provider(store)
@@ -97,7 +97,7 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, sing
     if single_agent:
         runner = AgentRunner(root, provider, stats, rules, skills, emit=on_event, max_steps=max_steps)
     else:
-        runner = MultiAgentRunner(root, provider, stats, rules, skills, emit=on_event)
+        runner = SmartRunner(root, provider, stats, rules, skills, emit=on_event)
     runner.run(prompt)
     if state["started"]:
         console.print("")

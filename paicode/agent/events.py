@@ -61,3 +61,14 @@ class AgentPhase:
     active: int = 0
     total: int = 0
 
+
+@dataclass
+class AgentAction:
+    agent_id: int
+    role: str
+    kind: str
+    detail: str = ""
+    status: str = "running"
+    timestamp: str = ""
+    turn: int = 0
+
