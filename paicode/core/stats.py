@@ -13,6 +13,7 @@ class UsageStats:
     files_created: int = 0
     files_edited: int = 0
     commands: int = 0
+    cost_usd: float = 0.0
     started_at: datetime = field(default_factory=datetime.now)
     _lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
 
@@ -22,6 +23,10 @@ class UsageStats:
             self.completion_tokens += max(0, int(completion or 0))
             self.total_tokens += max(0, int(total or 0))
             self.requests += 1
+
+    def record_cost(self, amount: float = 0.0) -> None:
+        with self._lock:
+            self.cost_usd += max(0.0, float(amount or 0.0))
 
     def mark(self, kind: str, amount: int = 1) -> None:
         with self._lock:
@@ -44,6 +49,7 @@ class UsageStats:
             self.files_created += other.files_created
             self.files_edited += other.files_edited
             self.commands += other.commands
+        self.cost_usd += other.cost_usd
 
     def reset(self) -> None:
         with self._lock:
@@ -67,6 +73,7 @@ class UsageStats:
             "files_created": self.files_created,
             "files_edited": self.files_edited,
             "commands": self.commands,
+            "cost_usd": self.cost_usd,
             "started_at": self.started_at.isoformat(),
         }
 
@@ -87,6 +94,10 @@ class UsageStats:
                 setattr(stats, key, int(data.get(key, 0) or 0))
             except (TypeError, ValueError):
                 setattr(stats, key, 0)
+        try:
+            stats.cost_usd = max(0.0, float(data.get("cost_usd", 0.0) or 0.0))
+        except (TypeError, ValueError):
+            stats.cost_usd = 0.0
         started = data.get("started_at")
         if isinstance(started, str):
             try:
@@ -100,7 +111,7 @@ class UsageStats:
             f"tokens {self.prompt_tokens}/{self.completion_tokens}/{self.total_tokens} "
             f"req {self.requests} "
             f"files r{self.files_read} c{self.files_created} e{self.files_edited} "
-            f"cmds {self.commands}"
+            f"cmds {self.commands} cost ${self.cost_usd:.4f}"
         )
 
     def detailed(self) -> str:
@@ -115,6 +126,7 @@ class UsageStats:
                 f"Files created: {self.files_created}",
                 f"Files edited: {self.files_edited}",
                 f"Commands run: {self.commands}",
+                f"Estimated cost: ${self.cost_usd:.4f}",
                 f"Elapsed: {elapsed}s",
             ]
         )

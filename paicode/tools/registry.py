@@ -4,6 +4,8 @@ from pathlib import Path
 from ..core.errors import PathSecurityError
 from ..hooks import HookRunner
 from ..plugins import PluginHost
+from ..security import request_approval
+from ..settings import load_settings, permission_effect
 from ..mcp import get_mcp_manager
 from ..rules.skills import SkillMeta, find_skill, load_skill_text
 from ..settings import load_settings
@@ -69,6 +71,15 @@ class ToolRegistry:
             return ToolResult(False, "Error: Tool arguments must be an object.")
 
         normalized = name.strip().lower()
+        action, resource = self._permission_target(normalized, arguments)
+        effect = permission_effect(self.settings, action, resource)
+        if effect == "deny":
+            return ToolResult(False, f"Denied by permission policy: {action} {resource}")
+        if effect == "ask" and not request_approval(action, resource):
+            return ToolResult(
+                False,
+                f"Approval required by permission policy: {action} {resource}",
+            )
         pre_hook = self.hooks.run("pre_tool", {"tool": normalized, "arguments": arguments}, blocking=True)
         if not pre_hook.allowed:
             return ToolResult(False, "Blocked by hook: " + "; ".join(pre_hook.reasons))
@@ -91,6 +102,23 @@ class ToolRegistry:
             return ToolResult(False, f"Error: {exc}")
         except Exception as exc:
             return ToolResult(False, f"Error: {type(exc).__name__}: {exc}")
+
+    def _permission_target(self, name: str, args: dict) -> tuple[str, str]:
+        if name == "bash":
+            return "shell", str(args.get("command", "")).strip()
+        if name in {"write", "edit", "delete"}:
+            return "write", str(args.get("path", "")).strip()
+        if name == "mkdir":
+            return "write", str(args.get("path", "")).strip()
+        if name == "move":
+            return "write", f"{args.get('source', '')} -> {args.get('destination', '')}".strip()
+        if name == "explore":
+            return "explore", str(args.get("path", "")).strip()
+        if name.startswith("mcp__"):
+            return "mcp", name
+        if name.startswith("plugin__"):
+            return "plugin", name
+        return "read", name
 
     def _dispatch(self, name: str, args: dict) -> ToolResult:
         if name == "read":

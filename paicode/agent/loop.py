@@ -3,6 +3,7 @@ import os
 import re
 import threading
 from pathlib import Path
+from uuid import uuid4
 
 from ..core.errors import PaicodeError
 from ..core.stats import UsageStats
@@ -11,6 +12,7 @@ from ..providers.store import ProviderConfig
 from ..rules.loader import RuleFile
 from ..rules.skills import SkillMeta
 from ..settings import load_settings
+from ..telemetry import Telemetry
 from ..tools.registry import ToolRegistry
 from ..tools.types import ToolResult
 from .attachments import ImageAttachment
@@ -138,6 +140,8 @@ class AgentRunner:
         self.client = client or ProviderClient(provider)
         self._stop_event = stop_event or threading.Event()
         self.settings = load_settings(root)
+        self.telemetry = Telemetry(root, self.settings)
+        self.run_id = uuid4().hex[:12]
         self.registry = ToolRegistry(
             root,
             stats,
@@ -208,6 +212,9 @@ class AgentRunner:
             result.usage.completion_tokens,
             result.usage.total_tokens,
         )
+        self.stats.record_cost(
+            self.settings.budget.cost(result.usage.prompt_tokens, result.usage.completion_tokens)
+        )
         return (result.text or "").strip()[:30_000]
 
     def _compact_context(self) -> None:
@@ -229,6 +236,7 @@ class AgentRunner:
             if not str(message.get("content", "")).startswith("[COMPACTED HISTORY]")
         ]
         self.registry.hooks.run("pre_compact", {"older_messages": len(older)})
+        self.telemetry.emit("compaction", run_id=self.run_id, older_messages=len(older))
         try:
             summary = self._summarize(older, prior)
         except Exception:
@@ -249,6 +257,7 @@ class AgentRunner:
             pass
 
     def run(self, user_text: str, images: list[ImageAttachment] | None = None) -> str:
+        self.telemetry.emit("run_start", run_id=self.run_id, prompt_chars=len(user_text), images=len(images or []))
         self.session.turns += 1
         self.session.last_request = user_text
         if images:
@@ -292,7 +301,17 @@ class AgentRunner:
                     result.usage.completion_tokens,
                     result.usage.total_tokens,
                 )
+                self.stats.record_cost(
+                    self.settings.budget.cost(result.usage.prompt_tokens, result.usage.completion_tokens)
+                )
                 self._send(UsageUpdated(self.stats))
+                budget_error = self.settings.budget.exceeded(
+                    self.stats.total_tokens, self.stats.cost_usd
+                )
+                if budget_error:
+                    failed = True
+                    self._send(ErrorEvent(budget_error))
+                    break
                 if self._stop_event.is_set():
                     failed = True
                     self._send(ErrorEvent("Stopped by user."))
@@ -364,6 +383,13 @@ class AgentRunner:
                             kind=tool_result.kind,
                         )
                     )
+                    self.telemetry.emit(
+                        "tool",
+                        run_id=self.run_id,
+                        name=call.name,
+                        ok=tool_result.ok,
+                        changed=tool_result.changed,
+                    )
                     self.session.add_changed(tool_result.changed)
                     self.messages.append(
                         {
@@ -387,6 +413,15 @@ class AgentRunner:
             self._send(ErrorEvent(_redact(f"{type(exc).__name__}: {exc}")))
 
         self.session.last_summary = final_text
+        self.telemetry.emit(
+            "run_end",
+            run_id=self.run_id,
+            steps=steps,
+            failed=failed,
+            prompt_tokens=self.stats.prompt_tokens,
+            completion_tokens=self.stats.completion_tokens,
+            cost_usd=round(self.stats.cost_usd, 6),
+        )
         if not failed:
             self._send(Finished(final_text or "Task finished.", steps))
         return final_text

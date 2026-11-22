@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 from textual import events, work
@@ -30,9 +31,11 @@ from ..tools.diff import looks_binary
 from .actions import SlashActions
 from .commands import filter_commands
 from .messages import FileSelected
+from .modals.approval import ApprovalScreen
 from .modals.preview import FilePreviewScreen
 from .screen import PaiCodeScreen
 from .theme import MONOCHROME
+from ..security import set_approval_handler
 from ..agents.actions import tool_kind
 from .widgets.agent_rail import AgentRail
 from .widgets.chat import ChatPane
@@ -269,6 +272,24 @@ MarkdownTH, MarkdownTD {
     height: 1fr;
     background: #0b0b0c;
 }
+#approval-card {
+    width: 70%;
+    height: auto;
+    border: round #3a3a3a;
+    background: #111111;
+    padding: 1 2;
+}
+.approval-action {
+    color: #d4d4d4;
+    text-style: bold;
+    margin-bottom: 1;
+}
+.approval-resource {
+    color: #a3a3a3;
+    background: #0b0b0c;
+    padding: 1;
+    max-height: 12;
+}
 .modal-title {
     text-style: bold;
     color: #d4d4d4;
@@ -414,7 +435,30 @@ class PaiCodeApp(SlashActions, App):
                 f"Restored {len(self.session.diffs)} AI diff(s) from session {self.session.record.id}."
             )
         self.prompt.focus()
+        set_approval_handler(self._approve_action)
         self._save_session()
+
+    def on_unmount(self) -> None:
+        set_approval_handler(None)
+
+    def _approve_action(self, action: str, resource: str) -> bool:
+        event = threading.Event()
+        result = {"allowed": False}
+
+        def complete(value: bool | None) -> None:
+            result["allowed"] = bool(value)
+            event.set()
+
+        try:
+            self.call_from_thread(
+                self.push_screen,
+                ApprovalScreen(action, resource),
+                complete,
+            )
+        except Exception:
+            return False
+        event.wait(timeout=120)
+        return result["allowed"]
 
     def _reload_context(self) -> None:
         self.rules = load_rules(self.root)
