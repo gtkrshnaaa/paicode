@@ -110,9 +110,9 @@ class MultiAgentRunner:
             except CouncilError as exc:
                 if self._stop_event.is_set():
                     _emit(self.emit, ErrorEvent("Stopped by user."))
-                    return ""
-                self._phase("fallback", str(exc)[:300])
-                return self._single_agent(user_text, None)
+                else:
+                    _emit(self.emit, ErrorEvent(f"Council failed: {exc}"))
+                return ""
             except Exception as exc:
                 _emit(self.emit, ErrorEvent(f"{type(exc).__name__}: {exc}"))
                 return ""
