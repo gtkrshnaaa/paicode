@@ -66,7 +66,7 @@ async def test_agents_command_lists_council(
     )
     runner.agent_status = lambda: [
         {"agent_id": 1, "role": "Lead Architect", "phase": "council", "status": "done", "total_tokens": 10},
-        {"agent_id": 2, "role": "Frontend Shell", "phase": "build", "status": "done", "total_tokens": 20},
+        {"agent_id": 2, "role": "Builder", "phase": "build", "status": "done", "total_tokens": 20},
     ]
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -75,7 +75,7 @@ async def test_agents_command_lists_council(
         await pilot.pause()
         text = " ".join(str(entry.get("text", "")) for entry in app.chat.transcript)
         assert "Agent 1 Lead Architect" in text
-        assert "Agent 2 Frontend Shell" in text
+        assert "Agent 2 Builder" in text
 
 
 async def test_review_objections_do_not_spam_chat(

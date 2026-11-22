@@ -54,6 +54,8 @@ def proposal_prompt(role: AgentRole, request: str, context: str, rules_text: str
 You are Paicode agent {role.id}, {role.title}.
 Role: {role.description}
 
+If you are a Builder, you are a universal builder with no specialty. Do not claim frontend, backend, database, design, or any other specialty. Propose file-level work units, interfaces, tests, integration points, and risks.
+
 The user requested:
 {request}
 
@@ -104,7 +106,10 @@ Return only JSON with this exact shape:
       "owner": 2,
       "files": ["relative/path.py"],
       "interfaces": "what this unit must export and consume",
-      "notes": "implementation constraints"
+      "notes": "implementation constraints",
+      "depends_on": ["wu-0"],
+      "integration_order": 1,
+      "integration_note": "where this piece is pasted and what must not move"
     }}
   ],
   "shared_files": ["relative/path owned by the lead"],
@@ -119,11 +124,13 @@ Return only JSON with this exact shape:
 }}
 
 Rules:
-- Owners must be agents 2 to 21.
+- Owners must be distinct agents from 2 to 21.
+- Every builder owns exactly one work unit. No builder owns two units.
 - At most 20 work units.
 - Every file has exactly one owner.
 - No file appears in both work_units and shared_files.
-- Group small related files into one work unit instead of exceeding 20 units.
+- A work unit is one file or one cohesive sub-feature flow.
+- Group related files into a sub-feature flow when needed so no builder gets two units and no more than 20 units exist.
 - If the feature needs only a few files, leave most builders idle.
 - Tests must map to acceptance criteria.
 - Keep relative paths. No secrets. Return JSON only."""
@@ -138,6 +145,8 @@ Review this frozen-candidate contract for the user request:
 {request}
 
 {contract.markdown()}
+
+Review as a universal builder if you are a builder. Do not assume a specialty.
 
 Return only JSON:
 {{
@@ -186,8 +195,9 @@ def builder_system_prompt(contract: BuildContract, units: list[WorkUnit], rules_
             for item in findings
         )
     return f"""{rules_header(rules_text)}
-You are Paicode agent {owner}, {role_for(owner).title}, a builder in a parallel team.
-You are working inside a frozen build contract. Other builders are working at the same time.
+You are Paicode agent {owner}, a universal Builder in a parallel team.
+You have no specialty. You own one file or one cohesive sub-feature flow from the frozen contract.
+Other builders are working at the same time. Do not wait for them; code against the frozen interfaces and paste only into your owned paths.
 
 Contract:
 {contract.markdown()}
@@ -206,6 +216,7 @@ Rules:
 - Use write and edit for source changes.
 - Never edit a file you do not own.
 - Do not wait for other builders. Code against the frozen interfaces.
+- Work like a piece of the board: produce your owned files independently, then report exactly what you changed and where it connects.
 - Run the narrowest useful test or syntax check for your units.
 - If a dependency file is missing, report a blocker instead of editing it.
 - Do not use shell redirection to create or modify source files.
@@ -326,5 +337,6 @@ Routing law:
 - A small code change touching exactly one file may use one agent with mode "single".
 - Any expected change touching more than one file MUST use mode "team".
 - Scaffolding, new features, multi-module refactors, migrations, and unknown-size write work MUST use mode "team".
+- The team has 20 universal builders. They have no specialties; the lead assigns one file or one sub-feature flow per builder.
 - Never choose "single" for work that will create or edit more than one file.
 - Return JSON only. No code, no prose outside JSON."""

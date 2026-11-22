@@ -5,15 +5,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
 from rich.text import Text
 
-from ...agents.roles import ROSTER
-
-SHORT_ROLE = {
-    1: "LEAD", 2: "FRONTEND", 3: "UI", 4: "DESIGN", 5: "STATE", 6: "API",
-    7: "BACKEND", 8: "DOMAIN", 9: "DATABASE", 10: "AUTH", 11: "VALIDATION",
-    12: "TEST ARCH", 13: "TEST", 14: "INTEGRATION", 15: "A11Y", 16: "PERF",
-    17: "DEVOPS", 18: "DOCS", 19: "DATA", 20: "QUALITY", 21: "OBSERVE",
-    22: "VALIDATOR",
-}
+from ...agents.roles import ROSTER, role_label
 
 
 class AgentCard(Static):
@@ -47,7 +39,7 @@ class AgentCard(Static):
     def _render_card(self) -> None:
         text = Text(no_wrap=True, overflow="crop")
         text.append(f"{self.agent_id:02d} ", style="bold #4a4a4a")
-        text.append(SHORT_ROLE.get(self.agent_id, self.role[:14]).upper(), style="bold #d4d4d4")
+        text.append(role_label(self.agent_id).upper(), style="bold #d4d4d4")
         status_style = {
             "idle": "#4a4a4a",
             "working": "#8a8a8a",

@@ -53,7 +53,7 @@ def test_active_builders_start_together(project: Path, config_home: Path):
             ]
         if "independent Validator" in system:
             return [_finish({"ok": True, "summary": "ok", "findings": [], "commands": []})]
-        if "builder in a parallel team" in system:
+        if "in a parallel team" in system:
             if any(message.get("role") == "tool" for message in messages):
                 return [_finish({"status": "done", "summary": "done", "files": [], "commands": [], "blockers": []})]
             barrier.wait()

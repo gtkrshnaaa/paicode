@@ -15,6 +15,26 @@ def test_roster_has_twenty_two_agents():
     assert ROSTER[-1].is_builder is False
 
 
+def test_all_twenty_builders_are_universal():
+    builders = [role for role in ROSTER if role.is_builder]
+    assert len(builders) == 20
+    assert {role.title for role in builders} == {"Builder"}
+    assert {role.description for role in builders} == {builders[0].description}
+    assert ROSTER[0].title == "Lead"
+    assert ROSTER[-1].title == "Validator"
+
+
+def test_contract_rejects_one_builder_owning_two_units():
+    contract = BuildContract(
+        feature="duplicate owner",
+        work_units=[
+            WorkUnit("a", "a", 2, ["a.py"]),
+            WorkUnit("b", "b", 2, ["b.py"]),
+        ],
+    )
+    assert any("one builder must own exactly one work unit" in error for error in contract.validate())
+
+
 def test_contract_rejects_duplicate_owners_and_shared_collisions():
     contract = BuildContract(
         feature="duplicate",
@@ -71,7 +91,7 @@ def test_agent_store_persists_contract_and_findings(project: Path, config_home: 
     contract_id = store.save_contract("s-persist", contract)
     assert contract_id
     assert store.latest_contract("s-persist").feature == "persist"
-    run_id = store.create_run("s-persist", 2, "Frontend Shell", "build", model="fake")
+    run_id = store.create_run("s-persist", 2, "Builder", "build", model="fake")
     store.finish_run(run_id, "done", summary="ok", usage={"total_tokens": 5})
     assert store.agent_status("s-persist")[0]["total_tokens"] == 5
     validation_id = store.create_validation("s-persist", contract_id, 1)

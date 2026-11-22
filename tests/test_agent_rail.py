@@ -22,10 +22,10 @@ async def test_agent_rail_tracks_nested_turns(project: Path, config_home: Path):
         rail = app.query_one(AgentRail)
         assert len(rail._cards) == 22
         rail.set_phase("build", "8 builders")
-        rail.set_status(2, "Frontend Shell", "running", "writing index.html")
-        rail.add_action(2, "Frontend Shell", "create", "index.html", "done")
-        rail.add_action(2, "Frontend Shell", "command", "node --test", "done")
-        rail.add_action(2, "Frontend Shell", "edit", "quotes.html", "running")
+        rail.set_status(2, "Builder", "running", "writing index.html")
+        rail.add_action(2, "Builder", "create", "index.html", "done")
+        rail.add_action(2, "Builder", "command", "node --test", "done")
+        rail.add_action(2, "Builder", "edit", "quotes.html", "running")
         card = rail._cards[2]
         assert len(card.turns) == 4
         assert card.turns[0]["kind"] == "status"
@@ -35,7 +35,7 @@ async def test_agent_rail_tracks_nested_turns(project: Path, config_home: Path):
         assert "build" in rail._title.content.plain
 
         app._handle_event(
-            AgentAction(3, "UI Components", "read", "components/button.css", "done", "06:42")
+            AgentAction(3, "Builder", "read", "components/button.css", "done", "06:42")
         )
         await pilot.pause()
         assert rail._cards[3].turns[0]["kind"] == "read"

@@ -12,6 +12,9 @@ class WorkUnit:
     files: list[str] = field(default_factory=list)
     interfaces: str = ""
     notes: str = ""
+    depends_on: list[str] = field(default_factory=list)
+    integration_order: int = 0
+    integration_note: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -21,6 +24,9 @@ class WorkUnit:
             "files": list(self.files),
             "interfaces": self.interfaces,
             "notes": self.notes,
+            "depends_on": list(self.depends_on),
+            "integration_order": self.integration_order,
+            "integration_note": self.integration_note,
         }
 
     @classmethod
@@ -32,6 +38,9 @@ class WorkUnit:
             files=[str(item).strip() for item in data.get("files", []) if str(item).strip()],
             interfaces=str(data.get("interfaces", "")).strip(),
             notes=str(data.get("notes", "")).strip(),
+            depends_on=[str(item).strip() for item in data.get("depends_on", []) if str(item).strip()],
+            integration_order=int(data.get("integration_order", 0) or 0),
+            integration_note=str(data.get("integration_note", "")).strip(),
         )
 
 
@@ -110,6 +119,7 @@ class BuildContract:
         if len(self.work_units) > 20:
             errors.append("at most 20 work units are allowed")
         seen: dict[str, int] = {}
+        owners: dict[int, str] = {}
         for unit in self.work_units:
             if not unit.id:
                 errors.append("every work unit needs an id")
@@ -117,6 +127,13 @@ class BuildContract:
                 errors.append(f"work unit {unit.id or '?'} needs a title")
             if unit.owner not in BUILDER_IDS:
                 errors.append(f"work unit {unit.id or '?'} has invalid owner {unit.owner}")
+            elif unit.owner in owners:
+                errors.append(
+                    f"builder {unit.owner} owns both {owners[unit.owner]} and {unit.id or '?'}; "
+                    "one builder must own exactly one work unit"
+                )
+            else:
+                owners[unit.owner] = unit.id
             if not unit.files:
                 errors.append(f"work unit {unit.id or '?'} needs at least one file")
             for path in unit.files:
@@ -129,6 +146,13 @@ class BuildContract:
                 if normalized in seen:
                     errors.append(f"{normalized} has owners {seen[normalized]} and {unit.owner}")
                 seen[normalized] = unit.owner
+        unit_ids = {unit.id for unit in self.work_units}
+        for unit in self.work_units:
+            for dependency in unit.depends_on:
+                if dependency not in unit_ids:
+                    errors.append(f"work unit {unit.id or '?'} depends on unknown unit {dependency}")
+                if dependency == unit.id:
+                    errors.append(f"work unit {unit.id or '?'} cannot depend on itself")
         for path in self.shared_files:
             normalized = normalize_path(path)
             if not normalized:
@@ -155,6 +179,12 @@ class BuildContract:
                 lines.append(f"- Interfaces: {unit.interfaces}")
             if unit.notes:
                 lines.append(f"- Notes: {unit.notes}")
+            if unit.depends_on:
+                lines.append(f"- Depends on: {', '.join(unit.depends_on)}")
+            if unit.integration_order:
+                lines.append(f"- Integration order: {unit.integration_order}")
+            if unit.integration_note:
+                lines.append(f"- Integration note: {unit.integration_note}")
             lines.append("")
         if self.shared_files:
             lines.extend(["## Shared Files", *[f"- `{path}`" for path in self.shared_files], ""])

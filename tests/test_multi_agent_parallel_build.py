@@ -60,7 +60,7 @@ def test_eight_builders_start_together_and_validator_waits(
             with lock:
                 state["validator_after_all"] = state["finished"] == len(owners)
             return [_finish({"ok": True, "summary": "all files exist", "findings": [], "commands": []})]
-        if "builder in a parallel team" in system:
+        if "in a parallel team" in system:
             owner = 2
             for number in owners:
                 if f"You are Paicode agent {number}" in system:

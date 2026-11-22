@@ -157,7 +157,7 @@ def test_multi_agent_council_parallel_build_and_validator_repair(project: Path, 
                     "findings": [],
                 }
             return [_finish(summary)]
-        if "builder in a parallel team" in system:
+        if "in a parallel team" in system:
             agent = 2 if "You are Paicode agent 2" in system else 3
             return _builder_turns(system, payload, agent)
         return [text_chunk("{}"), finish_chunk("stop"), usage_chunk(1, 1, 2)]
