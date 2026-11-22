@@ -3,7 +3,6 @@ import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..core.errors import PaicodeError
 from ..settings import McpServer, Settings, load_settings
 from .client import HttpTransport, McpClient, McpError, StdioTransport
 

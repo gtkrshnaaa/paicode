@@ -3,12 +3,11 @@ from pathlib import Path
 
 from ..core.errors import PathSecurityError
 from ..hooks import HookRunner
+from ..mcp import get_mcp_manager
 from ..plugins import PluginHost
+from ..rules.skills import SkillMeta, find_skill, load_skill_text
 from ..security import request_approval
 from ..settings import load_settings, permission_effect
-from ..mcp import get_mcp_manager
-from ..rules.skills import SkillMeta, find_skill, load_skill_text
-from ..settings import load_settings
 from ..tools.schemas import TOOL_SCHEMAS
 from .diagnostics import DiagnosticsTools
 from .explore import ExploreTools
@@ -57,10 +56,11 @@ class ToolRegistry:
 
     @property
     def schemas(self) -> list[dict]:
+        blocked = {"diagnostics"}
+        if self.read_only:
+            blocked.update({"write", "edit", "mkdir", "move", "delete"})
         schemas = [
-            schema
-            for schema in TOOL_SCHEMAS
-            if not (self.read_only and schema["function"]["name"] == "diagnostics")
+            schema for schema in TOOL_SCHEMAS if schema["function"]["name"] not in blocked
         ]
         if self.plugins is not None:
             schemas.extend(self.plugins.schemas())
@@ -128,6 +128,8 @@ class ToolRegistry:
         return "read", name
 
     def _dispatch(self, name: str, args: dict) -> ToolResult:
+        if self.read_only and name in {"write", "edit", "mkdir", "move", "delete"}:
+            return ToolResult(False, "Error: mutating tools are disabled in read-only mode.")
         if name == "read":
             return self.files.read(args["path"], args.get("offset", 1), args.get("limit", 400))
         if name == "write":
