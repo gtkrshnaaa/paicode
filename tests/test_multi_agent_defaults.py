@@ -23,7 +23,7 @@ def test_tui_single_agent_override(project: Path, config_home: Path):
     assert app.multi_agent is False
 
 
-async def test_tui_start_prompt_uses_multi_agent_runner(
+async def test_tui_start_prompt_uses_smart_runner(
     project: Path, config_home: Path, monkeypatch
 ):
     captured = {}
@@ -36,7 +36,7 @@ async def test_tui_start_prompt_uses_multi_agent_runner(
         def request_stop(self):
             return None
 
-    monkeypatch.setattr("paicode.tui.app.MultiAgentRunner", StubRunner)
+    monkeypatch.setattr("paicode.tui.app.SmartRunner", StubRunner)
     app = PaiCodeApp(project, ProviderStore())
     app.store.upsert("fake", "http://127.0.0.1:9/v1", api_key="test", model="fake")
     app.store.set_active("fake")

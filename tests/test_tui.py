@@ -15,6 +15,8 @@ async def test_tui_layout_and_slash_commands(project: Path, config_home: Path):
         assert app.query_one("#explorer") is not None
         assert app.query_one("#diff") is not None
         assert app.query_one("#chat") is not None
+        assert app.query_one("#agent-rail") is not None
+        assert len(app.agent_rail._cards) == 22
         assert app.query_one("#stats") is not None
         assert app.query_one("#prompt", PromptInput) is not None
         assert app.theme == "paicode-mono"

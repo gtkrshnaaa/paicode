@@ -1,6 +1,6 @@
 from textual import work
 
-from ..agents import DiscussionRunner, MultiAgentRunner
+from ..agents import DiscussionRunner, MultiAgentRunner, SmartRunner
 from ..agents.store import AgentStore
 from ..agent.loop import context_budget
 from ..core.atomic import atomic_write_text
@@ -289,7 +289,7 @@ class SlashActions:
 
     def _cmd_agents(self, args: str) -> None:
         runner = self._active_runner
-        if isinstance(runner, MultiAgentRunner):
+        if isinstance(runner, (MultiAgentRunner, SmartRunner)):
             rows = runner.agent_status()
             if not rows:
                 self.chat.add_system("The council has not started yet.")
@@ -306,7 +306,7 @@ class SlashActions:
 
     def _cmd_contract(self, args: str) -> None:
         runner = self._active_runner
-        contract = runner.contract if isinstance(runner, MultiAgentRunner) else None
+        contract = runner.contract if isinstance(runner, (MultiAgentRunner, SmartRunner)) else None
         if contract is None:
             contract = AgentStore().latest_contract(self.session.record.id)
         if contract is None:
@@ -316,7 +316,7 @@ class SlashActions:
 
     def _cmd_bugs(self, args: str) -> None:
         runner = self._active_runner
-        if isinstance(runner, MultiAgentRunner):
+        if isinstance(runner, (MultiAgentRunner, SmartRunner)):
             rows = runner.latest_findings()
         else:
             rows = AgentStore().latest_findings(self.session.record.id)

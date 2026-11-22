@@ -8,6 +8,7 @@ from textual.widgets import Static
 
 from .. import __version__
 from ..agent.events import (
+    AgentAction,
     AgentPhase,
     AgentStatus,
     ErrorEvent,
@@ -19,7 +20,7 @@ from ..agent.events import (
     UsageUpdated,
 )
 from ..agent.loop import AgentRunner
-from ..agents import DiscussionRunner, MultiAgentRunner
+from ..agents import DiscussionRunner, MultiAgentRunner, SmartRunner
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
@@ -31,6 +32,8 @@ from .commands import filter_commands
 from .messages import FileSelected
 from .modals.preview import FilePreviewScreen
 from .theme import MONOCHROME
+from ..agents.actions import tool_kind
+from .widgets.agent_rail import AgentRail
 from .widgets.chat import ChatPane
 from .widgets.diff import DiffPane
 from .widgets.explorer import ExplorerPane
@@ -81,8 +84,42 @@ VerticalScroll, RichLog, Tree, TextArea, OptionList {
     background: #0b0b0c;
     padding: 1 1 0 1;
 }
+#agent-rail {
+    width: 34;
+    border: round #262626;
+    background: #0b0b0c;
+    padding: 1 0 0 0;
+}
+#agent-scroll {
+    height: 1fr;
+    padding: 0 1;
+}
+.rail-title {
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+    color: #8a8a8a;
+    padding: 0 1;
+}
+.agent-card {
+    height: auto;
+    text-wrap: nowrap;
+    text-overflow: clip;
+    background: #0f0f10;
+    border-left: solid #262626;
+    margin: 0 0 1 0;
+    padding: 0 1;
+}
+.agent-head {
+    height: 1;
+    color: #d4d4d4;
+}
+.agent-body {
+    height: auto;
+    color: #6b6b6b;
+}
 #chat {
-    width: 56;
+    width: 50;
     border: round #262626;
     background: #0b0b0c;
     padding: 1 0 0 0;
@@ -323,6 +360,7 @@ class PaiCodeApp(SlashActions, App):
             ExplorerPane(self.root),
             DiffPane(),
             ChatPane(),
+            AgentRail(),
             id="workspace",
         )
         yield SuggestionBar()
@@ -331,6 +369,7 @@ class PaiCodeApp(SlashActions, App):
 
     def on_mount(self) -> None:
         self.chat = self.query_one(ChatPane)
+        self.agent_rail = self.query_one(AgentRail)
         self.diff = self.query_one(DiffPane)
         self.explorer = self.query_one(ExplorerPane)
         self.prompt = self.query_one("#prompt", PromptInput)
@@ -509,6 +548,7 @@ class PaiCodeApp(SlashActions, App):
         self.stats = UsageStats.from_dict(data.stats) if data.stats else UsageStats()
         self.chat.clear()
         self.diff.clear()
+        self.agent_rail.clear()
         self.chat.restore(data.transcript)
         for entry in data.diffs:
             self.diff.add_diff(
@@ -573,6 +613,7 @@ class PaiCodeApp(SlashActions, App):
         self.chat.begin_assistant()
         self.chat.begin_work()
         self.chat.set_queue(len(self._prompt_queue))
+        self.agent_rail.add_action(1, "Lead Architect", "think", "request received", "running")
         self.chat.set_work_message("discussion: read-only" if mode == "discussion" else "thinking")
         if mode == "discussion":
             self.chat.add_system("Discussion mode: read-only. Files, builds, and git mutations are locked.")
@@ -593,7 +634,7 @@ class PaiCodeApp(SlashActions, App):
                     emit=lambda event: self.call_from_thread(self._handle_event, event),
                 )
             elif self.multi_agent:
-                runner = MultiAgentRunner(
+                runner = SmartRunner(
                     self.root,
                     provider,
                     self.stats,
@@ -648,17 +689,35 @@ class PaiCodeApp(SlashActions, App):
             self.call_from_thread(self._handle_event, ErrorEvent(f"{type(exc).__name__}: {exc}"))
 
     def _handle_event(self, event) -> None:
-        if isinstance(event, TextDelta):
+        if isinstance(event, AgentAction):
+            self.agent_rail.add_action(
+                event.agent_id,
+                event.role,
+                event.kind,
+                event.detail,
+                event.status,
+                event.timestamp,
+            )
+        elif isinstance(event, TextDelta):
             self.chat.append_assistant(event.text)
         elif isinstance(event, ReasoningDelta):
             return
         elif isinstance(event, ToolStarted):
+            detail = self._summarize_arguments(event.arguments)
+            self.agent_rail.add_action(1, "Lead Architect", tool_kind(event.name), detail, "running")
             self.chat.set_work_message(f"{event.name} ...")
             self._tool_line = self.chat.add_tool(
-                event.name, "running", self._summarize_arguments(event.arguments)
+                event.name, "running", detail
             )
         elif isinstance(event, ToolFinished):
             status = "ok" if event.ok else "failed"
+            self.agent_rail.add_action(
+                1,
+                "Lead Architect",
+                tool_kind(event.name),
+                (event.output or "").splitlines()[0] if event.output else "",
+                "done" if event.ok else "failed",
+            )
             self.chat.set_work_message("thinking")
             if self._tool_line is not None:
                 self.chat.update_tool(self._tool_line, event.name, status, event.output)
@@ -678,8 +737,10 @@ class PaiCodeApp(SlashActions, App):
             self._refresh_stats()
         elif isinstance(event, AgentPhase):
             count = f" {event.active}/{event.total}" if event.total else ""
+            self.agent_rail.set_phase(event.phase, event.detail)
             self.chat.set_work_message(f"{event.phase}: {event.detail}{count}")
         elif isinstance(event, AgentStatus):
+            self.agent_rail.set_status(event.agent_id, event.role, event.status, event.detail)
             if event.status in {"failed", "blocked", "error"}:
                 detail = f": {event.detail[:300]}" if event.detail else ""
                 self.chat.add_system(
@@ -691,6 +752,7 @@ class PaiCodeApp(SlashActions, App):
                 self.chat.set_work_message("thinking")
             self._refresh_stats()
         elif isinstance(event, Finished):
+            self.agent_rail.set_phase("done", "report delivered")
             self.chat.end_assistant()
             self.chat.add_system(f"Finished in {event.steps} step(s): {event.message[:400]}")
             messages = getattr(self._active_runner, "messages", None)
