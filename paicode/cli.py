@@ -212,6 +212,23 @@ def _expand_session_args(argv: list[str]) -> list[str]:
     return expanded
 
 
+def _cmd_telemetry(root: Path, tail: int) -> int:
+    from .telemetry import Telemetry
+
+    telemetry = Telemetry(root, load_settings(root))
+    if not telemetry.enabled:
+        print("Telemetry is disabled.")
+        return 0
+    print(f"Path: {telemetry.path}")
+    if not telemetry.path.is_file():
+        print("No events yet.")
+        return 0
+    lines = telemetry.path.read_text(encoding="utf-8", errors="replace").splitlines()
+    for line in lines[-max(1, tail):]:
+        print(line)
+    return 0
+
+
 def _cmd_bench(manifest: str, mode: str, repeat: int, out: str, max_steps: int) -> int:
     from .bench import format_results, load_tasks, run_benchmark
 
@@ -414,6 +431,9 @@ def _build_parser() -> argparse.ArgumentParser:
         child = config_sub.add_parser(name)
         child.add_argument("value")
 
+    telemetry_parser = subparsers.add_parser("telemetry", help="Show local telemetry status and recent events.")
+    telemetry_parser.add_argument("--tail", type=int, default=20)
+
     bench_parser = subparsers.add_parser("bench", help="Run reproducible single versus team benchmarks.")
     bench_parser.add_argument("manifest")
     bench_parser.add_argument("--mode", choices=["single", "smart", "both"], default="both")
@@ -486,6 +506,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_serve(args.host, args.port, args.token)
     if args.command == "bench":
         return _cmd_bench(args.manifest, args.mode, args.repeat, args.out, args.max_steps)
+    if args.command == "telemetry":
+        return _cmd_telemetry(root, args.tail)
 
     from .tui.app import PaiCodeApp
 

@@ -148,3 +148,17 @@ Set `telemetry` to `true` to append local JSONL events to the state directory:
 ```
 
 Events cover run start, tool calls, compaction, and run end with token and cost totals. Prompt text, file contents, and secrets are not recorded. Telemetry is local only and disabled by default.
+
+
+## Platform support
+
+- Linux: full feature set, bubblewrap sandbox when available.
+- macOS: full terminal and API feature set, direct execution fallback, no built-in sandbox.
+- Windows: run inside WSL or a container. Native shell and sandbox integration are not implemented.
+- CI: Linux runs the full suite, macOS runs the platform and integration subset. Release artifacts are built on Linux.
+
+## Operational references
+
+- [Enterprise deployment](enterprise.md)
+- [Local API and SDK](api.md)
+- [Security policy](../SECURITY.md)

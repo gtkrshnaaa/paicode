@@ -286,7 +286,7 @@ Permission rules use ordered `action`, `resource`, and `effect` entries with `al
 
 Telemetry is disabled by default. When enabled, Paicode writes local JSONL events to the state directory. Prompts, file contents, and secrets are not recorded.
 
-`pai serve` exposes a token-protected HTTP API, a Python client in `paicode/sdk.py`, and a monochrome web console for sessions and prompts. See [docs/api.md](docs/api.md).
+`pai serve` exposes a token-protected HTTP API, a Python client in `paicode/sdk.py`, and a monochrome web console for sessions and prompts. See [docs/api.md](docs/api.md). Deployment, identity, audit, and supply-chain guidance is in [docs/enterprise.md](docs/enterprise.md).
 
 ## Coding harness
 
