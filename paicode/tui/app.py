@@ -385,7 +385,7 @@ class PaiCodeApp(SlashActions, App):
             )
         else:
             self.chat.add_system(
-                f"Paicode {__version__}. 22-agent council online. Type a request or /help. "
+                f"Paicode {__version__}. Agent 1 triage online. 22-agent team ready. Type a request or /help. "
                 "Shift+Enter newline. Ctrl+Shift+C/V copy/paste. Ctrl+V image. "
                 "Esc stops a running task immediately. Type while working to queue the next prompt."
             )

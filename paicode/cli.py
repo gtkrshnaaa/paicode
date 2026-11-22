@@ -212,7 +212,7 @@ def _cmd_doctor(root: Path) -> int:
         print(f"Keys: {len(provider.api_keys)}")
     print(f"Tools: {', '.join(tools) or 'none'}")
     print(f"Shell: {'bubblewrap sandbox' if sandbox_available() else 'direct execution'}")
-    print(f"Agents: multi (22) | single-agent fallback available")
+    print("Agents: smart routing | 22-agent team | single-agent fallback")
     database = Database()
     database.initialize()
     counts = database.counts()

@@ -101,4 +101,4 @@ def test_doctor_reports_multi_agent(config_home: Path, capsys):
     code = main(["doctor"])
     output = capsys.readouterr().out
     assert code == 0
-    assert "Agents: multi (22)" in output
+    assert "Agents: smart routing" in output

@@ -1,6 +1,6 @@
 # Paicode
 
-Paicode is a multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
+Paicode is a smart-routed multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenCode Console, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
 
 Agent 1 receives every request first. It triages the request and decides whether to answer alone, use read-only discussion mode, or deploy the 22-agent council. Read-only analysis, summaries, audits, and planning stay with one agent. Any write touching more than one file, scaffolding, feature work, or large refactor goes to the team. `--single-agent` remains available for small tasks.
 
