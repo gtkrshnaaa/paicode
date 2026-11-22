@@ -108,3 +108,67 @@ def test_mcp_cli_status_and_tools(project: Path, config_home: Path, capsys):
         assert "mcp__demo__echo" in tools
     finally:
         reset_mcp_manager(project)
+
+
+def test_mcp_http_transport(project: Path, config_home: Path):
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            return
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            message = json.loads(self.rfile.read(length))
+            if "id" not in message:
+                self.send_response(202)
+                self.end_headers()
+                return
+            method = message.get("method")
+            if method == "initialize":
+                result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "remote"}}
+            elif method == "tools/list":
+                result = {"tools": [{"name": "ping", "description": "Ping", "inputSchema": {"type": "object", "properties": {}}}]}
+            elif method == "tools/call":
+                result = {"content": [{"type": "text", "text": "pong"}]}
+            else:
+                result = {}
+            body = json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": result}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        path = project / ".paicode" / "settings.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "mcp": {
+                        "servers": {
+                            "remote": {
+                                "transport": "http",
+                                "url": f"http://127.0.0.1:{server.server_address[1]}/mcp",
+                            }
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        reset_mcp_manager(project)
+        registry = ToolRegistry(project, UsageStats(), [])
+        result = registry.execute("mcp__remote__ping", {})
+        assert result.ok is True
+        assert result.output == "pong"
+    finally:
+        reset_mcp_manager(project)
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
