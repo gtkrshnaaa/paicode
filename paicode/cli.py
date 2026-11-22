@@ -256,9 +256,9 @@ def _cmd_serve(host: str, port: int, token: str) -> int:
 
     server = create_server(host, port, token)
     actual_host, actual_port = server.server_address[:2]
-    print(f"Paicode console: http://{actual_host}:{actual_port}")
-    print(f"Token: {server.token}")
-    print("Press Ctrl+C to stop.")
+    print(f"Paicode console: http://{actual_host}:{actual_port}", flush=True)
+    print(f"Token: {server.token}", flush=True)
+    print("Press Ctrl+C to stop.", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
