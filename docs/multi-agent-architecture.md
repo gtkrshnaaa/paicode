@@ -6,32 +6,17 @@ Paicode is smart-routed by default. Agent 1 triages every request before code is
 
 ## Roster
 
-| Agent | Role |
-| :--- | :--- |
-| 1 | Lead architect, council chair, contract owner, arbiter |
-| 2 | Frontend shell, routing, page composition |
-| 3 | UI components and interaction states |
-| 4 | Design system, layout, CSS tokens, responsiveness |
-| 5 | Client state, forms, data flow, loading and error states |
-| 6 | API client and request/response contracts |
-| 7 | Backend HTTP handlers, routes, middleware |
-| 8 | Domain services and business rules |
-| 9 | Database schema, migrations, queries |
-| 10 | Authentication, authorization, security |
-| 11 | Validation, error handling, edge cases |
-| 12 | Test architect, acceptance criteria, test matrix |
-| 13 | Test implementer, fixtures, integration tests |
-| 14 | Integration wiring and shared module boundaries |
-| 15 | Accessibility, keyboard behavior, focus management |
-| 16 | Performance, caching, bundle and query efficiency |
-| 17 | DevOps, scripts, environment, build commands |
-| 18 | Documentation and developer notes |
-| 19 | Seed data, fixtures, local development data |
-| 20 | Refactoring, naming, code quality, duplication |
-| 21 | Observability, logging, failure diagnostics |
-| 22 | Independent validator, tester, release gate |
+| Agent | Role | Count |
+| :--- | :--- | ---: |
+| 1 | Lead | 1 |
+| 2 to 21 | Builder | 20 |
+| 22 | Validator | 1 |
 
-Builder specialties are starting identities. The lead assigns work by file and domain. If a feature needs six builders, fourteen builders remain idle. If a feature needs more than 20 work units, the lead groups related files into bundles. One file never has two owners.
+All 20 builders are universal. They have no frontend, backend, database, design, test, or DevOps specialty. The only difference between builders is their agent ID and the work unit assigned in the current contract.
+
+The lead assigns one work unit per builder. A work unit is one file or one cohesive sub-feature flow. Every builder owns exactly one unit, every file has exactly one owner, and shared files remain lead-owned. If a feature has more than 20 files, the lead groups related files into sub-feature flows instead of giving one builder two units.
+
+Each work unit also records `depends_on`, `integration_order`, and `integration_note`. These are paste positions for the board. Builders still work independently and do not wait for their dependencies; the lead and validator use the metadata after the parallel build.
 
 ## Council protocol
 

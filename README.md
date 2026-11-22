@@ -121,7 +121,7 @@ Typing `/` in the prompt opens a filtered command palette. Type more characters 
 
 Agent 1 triages every prompt first. Read-only analysis, explanation, summary, audit, and planning use one read-only agent. A small one-file edit may use Agent 1 alone. Any work expected to touch more than one file, plus scaffolding, features, migrations, and large refactors, is forced to the 22-agent team.
 
-For team work, Agent 1 is the lead and contract owner. Agents 2 to 21 are builders with frontend, backend, database, auth, test, integration, accessibility, performance, DevOps, documentation, data, quality, and observability roles. Agent 22 is the independent validator.
+For team work, Agent 1 is the lead and contract owner. Agents 2 to 21 are 20 identical universal builders with no specialties. Agent 22 is the independent validator. The lead assigns one file or one cohesive sub-feature flow per builder, one work unit per builder, up to 20 builders.
 
 The council runs in three stages:
 

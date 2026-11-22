@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.0 - 2026-11-22
+
+### Changed
+
+- Collapsed agents 2 to 21 into 20 identical universal Builders with no specialties.
+- Lead, Builder, and Validator are now the only role types.
+- Builder proposals, contract reviews, and build prompts use universal language.
+- The lead must assign one work unit per builder. Duplicate builder ownership is rejected.
+- Work units carry dependency, integration-order, and integration-note metadata.
+- The validator audits changed files against the ownership map and shared files.
+- The Agent Rail shows LEAD, BUILDER, and VALIDATOR labels only.
+
+### Added
+
+- Ownership audit findings for unowned changed files.
+- Tests for universal builder roles, duplicate owner rejection, paste metadata, and validator audit.
+
 ## 0.12.1 - 2026-11-22
 
 ### Added

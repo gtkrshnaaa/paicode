@@ -62,7 +62,7 @@ When the team is selected:
 - Agents 2 to 21 are builders.
 - Agent 22 validates tests and contract conformance.
 
-The council submits 22 proposals in parallel, the lead freezes file ownership and interfaces, and all 22 agents review the contract. Only builders with assigned files activate, and they build in parallel. Agent 22 tests the integrated workspace and sends structured findings to the owning builder. Repair repeats until green, three strikes, or five rounds. The lead closes every run with a report covering the summary, delivered files, validation result, defects, and next steps.
+The council submits 22 proposals in parallel, the lead freezes file ownership, interfaces, dependency metadata, and paste order, and all 22 agents review the contract. Builders are universal; each owns exactly one file or sub-feature flow. Only builders with assigned files activate, and they build in parallel. Agent 22 tests the integrated workspace and sends structured findings to the owning builder. Repair repeats until green, three strikes, or five rounds. The lead closes every run with a report covering the summary, delivered files, validation result, defects, and next steps.
 
 The rightmost Agent Rail shows every agent, its status, and its nested turn history with timestamps for council, thinking, read, create, edit, delete, list, command, explore, and skill actions.
 
