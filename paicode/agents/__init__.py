@@ -4,6 +4,7 @@ from .findings import BuildReport, Finding, ValidationResult
 from .roles import ROSTER, AgentRole, role_for, role_label
 from .runner import MultiAgentRunner
 from .smart import SmartRunner
+from .solo import SoloRunner
 
 __all__ = [
     "AgentRole",
@@ -14,6 +15,7 @@ __all__ = [
     "MultiAgentRunner",
     "ROSTER",
     "SmartRunner",
+    "SoloRunner",
     "ValidationResult",
     "WorkUnit",
     "role_for",

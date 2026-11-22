@@ -1,6 +1,6 @@
 from textual import work
 
-from ..agents import DiscussionRunner, MultiAgentRunner, SmartRunner
+from ..agents import DiscussionRunner, MultiAgentRunner, SoloRunner
 from ..agents.store import AgentStore
 from ..agent.loop import context_budget
 from ..core.atomic import atomic_write_text
@@ -292,9 +292,19 @@ class SlashActions:
             return
         self._switch_session(value)
 
+    def _cmd_team(self, args: str) -> None:
+        prompt = args.strip()
+        if not prompt:
+            self.chat.add_system("Usage: /team <prompt>. Team mode is opt-in because it costs more.")
+            return
+        if self.busy:
+            self.chat.add_system("Stop the current task before starting team mode.")
+            return
+        self._start_prompt(prompt, [], prompt, mode="team")
+
     def _cmd_agents(self, args: str) -> None:
         runner = self._active_runner
-        if isinstance(runner, (MultiAgentRunner, SmartRunner)):
+        if hasattr(runner, "agent_status"):
             rows = runner.agent_status()
             if not rows:
                 self.chat.add_system("The council has not started yet.")
@@ -307,11 +317,11 @@ class SlashActions:
                 )
             self.chat.add_markdown_system("\n".join(lines))
             return
-        self.chat.add_system("This run is using a single agent. Start a new prompt to use the council.")
+        self.chat.add_system("This run is using solo mode. Use /team <prompt> for the 22-agent team.")
 
     def _cmd_contract(self, args: str) -> None:
         runner = self._active_runner
-        contract = runner.contract if isinstance(runner, (MultiAgentRunner, SmartRunner)) else None
+        contract = runner.contract if isinstance(runner, MultiAgentRunner) else None
         if contract is None:
             contract = AgentStore().latest_contract(self.session.record.id)
         if contract is None:
@@ -321,7 +331,7 @@ class SlashActions:
 
     def _cmd_bugs(self, args: str) -> None:
         runner = self._active_runner
-        if isinstance(runner, (MultiAgentRunner, SmartRunner)):
+        if isinstance(runner, MultiAgentRunner):
             rows = runner.latest_findings()
         else:
             rows = AgentStore().latest_findings(self.session.record.id)
@@ -373,7 +383,8 @@ class SlashActions:
 
     def _cmd_limits(self, args: str) -> None:
         self.chat.add_system(
-            "Steps: unlimited by default. Use --max-steps in headless mode to set a ceiling.\n"
+            "Solo steps: 60 by default. Override with PAICODE_SOLO_MAX_STEPS or --max-steps.\n"
+            "Output cap: 8,192 tokens per model turn. Override with PAICODE_MAX_OUTPUT_TOKENS.\n"
             f"Context budget: {context_budget():,} characters. "
             "Override with PAICODE_CONTEXT_CHARS.\n"
             "Repeated identical tool calls are stopped after five consecutive attempts.\n"
@@ -411,12 +422,19 @@ class SlashActions:
     def _cmd_budget(self, args: str) -> None:
         settings = load_settings(self.root)
         budget = settings.budget
+        priced = budget.prompt_price_per_million or budget.completion_price_per_million
         self.chat.add_system(
             f"Tokens: {self.stats.total_tokens}" + (f" / {budget.max_tokens}" if budget.max_tokens else " (no limit)")
+            + f"\nCache hit: {self.stats.cache_hit_tokens} | Cache miss: {self.stats.cache_miss_tokens}"
             + f"\nCost: ${self.stats.cost_usd:.4f}"
             + (f" / ${budget.max_cost_usd:.4f}" if budget.max_cost_usd else " (no limit)")
-            + f"\nPrompt price: ${budget.prompt_price_per_million:.4f}/M"
-            + f"\nCompletion price: ${budget.completion_price_per_million:.4f}/M"
+            + (
+                f"\nPrices: miss ${budget.prompt_price_per_million:.4f}/M, "
+                f"hit ${budget.cache_hit_price_per_million:.4f}/M, "
+                f"output ${budget.completion_price_per_million:.4f}/M"
+                if priced
+                else "\nPrices are not configured, so cost stays at zero."
+            )
         )
 
     def _cmd_telemetry(self, args: str) -> None:

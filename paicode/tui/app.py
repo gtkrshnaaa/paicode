@@ -20,8 +20,7 @@ from ..agent.events import (
     ToolStarted,
     UsageUpdated,
 )
-from ..agent.loop import AgentRunner
-from ..agents import DiscussionRunner, MultiAgentRunner, SmartRunner
+from ..agents import DiscussionRunner, MultiAgentRunner, SoloRunner
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
@@ -348,7 +347,7 @@ class PaiCodeApp(SlashActions, App):
         store: ProviderStore | None = None,
         session_store: SessionStore | None = None,
         session: SessionData | None = None,
-        multi_agent: bool = True,
+        multi_agent: bool = False,
     ):
         super().__init__()
         self.multi_agent = multi_agent
@@ -410,7 +409,7 @@ class PaiCodeApp(SlashActions, App):
             )
         else:
             self.chat.add_system(
-                f"Paicode {__version__}. Agent 1 triage online. 22-agent team ready. Type a request or /help. "
+                f"Paicode {__version__}. Solo mode online. /team runs one prompt with the 22-agent team. Type a request or /help. "
                 "Shift+Enter newline. Ctrl+Shift+C/V copy/paste. Ctrl+V image. "
                 "Esc stops a running task immediately. Type while working to queue the next prompt."
             )
@@ -665,6 +664,8 @@ class PaiCodeApp(SlashActions, App):
         self.chat.set_work_message("discussion: read-only" if mode == "discussion" else "thinking")
         if mode == "discussion":
             self.chat.add_system("Discussion mode: read-only. Files, builds, and git mutations are locked.")
+        elif mode == "team":
+            self.chat.add_system("Team mode: 22 agents. Use this only for mass parallel work.")
         self._active_mode = mode
         self.diff.add_note(
             f"Discussion: {display[:220]}" if mode == "discussion" else f"Task: {display[:220]}"
@@ -681,8 +682,8 @@ class PaiCodeApp(SlashActions, App):
                     self.skills,
                     emit=lambda event: self.call_from_thread(self._handle_event, event),
                 )
-            elif self.multi_agent:
-                runner = SmartRunner(
+            elif mode == "team" or self.multi_agent:
+                runner = MultiAgentRunner(
                     self.root,
                     provider,
                     self.stats,
@@ -692,13 +693,14 @@ class PaiCodeApp(SlashActions, App):
                     session_id=self.session.record.id,
                 )
             else:
-                runner = AgentRunner(
+                runner = SoloRunner(
                     self.root,
                     provider,
                     self.stats,
                     self.rules,
                     self.skills,
                     emit=lambda event: self.call_from_thread(self._handle_event, event),
+                    session_id=self.session.record.id,
                     history=self.session.messages,
                 )
         except Exception as exc:

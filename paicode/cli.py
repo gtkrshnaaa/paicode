@@ -38,7 +38,7 @@ def _require_provider(store: ProviderStore):
     return provider
 
 
-def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, single_agent: bool = False, json_output: bool = False) -> int:
+def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, single_agent: bool = False, json_output: bool = False, team: bool = False) -> int:
     from .agent.events import (
         AgentPhase,
         AgentStatus,
@@ -50,7 +50,7 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, sing
         UsageUpdated,
     )
     from .agent.loop import AgentRunner
-    from .agents import SmartRunner
+    from .agents import MultiAgentRunner, SoloRunner
 
     store = ProviderStore()
     provider = _require_provider(store)
@@ -106,10 +106,12 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, sing
                 console.print("")
             console.print(f"[red]error: {event.message}[/red]")
 
-    if single_agent:
+    if team:
+        runner = MultiAgentRunner(root, provider, stats, rules, skills, emit=on_event)
+    elif single_agent:
         runner = AgentRunner(root, provider, stats, rules, skills, emit=on_event, max_steps=max_steps)
     else:
-        runner = SmartRunner(root, provider, stats, rules, skills, emit=on_event)
+        runner = SoloRunner(root, provider, stats, rules, skills, emit=on_event, max_steps=max_steps)
     runner.run(prompt)
     if json_output:
         return 1 if state["error"] else 0
@@ -265,7 +267,7 @@ def _cmd_bench(manifest: str, mode: str, repeat: int, out: str, max_steps: int) 
     if max_steps:
         for task in tasks:
             task.max_steps = max_steps
-    modes = ["single", "smart"] if mode == "both" else [mode]
+    modes = ["solo", "team"] if mode == "both" else [mode]
     results = run_benchmark(tasks, path.parent, modes, repeat)
     print(format_results(results))
     if out:
@@ -375,7 +377,7 @@ def _cmd_doctor(root: Path) -> int:
         + " | "
         + (f"${budget.max_cost_usd:.2f}" if budget.max_cost_usd else "no cost limit")
     )
-    print("Agents: smart routing | 22-agent team | single-agent fallback")
+    print("Agents: solo default | team opt-in | plain single-agent fallback")
     database = Database()
     database.initialize()
     counts = database.counts()
@@ -406,7 +408,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--single-agent",
         action="store_true",
-        help="Bypass the 22-agent council for a small task.",
+        help="Use the plain single-agent loop without the solo planning pass.",
+    )
+    parser.add_argument(
+        "--team",
+        action="store_true",
+        help="Opt in to the 22-agent team for this run.",
     )
     parser.add_argument(
         "--session-lists",
@@ -423,7 +430,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max-steps",
         type=int,
         default=0,
-        help="Optional model-turn ceiling. 0 means unlimited (default).",
+        help="Optional model-turn ceiling. 0 uses the solo default of 60.",
     )
     run_parser.add_argument("--diff", action="store_true", help="Print file diffs.")
     run_parser.add_argument("--json", action="store_true", dest="json_output", help="Emit newline-delimited JSON events.")
@@ -431,7 +438,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--single-agent",
         action="store_true",
         dest="single_agent",
-        help="Bypass the 22-agent council for a small task.",
+        help="Use the plain single-agent loop without the solo planning pass.",
+    )
+    run_parser.add_argument(
+        "--team",
+        action="store_true",
+        help="Opt in to the 22-agent team for this run.",
     )
 
     subparsers.add_parser("models", help="List models from the active provider.")
@@ -466,7 +478,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     bench_parser = subparsers.add_parser("bench", help="Run reproducible single versus team benchmarks.")
     bench_parser.add_argument("manifest")
-    bench_parser.add_argument("--mode", choices=["single", "smart", "both"], default="both")
+    bench_parser.add_argument("--mode", choices=["solo", "team", "plain", "both"], default="both")
     bench_parser.add_argument("--repeat", type=int, default=1)
     bench_parser.add_argument("--out", default="")
     bench_parser.add_argument("--max-steps", type=int, default=0)
@@ -519,6 +531,7 @@ def main(argv: list[str] | None = None) -> int:
             args.diff,
             single_agent=bool(args.single_agent),
             json_output=bool(args.json_output),
+            team=bool(args.team),
         )
     if args.command == "models":
         return _cmd_models(root)
@@ -566,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
         ProviderStore(),
         session_store=session_store,
         session=session_data,
-        multi_agent=not bool(args.single_agent),
+        multi_agent=bool(args.team),
     )
     app.run()
     return 0

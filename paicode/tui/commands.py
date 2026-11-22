@@ -30,6 +30,7 @@ SLASH_COMMANDS = [
     SlashCommandSpec("limits", "/limits", "show step and context limits"),
     SlashCommandSpec("session", "/session [id|new]", "show or switch sessions"),
     SlashCommandSpec("sessions", "/sessions", "list all sessions"),
+    SlashCommandSpec("team", "/team <prompt>", "run one prompt with the 22-agent team"),
     SlashCommandSpec("agents", "/agents", "show the 22-agent council state"),
     SlashCommandSpec("contract", "/contract", "show the frozen build contract"),
     SlashCommandSpec("bugs", "/bugs", "show current validation findings"),

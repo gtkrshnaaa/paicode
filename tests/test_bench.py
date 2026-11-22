@@ -34,7 +34,7 @@ def test_benchmark_runs_in_isolated_copy_and_reports(project: Path, config_home:
         store = ProviderStore()
         store.upsert("fake", server.base_url, api_key="test-key", model="fake-model")
         store.set_active("fake")
-        results = run_benchmark(tasks, manifest.parent, ["single"], repeat=1)
+        results = run_benchmark(tasks, manifest.parent, ["plain"], repeat=1)
     assert len(results) == 1
     assert results[0].ok is True
     assert results[0].prompt_tokens == 7

@@ -19,7 +19,7 @@ from ..agent.events import (
     ToolStarted,
     UsageUpdated,
 )
-from ..agents import SmartRunner
+from ..agents import MultiAgentRunner, SoloRunner
 from ..core.stats import UsageStats
 from ..providers.store import ProviderStore
 from ..rules.loader import load_rules
@@ -253,15 +253,16 @@ class ApiHandler(BaseHTTPRequestHandler):
             if data is None:
                 self._send(404, {"error": "session not found"})
                 return
+            team = bool(payload.get("team", False))
             run = RunState(id=f"run-{uuid4().hex[:10]}", session_id=session_id)
             with RUNS_LOCK:
                 RUNS[run.id] = run
-            threading.Thread(target=self._execute, args=(run, data, prompt), daemon=True).start()
+            threading.Thread(target=self._execute, args=(run, data, prompt, team), daemon=True).start()
             self._send(202, {"run_id": run.id, "session_id": session_id})
             return
         self._send(404, {"error": "not found"})
 
-    def _execute(self, run: RunState, data, prompt: str) -> None:
+    def _execute(self, run: RunState, data, prompt: str, team: bool = False) -> None:
         store = ProviderStore()
         provider = store.active()
         try:
@@ -269,14 +270,28 @@ class ApiHandler(BaseHTTPRequestHandler):
                 raise RuntimeError("No provider configured.")
             root = Path(data.record.workspace).expanduser().resolve()
             stats = UsageStats.from_dict(data.stats) if data.stats else UsageStats()
-            runner = SmartRunner(
-                root,
-                provider,
-                stats,
-                load_rules(root),
-                discover_skills(root),
-                emit=lambda event: _append_run_event(run, event),
-                session_id=data.record.id,
+            rules = load_rules(root)
+            skills = discover_skills(root)
+            runner = (
+                MultiAgentRunner(
+                    root,
+                    provider,
+                    stats,
+                    rules,
+                    skills,
+                    emit=lambda event: _append_run_event(run, event),
+                    session_id=data.record.id,
+                )
+                if team
+                else SoloRunner(
+                    root,
+                    provider,
+                    stats,
+                    rules,
+                    skills,
+                    emit=lambda event: _append_run_event(run, event),
+                    session_id=data.record.id,
+                )
             )
             data.transcript.append({"kind": "user", "text": prompt})
             text = runner.run(prompt)

@@ -34,6 +34,7 @@ class ToolRegistry:
         self.skills = skills
         self.finished = False
         self.summary = ""
+        self.todos: list[dict] = []
         self.files = FileTools(root, stats, allowed_write_paths=allowed_write_paths)
         self.search = SearchTools(root, stats)
         self.shell = ShellTools(
@@ -172,6 +173,22 @@ class ToolRegistry:
             return self.files.move(args["source"], args["destination"])
         if name == "delete":
             return self.files.delete(args["path"], bool(args.get("recursive", False)))
+        if name == "todo":
+            items = args.get("items", [])
+            if not isinstance(items, list):
+                return ToolResult(False, "Error: todo requires an items list.")
+            cleaned = []
+            for item in items[:50]:
+                if not isinstance(item, dict):
+                    continue
+                title = str(item.get("title", "")).strip()
+                status = str(item.get("status", "pending")).strip().lower()
+                if title and status in {"pending", "in_progress", "done"}:
+                    cleaned.append({"title": title, "status": status})
+            self.todos = cleaned
+            marks = {"pending": "[ ]", "in_progress": "[>]", "done": "[x]"}
+            output = "\n".join(f"{marks[item['status']]} {item['title']}" for item in cleaned)
+            return ToolResult(True, output or "Todo list cleared.", kind="todo")
         if name == "diagnostics":
             if self.read_only:
                 return ToolResult(False, "Error: diagnostics are disabled in read-only mode.")

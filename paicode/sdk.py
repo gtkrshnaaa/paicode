@@ -38,8 +38,11 @@ class PaicodeClient:
     def session(self, session_id: str) -> dict:
         return self._request("GET", f"/api/sessions/{quote(session_id)}")
 
-    def prompt(self, session_id: str, prompt: str) -> dict:
-        return self._request("POST", f"/api/sessions/{quote(session_id)}/prompt", {"prompt": prompt})
+    def prompt(self, session_id: str, prompt: str, team: bool = False) -> dict:
+        payload = {"prompt": prompt}
+        if team:
+            payload["team"] = True
+        return self._request("POST", f"/api/sessions/{quote(session_id)}/prompt", payload)
 
     def events_url(self, run_id: str) -> str:
         suffix = f"?token={quote(self.token)}" if self.token else ""

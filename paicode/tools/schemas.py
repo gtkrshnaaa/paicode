@@ -223,6 +223,33 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "todo",
+            "description": "Create or update the live task checklist. Keep exactly one item in progress.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string"},
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["pending", "in_progress", "done"],
+                                },
+                            },
+                            "required": ["title", "status"],
+                        },
+                    }
+                },
+                "required": ["items"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "finish",
             "description": "Finish the task with a concise summary of what changed.",
             "parameters": {

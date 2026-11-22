@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .agent.loop import AgentRunner
-from .agents import SmartRunner
+from .agents import MultiAgentRunner, SoloRunner
 from .core.stats import UsageStats
 from .providers.store import ProviderStore
 from .rules.loader import load_rules
@@ -90,9 +90,14 @@ def run_task(task: BenchTask, mode: str, manifest_dir: Path) -> BenchResult:
             raise RuntimeError("No active provider.")
         rules = load_rules(workspace)
         skills = discover_skills(workspace)
-        if mode == "smart":
-            runner = SmartRunner(workspace, provider, stats, rules, skills, lambda event: None)
-        else:
+        if mode == "team":
+            runner = MultiAgentRunner(workspace, provider, stats, rules, skills, lambda event: None)
+        elif mode == "solo":
+            runner = SoloRunner(
+                workspace, provider, stats, rules, skills, lambda event: None,
+                max_steps=task.max_steps or None,
+            )
+        elif mode in {"plain", "single"}:
             runner = AgentRunner(
                 workspace,
                 provider,
@@ -102,6 +107,8 @@ def run_task(task: BenchTask, mode: str, manifest_dir: Path) -> BenchResult:
                 lambda event: None,
                 max_steps=task.max_steps,
             )
+        else:
+            raise ValueError(f"Unknown benchmark mode: {mode}")
         runner.run(task.prompt)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
