@@ -129,12 +129,19 @@ class AgentRunner:
         stop_event: threading.Event | None = None,
         read_only_shell: bool = False,
         strict_read_only_shell: bool = False,
+        max_output_tokens: int | None = None,
     ):
         self.root = root
         self.provider = provider
         self.stats = stats
         self.emit = emit
         self.max_steps = max(0, int(max_steps))
+        if max_output_tokens is None:
+            try:
+                max_output_tokens = int(os.getenv("PAICODE_MAX_OUTPUT_TOKENS", "8192") or 8192)
+            except ValueError:
+                max_output_tokens = 8192
+        self.max_output_tokens = max(0, int(max_output_tokens))
         self.rules = rules
         self.skills = skills
         self.client = client or ProviderClient(provider)
@@ -206,14 +213,22 @@ class AgentRunner:
             ],
             [],
             stop_event=self._stop_event,
+            max_tokens=min(2048, self.max_output_tokens) if self.max_output_tokens else 2048,
         )
         self.stats.record_usage(
             result.usage.prompt_tokens,
             result.usage.completion_tokens,
             result.usage.total_tokens,
+            result.usage.cache_hit_tokens,
+            result.usage.cache_miss_tokens,
         )
         self.stats.record_cost(
-            self.settings.budget.cost(result.usage.prompt_tokens, result.usage.completion_tokens)
+            self.settings.budget.cost_detailed(
+                result.usage.prompt_tokens,
+                result.usage.completion_tokens,
+                result.usage.cache_hit_tokens,
+                result.usage.cache_miss_tokens,
+            )
         )
         return (result.text or "").strip()[:30_000]
 
@@ -295,14 +310,22 @@ class AgentRunner:
                     on_text=lambda chunk: self._send(TextDelta(chunk)),
                     on_reasoning=lambda chunk: self._send(ReasoningDelta(chunk)),
                     stop_event=self._stop_event,
+                    max_tokens=self.max_output_tokens,
                 )
                 self.stats.record_usage(
                     result.usage.prompt_tokens,
                     result.usage.completion_tokens,
                     result.usage.total_tokens,
+                    result.usage.cache_hit_tokens,
+                    result.usage.cache_miss_tokens,
                 )
                 self.stats.record_cost(
-                    self.settings.budget.cost(result.usage.prompt_tokens, result.usage.completion_tokens)
+                    self.settings.budget.cost_detailed(
+                        result.usage.prompt_tokens,
+                        result.usage.completion_tokens,
+                        result.usage.cache_hit_tokens,
+                        result.usage.cache_miss_tokens,
+                    )
                 )
                 self._send(UsageUpdated(self.stats))
                 budget_error = self.settings.budget.exceeded(

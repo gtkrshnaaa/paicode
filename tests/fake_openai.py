@@ -41,8 +41,18 @@ def finish_chunk(reason: str = "stop"):
     return _chunk({}, finish=reason)
 
 
-def usage_chunk(prompt: int = 10, completion: int = 5, total: int = 15):
-    return _chunk(usage={"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": total})
+def usage_chunk(
+    prompt: int = 10,
+    completion: int = 5,
+    total: int = 15,
+    cache_hit: int = 0,
+    cache_miss: int = 0,
+):
+    usage = {"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": total}
+    if cache_hit or cache_miss:
+        usage["prompt_cache_hit_tokens"] = cache_hit
+        usage["prompt_cache_miss_tokens"] = cache_miss
+    return _chunk(usage=usage)
 
 
 class FakeOpenAI:

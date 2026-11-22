@@ -26,6 +26,8 @@ class ChatUsage:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    cache_hit_tokens: int = 0
+    cache_miss_tokens: int = 0
 
 
 @dataclass
@@ -143,13 +145,13 @@ class ProviderClient:
                 raise ProviderError(f"Model discovery failed: {exc}") from exc
         raise ProviderError(f"Model discovery failed for all keys. {last_error}".strip())
 
-    def stream(self, messages: list[dict], tools: list[dict] | None = None, on_text=None, on_reasoning=None, stop_event=None) -> ChatResult:
+    def stream(self, messages: list[dict], tools: list[dict] | None = None, on_text=None, on_reasoning=None, stop_event=None, max_tokens: int = 0) -> ChatResult:
         if self._gate is None:
-            return self._stream(messages, tools, on_text, on_reasoning, stop_event)
+            return self._stream(messages, tools, on_text, on_reasoning, stop_event, max_tokens)
         with self._gate:
-            return self._stream(messages, tools, on_text, on_reasoning, stop_event)
+            return self._stream(messages, tools, on_text, on_reasoning, stop_event, max_tokens)
 
-    def _stream(self, messages: list[dict], tools: list[dict] | None = None, on_text=None, on_reasoning=None, stop_event=None) -> ChatResult:
+    def _stream(self, messages: list[dict], tools: list[dict] | None = None, on_text=None, on_reasoning=None, stop_event=None, max_tokens: int = 0) -> ChatResult:
         if not self.provider.model:
             raise ConfigError("No model selected. Use /model or /models.")
         if not self.ring.keys:
@@ -171,10 +173,10 @@ class ProviderClient:
                 raise
             try:
                 try:
-                    return self._stream_once(api_key, messages, tools, on_text, on_reasoning, include_usage=True, stop_event=stop_event)
+                    return self._stream_once(api_key, messages, tools, on_text, on_reasoning, include_usage=True, stop_event=stop_event, max_tokens=max_tokens)
                 except openai.BadRequestError as exc:
                     if "stream_options" in str(exc).lower():
-                        return self._stream_once(api_key, messages, tools, on_text, on_reasoning, include_usage=False, stop_event=stop_event)
+                        return self._stream_once(api_key, messages, tools, on_text, on_reasoning, include_usage=False, stop_event=stop_event, max_tokens=max_tokens)
                     raise
             except (openai.AuthenticationError, openai.PermissionDeniedError) as exc:
                 last_error = str(exc)
@@ -209,10 +211,11 @@ class ProviderClient:
         on_reasoning,
         include_usage: bool,
         stop_event=None,
+        max_tokens: int = 0,
     ) -> ChatResult:
         if stop_event is None:
             return self._stream_once_blocking(
-                api_key, messages, tools, on_text, on_reasoning, include_usage, None
+                api_key, messages, tools, on_text, on_reasoning, include_usage, None, max_tokens
             )
         result: dict = {}
         error: dict = {}
@@ -236,6 +239,7 @@ class ProviderClient:
                     guarded_reasoning,
                     include_usage,
                     stop_event,
+                    max_tokens,
                 )
             except Exception as exc:
                 error["value"] = exc
@@ -262,6 +266,7 @@ class ProviderClient:
         on_reasoning,
         include_usage: bool,
         stop_event=None,
+        max_tokens: int = 0,
     ) -> ChatResult:
         client = self._client(api_key)
         kwargs = {
@@ -274,6 +279,8 @@ class ProviderClient:
             kwargs["tool_choice"] = "auto"
         if include_usage:
             kwargs["stream_options"] = {"include_usage": True}
+        if max_tokens and max_tokens > 0:
+            kwargs["max_tokens"] = int(max_tokens)
 
         stream = client.chat.completions.create(**kwargs)
         text_parts: list[str] = []
@@ -302,10 +309,21 @@ class ProviderClient:
                     raise ProviderError("Stopped by user.")
                 chunk_usage = getattr(chunk, "usage", None)
                 if chunk_usage is not None:
+                    prompt_tokens = int(getattr(chunk_usage, "prompt_tokens", 0) or 0)
+                    cache_hit = int(getattr(chunk_usage, "prompt_cache_hit_tokens", 0) or 0)
+                    cache_miss = int(getattr(chunk_usage, "prompt_cache_miss_tokens", 0) or 0)
+                    extra = getattr(chunk_usage, "model_extra", None) or {}
+                    if isinstance(extra, dict):
+                        cache_hit = int(extra.get("prompt_cache_hit_tokens", cache_hit) or cache_hit)
+                        cache_miss = int(extra.get("prompt_cache_miss_tokens", cache_miss) or cache_miss)
+                    if not cache_miss and prompt_tokens >= cache_hit:
+                        cache_miss = max(0, prompt_tokens - cache_hit)
                     usage = ChatUsage(
-                        prompt_tokens=int(getattr(chunk_usage, "prompt_tokens", 0) or 0),
+                        prompt_tokens=prompt_tokens,
                         completion_tokens=int(getattr(chunk_usage, "completion_tokens", 0) or 0),
                         total_tokens=int(getattr(chunk_usage, "total_tokens", 0) or 0),
+                        cache_hit_tokens=cache_hit,
+                        cache_miss_tokens=cache_miss,
                     )
                 if not chunk.choices:
                     continue

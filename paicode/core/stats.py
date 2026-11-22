@@ -8,6 +8,8 @@ class UsageStats:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    cache_hit_tokens: int = 0
+    cache_miss_tokens: int = 0
     requests: int = 0
     files_read: int = 0
     files_created: int = 0
@@ -17,11 +19,20 @@ class UsageStats:
     started_at: datetime = field(default_factory=datetime.now)
     _lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
 
-    def record_usage(self, prompt: int = 0, completion: int = 0, total: int = 0) -> None:
+    def record_usage(
+        self,
+        prompt: int = 0,
+        completion: int = 0,
+        total: int = 0,
+        cache_hit: int = 0,
+        cache_miss: int = 0,
+    ) -> None:
         with self._lock:
             self.prompt_tokens += max(0, int(prompt or 0))
             self.completion_tokens += max(0, int(completion or 0))
             self.total_tokens += max(0, int(total or 0))
+            self.cache_hit_tokens += max(0, int(cache_hit or 0))
+            self.cache_miss_tokens += max(0, int(cache_miss or 0))
             self.requests += 1
 
     def record_cost(self, amount: float = 0.0) -> None:
@@ -68,6 +79,8 @@ class UsageStats:
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
+            "cache_hit_tokens": self.cache_hit_tokens,
+            "cache_miss_tokens": self.cache_miss_tokens,
             "requests": self.requests,
             "files_read": self.files_read,
             "files_created": self.files_created,
@@ -84,6 +97,8 @@ class UsageStats:
             "prompt_tokens",
             "completion_tokens",
             "total_tokens",
+            "cache_hit_tokens",
+            "cache_miss_tokens",
             "requests",
             "files_read",
             "files_created",
@@ -109,6 +124,7 @@ class UsageStats:
     def summary(self) -> str:
         return (
             f"tokens {self.prompt_tokens}/{self.completion_tokens}/{self.total_tokens} "
+            f"cache {self.cache_hit_tokens}/{self.cache_miss_tokens} "
             f"req {self.requests} "
             f"files r{self.files_read} c{self.files_created} e{self.files_edited} "
             f"cmds {self.commands} cost ${self.cost_usd:.4f}"
@@ -121,6 +137,8 @@ class UsageStats:
                 f"Prompt tokens: {self.prompt_tokens}",
                 f"Completion tokens: {self.completion_tokens}",
                 f"Total tokens: {self.total_tokens}",
+                f"Cache hit tokens: {self.cache_hit_tokens}",
+                f"Cache miss tokens: {self.cache_miss_tokens}",
                 f"Requests: {self.requests}",
                 f"Files read: {self.files_read}",
                 f"Files created: {self.files_created}",

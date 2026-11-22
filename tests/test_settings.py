@@ -82,3 +82,13 @@ def test_invalid_permission_effect_is_rejected(project: Path, config_home: Path)
     )
     with pytest.raises(ConfigError):
         load_settings(project)
+
+
+def test_cache_aware_cost():
+    budget = Budget(
+        prompt_price_per_million=0.15,
+        cache_hit_price_per_million=0.003,
+        completion_price_per_million=0.60,
+    )
+    cost = budget.cost_detailed(1_000_000, 1_000_000, 960_000, 40_000)
+    assert cost == pytest.approx(0.003 * 0.96 + 0.15 * 0.04 + 0.60)

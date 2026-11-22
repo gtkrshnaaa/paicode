@@ -111,6 +111,7 @@ class Budget:
     max_tokens: int = 0
     max_cost_usd: float = 0.0
     prompt_price_per_million: float = 0.0
+    cache_hit_price_per_million: float = 0.0
     completion_price_per_million: float = 0.0
 
     @classmethod
@@ -119,14 +120,28 @@ class Budget:
             max_tokens=max(0, int(data.get("max_tokens", 0) or 0)),
             max_cost_usd=max(0.0, float(data.get("max_cost_usd", 0.0) or 0.0)),
             prompt_price_per_million=max(0.0, float(data.get("prompt_price_per_million", 0.0) or 0.0)),
+            cache_hit_price_per_million=max(0.0, float(data.get("cache_hit_price_per_million", 0.0) or 0.0)),
             completion_price_per_million=max(0.0, float(data.get("completion_price_per_million", 0.0) or 0.0)),
         )
 
     def cost(self, prompt_tokens: int, completion_tokens: int) -> float:
-        return (
-            prompt_tokens * self.prompt_price_per_million
-            + completion_tokens * self.completion_price_per_million
-        ) / 1_000_000
+        return self.cost_detailed(prompt_tokens, completion_tokens, 0, prompt_tokens)
+
+    def cost_detailed(
+        self,
+        prompt_tokens: int,
+        completion_tokens: int,
+        cache_hit_tokens: int = 0,
+        cache_miss_tokens: int = 0,
+    ) -> float:
+        if cache_hit_tokens or cache_miss_tokens:
+            input_cost = (
+                cache_hit_tokens * self.cache_hit_price_per_million
+                + cache_miss_tokens * self.prompt_price_per_million
+            )
+        else:
+            input_cost = prompt_tokens * self.prompt_price_per_million
+        return (input_cost + completion_tokens * self.completion_price_per_million) / 1_000_000
 
     def exceeded(self, tokens: int, cost: float) -> str:
         if self.max_tokens and tokens > self.max_tokens:
