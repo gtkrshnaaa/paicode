@@ -205,6 +205,24 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "diagnostics",
+            "description": "Run the configured lint, typecheck, and test diagnostics and return their output.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Seconds allowed per diagnostic command.",
+                        "minimum": 1,
+                        "maximum": 600,
+                    }
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "finish",
             "description": "Finish the task with a concise summary of what changed.",
             "parameters": {

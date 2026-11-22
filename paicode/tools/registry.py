@@ -10,6 +10,7 @@ from ..mcp import get_mcp_manager
 from ..rules.skills import SkillMeta, find_skill, load_skill_text
 from ..settings import load_settings
 from ..tools.schemas import TOOL_SCHEMAS
+from .diagnostics import DiagnosticsTools
 from .explore import ExploreTools
 from .fs import FileTools
 from .search import SearchTools
@@ -45,6 +46,8 @@ class ToolRegistry:
         )
         self.explore_tools = ExploreTools(root, stats)
         self.settings = load_settings(root)
+        self.diagnostics = DiagnosticsTools(root, self.settings.diagnostics)
+        self.read_only = read_only_shell or strict_read_only_shell
         self.hooks = HookRunner(root, self.settings)
         external = not (read_only_shell or strict_read_only_shell)
         if enable_mcp is None:
@@ -54,7 +57,11 @@ class ToolRegistry:
 
     @property
     def schemas(self) -> list[dict]:
-        schemas = list(TOOL_SCHEMAS)
+        schemas = [
+            schema
+            for schema in TOOL_SCHEMAS
+            if not (self.read_only and schema["function"]["name"] == "diagnostics")
+        ]
         if self.plugins is not None:
             schemas.extend(self.plugins.schemas())
         if self.mcp is not None:
@@ -163,6 +170,10 @@ class ToolRegistry:
             return self.files.move(args["source"], args["destination"])
         if name == "delete":
             return self.files.delete(args["path"], bool(args.get("recursive", False)))
+        if name == "diagnostics":
+            if self.read_only:
+                return ToolResult(False, "Error: diagnostics are disabled in read-only mode.")
+            return self.diagnostics.run(int(args.get("timeout", 120) or 120))
         if name == "finish":
             self.finished = True
             self.summary = str(args.get("summary", "")).strip()

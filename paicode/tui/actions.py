@@ -8,6 +8,8 @@ from ..providers.client import ProviderClient
 from ..providers.presets import get_preset
 from ..mcp import get_mcp_manager
 from ..settings import load_settings
+from ..telemetry import Telemetry
+from ..tools.diagnostics import DiagnosticsTools
 from ..checkpoints import CheckpointStore
 from ..rules.loader import load_rules, render_rules, rule_summary
 from ..rules.skills import discover_skills, find_skill, load_skill_text, render_catalog
@@ -378,6 +380,51 @@ class SlashActions:
             "Filesystem: writes are confined to the workspace. Read-only host exploration "
             "is available through the explore tool with a required reason."
         )
+
+    def _cmd_diagnostics(self, args: str) -> None:
+        settings = load_settings(self.root)
+        self.chat.add_system("Running diagnostics...")
+        result = DiagnosticsTools(self.root, settings.diagnostics).run()
+        self.chat.add_system(result.output)
+
+    def _cmd_hooks(self, args: str) -> None:
+        settings = load_settings(self.root)
+        if not settings.hooks:
+            self.chat.add_system("No lifecycle hooks configured.")
+            return
+        lines = ["## Hooks", ""]
+        for hook in settings.hooks:
+            lines.append(f"- `{hook.event}`: `{hook.command}` ({hook.timeout}s, enabled={hook.enabled})")
+        self.chat.add_markdown_system("\n".join(lines))
+
+    def _cmd_policy(self, args: str) -> None:
+        settings = load_settings(self.root)
+        lines = [f"Permission mode: {settings.permission_mode}", ""]
+        if settings.permissions:
+            lines.append("Rules, last match wins:")
+            for rule in settings.permissions:
+                lines.append(f"- {rule.action} {rule.resource}: {rule.effect}")
+        else:
+            lines.append("No explicit rules. Defaults apply.")
+        self.chat.add_system("\n".join(lines))
+
+    def _cmd_budget(self, args: str) -> None:
+        settings = load_settings(self.root)
+        budget = settings.budget
+        self.chat.add_system(
+            f"Tokens: {self.stats.total_tokens}" + (f" / {budget.max_tokens}" if budget.max_tokens else " (no limit)")
+            + f"\nCost: ${self.stats.cost_usd:.4f}"
+            + (f" / ${budget.max_cost_usd:.4f}" if budget.max_cost_usd else " (no limit)")
+            + f"\nPrompt price: ${budget.prompt_price_per_million:.4f}/M"
+            + f"\nCompletion price: ${budget.completion_price_per_million:.4f}/M"
+        )
+
+    def _cmd_telemetry(self, args: str) -> None:
+        telemetry = Telemetry(self.root, load_settings(self.root))
+        if not telemetry.enabled:
+            self.chat.add_system("Telemetry is disabled. Set telemetry to true in .paicode/settings.json.")
+            return
+        self.chat.add_system(f"Telemetry is enabled. Local JSONL: {telemetry.path}")
 
     def _cmd_rewind(self, args: str) -> None:
         store = CheckpointStore(self.root)

@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -37,7 +38,7 @@ def _require_provider(store: ProviderStore):
     return provider
 
 
-def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, single_agent: bool = False) -> int:
+def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, single_agent: bool = False, json_output: bool = False) -> int:
     from .agent.events import (
         AgentPhase,
         AgentStatus,
@@ -63,6 +64,14 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, sing
     state = {"error": False, "started": False}
 
     def on_event(event) -> None:
+        if json_output:
+            from .server.api import event_to_dict
+            payload = event_to_dict(event)
+            if payload is not None:
+                print(json.dumps(payload, ensure_ascii=False), flush=True)
+            if isinstance(event, ErrorEvent):
+                state["error"] = True
+            return
         if isinstance(event, TextDelta):
             state["started"] = True
             console.print(event.text, end="", markup=False)
@@ -102,6 +111,8 @@ def _run_headless(root: Path, prompt: str, max_steps: int, show_diff: bool, sing
     else:
         runner = SmartRunner(root, provider, stats, rules, skills, emit=on_event)
     runner.run(prompt)
+    if json_output:
+        return 1 if state["error"] else 0
     if state["started"]:
         console.print("")
     console.print(f"[dim]{stats.summary()}[/dim]")
@@ -199,6 +210,28 @@ def _expand_session_args(argv: list[str]) -> list[str]:
                 continue
         expanded.append(argument)
     return expanded
+
+
+def _cmd_bench(manifest: str, mode: str, repeat: int, out: str, max_steps: int) -> int:
+    from .bench import format_results, load_tasks, run_benchmark
+
+    path = Path(manifest).expanduser().resolve()
+    if not path.is_file():
+        print(f"Benchmark manifest not found: {path}", file=sys.stderr)
+        return 1
+    tasks = load_tasks(path)
+    if max_steps:
+        for task in tasks:
+            task.max_steps = max_steps
+    modes = ["single", "smart"] if mode == "both" else [mode]
+    results = run_benchmark(tasks, path.parent, modes, repeat)
+    print(format_results(results))
+    if out:
+        target = Path(out).expanduser().resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps([row.to_dict() for row in results], indent=2), encoding="utf-8")
+        print(f"Results written to {target}")
+    return 0 if all(row.ok for row in results) else 1
 
 
 def _cmd_serve(host: str, port: int, token: str) -> int:
@@ -338,6 +371,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional model-turn ceiling. 0 means unlimited (default).",
     )
     run_parser.add_argument("--diff", action="store_true", help="Print file diffs.")
+    run_parser.add_argument("--json", action="store_true", dest="json_output", help="Emit newline-delimited JSON events.")
     run_parser.add_argument(
         "--single-agent",
         action="store_true",
@@ -366,6 +400,13 @@ def _build_parser() -> argparse.ArgumentParser:
     for name in ["set-key", "set-base-url", "set-model", "use", "remove"]:
         child = config_sub.add_parser(name)
         child.add_argument("value")
+
+    bench_parser = subparsers.add_parser("bench", help="Run reproducible single versus team benchmarks.")
+    bench_parser.add_argument("manifest")
+    bench_parser.add_argument("--mode", choices=["single", "smart", "both"], default="both")
+    bench_parser.add_argument("--repeat", type=int, default=1)
+    bench_parser.add_argument("--out", default="")
+    bench_parser.add_argument("--max-steps", type=int, default=0)
 
     serve_parser = subparsers.add_parser("serve", help="Run the local HTTP API and web console.")
     serve_parser.add_argument("--host", default="127.0.0.1")
@@ -414,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
             args.max_steps,
             args.diff,
             single_agent=bool(args.single_agent),
+            json_output=bool(args.json_output),
         )
     if args.command == "models":
         return _cmd_models(root)
@@ -429,6 +471,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_rewind(root, args.checkpoint)
     if args.command == "serve":
         return _cmd_serve(args.host, args.port, args.token)
+    if args.command == "bench":
+        return _cmd_bench(args.manifest, args.mode, args.repeat, args.out, args.max_steps)
 
     from .tui.app import PaiCodeApp
 
