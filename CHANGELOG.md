@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.1 - 2026-11-22
+
+### Fixed
+
+- Clicking a markdown table cell that was replaced during a chat refresh no longer crashes the TUI. Textual 8.2.8 reads a detached cell parent while starting text selection; the default Paicode screen now guards that specific stale-widget error, logs it, and keeps the session alive.
+
 ## 0.13.0 - 2026-11-22
 
 ### Changed
