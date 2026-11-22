@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.14.0 - 2026-11-22
+
+### Added
+
+- Unified global and project settings with deep merge.
+- MCP client for local stdio servers and remote streamable HTTP servers.
+- MCP tools, resources, and prompts exposed through the CLI and TUI.
+- Lifecycle hooks with JSON stdin, timeouts, and blocking pre-tool checks.
+- Explicit local plugins with registered tools and schemas.
+- Model-based context compaction with deterministic fallback.
+- File checkpoints before every mutation, plus `/rewind` and `pai rewind`.
+- Ordered permission rules with allow, ask, and deny effects.
+- Interactive approval dialog for ask rules and headless denial.
+- Token and cost budgets enforced before the next model request.
+- Local JSONL telemetry, disabled by default.
+- Token-protected HTTP API, Python SDK, and monochrome web console.
+- Diagnostics tool and `/diagnostics` command for configured checks.
+- Newline-delimited JSON events for headless runs.
+- Benchmark harness for single-agent versus smart routing with pass rate, time, tokens, and cost.
+- CI matrix, release artifact build, SHA256 checksums, and SBOM output.
+- Security policy and platform, API, and SDK documentation.
+
+### Changed
+
+- Tool schemas are resolved from the registry, so MCP and plugin tools participate in the same loop as built-in tools.
+- Read-only discussion and validation runs never receive MCP, plugin, or diagnostics tools.
+
 ## 0.13.1 - 2026-11-22
 
 ### Fixed

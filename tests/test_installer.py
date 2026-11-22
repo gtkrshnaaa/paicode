@@ -18,6 +18,7 @@ def test_installer_help_documents_remote_and_local_modes():
     assert "--ref" in result.stdout
     assert "--dev" in result.stdout
     assert "--quiet" in result.stdout
+    assert "PAICODE_SHA256" in result.stdout
 
 
 def test_installer_contains_no_credentials():

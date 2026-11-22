@@ -1,6 +1,6 @@
 # Paicode
 
-Paicode is a smart-routed multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry. It works with DeepSeek, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
+Paicode is a smart-routed multi-agent terminal coding harness with a 22-agent council, a parallel builder team, and an independent validator. It reads, searches, edits, and runs real bash commands through a typed tool registry, with MCP, lifecycle hooks, local plugins, checkpoints, permission policy, budgets, a local API, and a benchmark harness. It works with DeepSeek, OpenAI, OpenRouter, Google's OpenAI-compatible endpoint, or any custom base URL.
 
 Agent 1 receives every request first. It triages the request and decides whether to answer alone, use read-only discussion mode, or deploy the 22-agent council. Read-only analysis, summaries, audits, and planning stay with one agent. Any write touching more than one file, scaffolding, feature work, or large refactor goes to the team. `--single-agent` remains available for small tasks.
 
@@ -12,10 +12,10 @@ curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh 
 
 This downloads the latest `main`, creates an isolated environment at `~/.local/share/paicode/venv`, and writes the launcher to `~/.local/bin/pai`. It does not edit your shell profile. The installer shows a structured header, a six-phase progress bar, and a completion summary. Package manager output stays hidden unless a step fails. Use `--quiet` to disable the spinner.
 
-For a reproducible install, pin a tag or commit:
+For a reproducible install, pin a tag or commit and verify the archive checksum:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh | bash -s -- --ref <tag>
+PAICODE_SHA256=<sha256> curl -fsSL https://raw.githubusercontent.com/gtkrshnaaa/paicode/main/install.sh | bash -s -- --ref <tag>
 ```
 
 Prefer to inspect the script first:
@@ -75,12 +75,13 @@ Enter the base URL and API key in the dialog. Paicode stores the provider, key, 
 /model deepseek-flash
 ```
 
-The interface has four regions:
+The interface has five regions:
 
 - Left: project file explorer. Select a file to preview it.
 - Center: AI diff history for the current session. Every create, write, and surgical edit is rendered as a unified diff. The history is restored when the same session is reopened; a new session starts empty.
 - Right: chat with role-labeled user and assistant cards, rendered Markdown, and compact tool activity.
-- Bottom: token usage, request count, file counters, command count, provider, and model.
+- Far right: the Agent Rail with all 22 agents, status, and nested turn history.
+- Bottom: token usage, estimated cost, request count, file counters, command count, provider, and model.
 
 ## Slash commands
 
@@ -106,6 +107,13 @@ The interface has four regions:
 | `/bugs` | Show current validation findings. |
 | `/stop` | Stop the current task after the active step. |
 | `/queue [clear]` | Show or clear queued prompts. |
+| `/mcp [tools|resources|prompts]` | Inspect MCP servers and tools. |
+| `/rewind [id or latest]` | List or restore file checkpoints. |
+| `/diagnostics` | Run configured lint, typecheck, and test commands. |
+| `/hooks` | Show lifecycle hooks. |
+| `/policy` | Show permission rules. |
+| `/budget` | Show token and cost budget status. |
+| `/telemetry` | Show local telemetry status. |
 | `/config` | Show redacted provider configuration. |
 | `/init` | Create a project `PAICODE.md` template. |
 | `/refresh` | Reload rules, skills, and the file tree. |
@@ -226,7 +234,7 @@ Use `--workspace /path/to/project` to install project rules and skills instead. 
 
 Paicode has no fixed model-turn limit. The loop stops when the model finishes, returns no tool calls, or repeats the same tool call five times in a row. A positive `--max-steps` value in headless mode sets an explicit ceiling.
 
-Context compaction defaults to 2,500,000 characters. Override it with `PAICODE_CONTEXT_CHARS`. Tool limits are deliberately generous: 20,000 lines per read request, 20 MB files, 5,000 list and search results, and 200,000 characters of shell output.
+Context compaction defaults to 80 percent of the 2,500,000-character budget. When the threshold is crossed, older turns are summarized by the active model and replaced with one compact history block. If summarization fails, deterministic truncation keeps the session alive. Override the budget with `PAICODE_CONTEXT_CHARS` and the threshold with `compaction_threshold_chars`. Tool limits are deliberately generous: 20,000 lines per read request, 20 MB files, 5,000 list and search results, and 200,000 characters of shell output.
 
 ## Headless mode
 
@@ -236,10 +244,17 @@ For scripts and CI:
 pai run "Add a health check endpoint and run the tests"
 pai run --single-agent "Rename this variable"
 pai run --diff "Refactor the parser"
+pai run --json "Summarize this repository"
 pai models
 pai doctor
+pai mcp status
+pai rewind
+pai serve
+pai bench benchmarks/smoke.json --mode both
 pai --path /path/to/project run "Summarize this repository"
 ```
+
+`pai run --json` emits newline-delimited event objects for CI and editor integrations. `pai serve` starts the local HTTP API and web console. `pai bench` runs the same task in single-agent and smart-routed modes, records pass or fail, wall time, tokens, and cost, and writes JSON results with `--out`.
 
 ## Configuration
 
@@ -255,6 +270,24 @@ The reset creates a timestamped backup of the existing database, drops every tab
 
 Each provider stores its base URL, API keys, selected model, cached model list, and optional models URL. Multiple keys are rotated automatically when a provider returns an authentication or rate-limit error.
 
+## Platform layer
+
+Global settings live in `~/.config/paicode/settings.json`. Project settings live in `.paicode/settings.json` and override global values with a deep merge. The full reference is in [docs/platform.md](docs/platform.md).
+
+MCP servers can be local stdio processes or remote streamable HTTP endpoints. Tools are exposed as `mcp__<server>__<tool>`, with resources and prompts available through `/mcp`. Read-only discussion and validation runs never receive MCP or plugin tools.
+
+Lifecycle hooks run shell commands on `pre_tool`, `post_tool`, and `pre_compact`. A hook receives a JSON event on stdin. Exit code 0 allows the action, and a nonzero exit blocks it when the hook is blocking.
+
+Plugins are explicit local Python files listed under `plugins`. Each plugin exports `register(api)` and can add tools with `api.add_tool(...)`. Plugins are trusted local code and are never loaded implicitly.
+
+Every file mutation creates a checkpoint in the Paicode state directory before writing. `/rewind` lists checkpoints and `/rewind latest` restores the newest one. Delete, move, create, and edit operations are all reversible.
+
+Permission rules use ordered `action`, `resource`, and `effect` entries with `allow`, `ask`, and `deny`. The last matching rule wins. In the terminal interface, `ask` opens an approval dialog. In headless mode, an unapproved action is denied. Budgets cap tokens and estimated cost per session.
+
+Telemetry is disabled by default. When enabled, Paicode writes local JSONL events to the state directory. Prompts, file contents, and secrets are not recorded.
+
+`pai serve` exposes a token-protected HTTP API, a Python client in `paicode/sdk.py`, and a monochrome web console for sessions and prompts. See [docs/api.md](docs/api.md).
+
 ## Coding harness
 
 `bash` is a real bash shell with pipes, redirection, multi-command scripts, package managers, compilers, test runners, formatters, and git. On Linux, commands run inside a bubblewrap sandbox when it is available: the workspace is writable, the rest of the filesystem is read-only, the real home directory is hidden, package caches are isolated, and child processes are killed on timeout or stop.
@@ -268,6 +301,8 @@ The deterministic capability matrix covers Python, Node, C, C++, Java, shell, Gi
 - `bash` runs real bash. With bubblewrap, the workspace is the only writable host path, the home directory is hidden, and the cache is isolated. Without bubblewrap, Paicode falls back to direct execution. Both modes remove provider secrets, SSH agent sockets, and sensitive environment variables, and reject catastrophic host commands, privilege escalation, raw device writes, filesystem creation, package publishing, and privileged containers.
 - The independent validator uses read-only file tools and a disposable overlayfs workspace for shell commands. Validation tests can write build artifacts, but those writes are discarded and production source cannot be modified.
 - Shell commands use their own process group and are terminated on timeout or user stop. Output is bounded at 200,000 characters with a truncation marker.
+- Permission rules, approval prompts, token budgets, cost budgets, and checkpoints are enforced in the tool registry and agent loop.
+- MCP servers and plugins are opt-in. Read-only runs receive neither, and `diagnostics` is hidden in read-only mode.
 - Config writes are atomic and protected by a file lock.
 - The agent is instructed not to commit or push unless the user asks. Shell git access is otherwise unrestricted so real coding workflows remain possible.
 

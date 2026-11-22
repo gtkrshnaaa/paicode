@@ -1,0 +1,11 @@
+{
+  "tasks": [
+    {
+      "name": "settings-review",
+      "prompt": "Review the settings loader and summarize its behavior without editing files.",
+      "workspace": "..",
+      "verify": "python3 -c \"import paicode.settings; print('ok')\"",
+      "max_steps": 8
+    }
+  ]
+}

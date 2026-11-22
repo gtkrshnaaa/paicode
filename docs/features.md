@@ -4,6 +4,18 @@
 
 Paicode is smart-routed by default. Agent 1 triages every request, then chooses a read-only single agent, a one-file single writer, or the 22-agent team. Multi-file and mass changes require the team. Agent 1 leads a 22-agent council, agents 2 to 21 are builders, and agent 22 is the independent validator. Every model request carries the full global and project `PAICODE.md` rules, including all council proposals, reviews, builder turns, and validator turns. Rules are not truncated by the default limits and are placed first for provider prefix caching. The council produces a frozen contract with file ownership, interfaces, API shapes, database schema, DOM tree, test plan, commands, dependency metadata, paste order, and non-goals before code is written. All 20 builders are universal, each owns exactly one file or sub-feature flow, and no builder owns two work units. Only the builders assigned to work units are activated, and all of them are dispatched before any completion is collected. The build phase shows the full active count immediately, the builder diffs are flushed as one batch, and the validator starts only after every builder finishes. The validator runs the integrated test matrix, audits changed files against the ownership map, and routes findings back to the owning builder until green or the repair budget is exhausted. The lead always closes with a user-facing report covering the summary, delivered files, validation result, defects, and next steps. The Agent Rail on the right shows all 22 agents, their current status, and nested turn history for council, thinking, read, create, edit, delete, list, command, explore, and skill actions. `/disscus <prompt>` starts a read-only discussion mode with file writes, builds, package installs, git mutations, and shell redirection blocked. `--single-agent` bypasses the council for small tasks.
 
+## MCP and extensibility
+
+Local stdio and remote streamable HTTP MCP servers are supported with tools, resources, and prompts. Lifecycle hooks run on tool and compaction events. Explicit local plugins can register additional tools. Read-only runs never receive MCP, plugin, or diagnostics tools.
+
+## Governance and recovery
+
+Ordered permission rules support allow, ask, and deny, with an approval dialog in the terminal and headless denial. Session budgets cap tokens and estimated cost. Every mutation creates a checkpoint, and `/rewind` restores file state. Telemetry is local JSONL and disabled by default.
+
+## Integration surfaces
+
+`pai run --json` emits newline-delimited events. `pai serve` exposes a token-protected HTTP API, a Python SDK, and a monochrome web console. `pai bench` runs reproducible single-agent and smart-routed comparisons and records pass rate, time, tokens, and cost.
+
 ## Multi-pane terminal interface
 
 The Textual interface keeps the project tree, AI diffs, conversation, and usage statistics visible at the same time. File changes stream into the center pane as unified diffs generated from the old and new file contents.

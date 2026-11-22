@@ -1,6 +1,6 @@
 # Internal Architecture
 
-Paicode is split into a provider layer, a typed tool layer, a multi-agent council, a single-agent loop, and a Textual interface. The control plane is deterministic Python. The model decides what to do next, but code decides how tools execute, how paths are validated, how ownership is enforced, and how failures are reported.
+Paicode is split into a provider layer, a platform layer, a typed tool layer, a multi-agent council, a single-agent loop, a local API, and a Textual interface. The control plane is deterministic Python. The model decides what to do next, but code decides how tools execute, how paths are validated, how ownership is enforced, and how failures are reported.
 
 ## Layers
 
@@ -16,11 +16,17 @@ Paicode is split into a provider layer, a typed tool layer, a multi-agent counci
 - `store.py` persists providers, base URLs, keys, selected models, and cached model lists in the SQLite `providers`, `provider_keys`, `provider_models`, and `settings` tables.
 - `presets.py` defines DeepSeek, OpenAI, OpenRouter, Google OpenAI compatibility, and custom providers.
 
+### Platform layer
+
+`paicode/settings.py` loads global and project settings, resolves permission rules, and defines budget and MCP configuration. `mcp/` implements local stdio and remote streamable HTTP clients plus a shared manager. `hooks.py` runs lifecycle commands with JSON stdin. `plugins.py` loads explicitly enabled Python plugins and registers their tools. `checkpoints.py` captures file state before every mutation. `security/` provides the thread-safe approval bridge. `telemetry.py` appends local JSONL events when enabled. `server/` exposes the token-protected HTTP API and web console, and `sdk.py` provides a Python client.
+
 ### Tool layer
 
-`paicode/tools/` exposes twelve typed tools to the model through OpenAI function calling:
+`paicode/tools/` exposes fifteen built-in typed tools to the model through OpenAI function calling:
 
-`read`, `write`, `edit`, `list`, `glob`, `grep`, `bash`, `explore`, `skill`, `mkdir`, `move`, `delete`, and `finish`.
+`read`, `write`, `edit`, `list`, `glob`, `grep`, `bash`, `explore`, `skill`, `diagnostics`, `mkdir`, `move`, `delete`, and `finish`.
+
+MCP and plugin tools are added to the same schema list at runtime. Read-only runs never receive them.
 
 `explore` is the only tool that can read outside the workspace. It resolves the target, applies a sensitive-path denylist, requires a written reason, and returns the absolute path and scope. All write tools continue to use the workspace-confined path resolver.
 
@@ -36,7 +42,7 @@ Paicode is split into a provider layer, a typed tool layer, a multi-agent counci
 4. Execute each tool, emit a result event, and append a tool message.
 5. Repeat until the model stops, calls `finish`, or repeats the same tool call five times consecutively. There is no default step cap.
 
-The loop compacts old context by truncating tool output and dropping complete tool call groups. It never delegates pass or fail decisions to a second model. Syntax checks, exit codes, and diffs are deterministic.
+The loop compacts old context by asking the active model for a dense session summary, then keeping the newest turns verbatim. If summarization fails, deterministic truncation drops complete tool call groups. It never delegates pass or fail decisions to a second model. Syntax checks, exit codes, diffs, checkpoints, permissions, and budgets are deterministic.
 
 ### Interface layer
 
@@ -48,7 +54,7 @@ The prompt composer stores multiline pastes and clipboard images as local attach
 
 The chat pane keeps a two-line work status bar with an animated loading bar, current action, elapsed time, Esc hint, and queue count. Prompts submitted while a worker is active enter a local queue and start after the current turn finishes. The stop path closes active provider streams through a watchdog and checks the cooperative stop event before every tool call. Sandboxed shell process groups are terminated immediately.
 
-`paicode/tui/actions.py` implements slash commands. Provider and model dialogs are separate modal screens.
+`paicode/tui/actions.py` implements slash commands. Provider, model, and approval dialogs are separate modal screens. The server reuses the same runners and event types as the terminal interface.
 
 ## Events
 

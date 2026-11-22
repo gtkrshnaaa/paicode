@@ -252,3 +252,9 @@ Typing `/` opens a filtered command palette above the prompt. Up and Down move t
 - `Ctrl+R` refreshes the file explorer.
 - `F1` shows help.
 - `Ctrl+C` exits the application.
+
+## Platform settings and integrations
+
+Project behavior is configured in `.paicode/settings.json`, with global defaults in `~/.config/paicode/settings.json`. Permissions, budgets, compaction, MCP servers, hooks, plugins, diagnostics, and telemetry are documented in [platform.md](platform.md).
+
+The local API, web console, and Python SDK are documented in [api.md](api.md). Headless runs support `--json` for newline-delimited events. `pai bench` runs reproducible single-agent and smart-routed comparisons with pass rate, wall time, tokens, and cost.

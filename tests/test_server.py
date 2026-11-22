@@ -47,11 +47,7 @@ def test_session_endpoints_and_console(server, project: Path, config_home: Path)
 
     import urllib.request
 
-    request = urllib.request.Request(
-        f"http://{host}:{port}/",
-        headers={"Authorization": "Bearer test-token"},
-    )
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with urllib.request.urlopen(f"http://{host}:{port}/", timeout=5) as response:
         html = response.read().decode("utf-8")
     assert "Paicode Console" in html
 

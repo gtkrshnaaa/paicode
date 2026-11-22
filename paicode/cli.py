@@ -320,6 +320,19 @@ def _cmd_doctor(root: Path) -> int:
         print(f"Keys: {len(provider.api_keys)}")
     print(f"Tools: {', '.join(tools) or 'none'}")
     print(f"Shell: {'bubblewrap sandbox' if sandbox_available() else 'direct execution'}")
+    settings = load_settings(root)
+    print(f"Permission mode: {settings.permission_mode}")
+    print(f"MCP servers: {len(settings.mcp_servers)}")
+    print(f"Hooks: {len(settings.hooks)} | Plugins: {len(settings.plugins)}")
+    print(f"Diagnostics commands: {len(settings.diagnostics)}")
+    print(f"Telemetry: {'enabled' if settings.telemetry else 'disabled'}")
+    budget = settings.budget
+    print(
+        "Budget: "
+        + (f"{budget.max_tokens} tokens" if budget.max_tokens else "no token limit")
+        + " | "
+        + (f"${budget.max_cost_usd:.2f}" if budget.max_cost_usd else "no cost limit")
+    )
     print("Agents: smart routing | 22-agent team | single-agent fallback")
     database = Database()
     database.initialize()

@@ -64,6 +64,7 @@ Options:
 Environment:
   PAICODE_REF          Default ref for remote installs.
   PAICODE_SOURCE_URL   Override the source archive URL, for mirrors or tests.
+  PAICODE_SHA256       Expected SHA256 for the downloaded source archive.
 EOF
 }
 
@@ -186,6 +187,15 @@ step_prepare_source() {
     curl --proto '=https' --tlsv1.2 -fsSL "$source_url" -o "$archive"
   else
     curl -fsSL "$source_url" -o "$archive"
+  fi
+  if [[ -n "${PAICODE_SHA256:-}" ]]; then
+    actual="$(python3 - "$archive" <<'PY'
+import hashlib
+import sys
+print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())
+PY
+)"
+    [[ "$actual" == "$PAICODE_SHA256" ]] || die "Source archive checksum mismatch."
   fi
   tar -xzf "$archive" -C "$TEMP_DIR"
 

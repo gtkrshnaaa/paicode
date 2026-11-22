@@ -198,7 +198,7 @@ class ApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
-        if parsed.path == "/" and self._authorized(query):
+        if parsed.path == "/":
             self._send(200, HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
         if not self._authorized(query):
