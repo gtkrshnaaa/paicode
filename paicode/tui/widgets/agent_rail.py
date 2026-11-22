@@ -17,7 +17,7 @@ SHORT_ROLE = {
 
 
 class AgentCard(Static):
-    MAX_TURNS = 6
+    MAX_TURNS = 12
 
     def __init__(self, agent_id: int, role: str):
         super().__init__("", classes="agent-card")
