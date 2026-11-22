@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from ..core.errors import PathSecurityError
+from ..hooks import HookRunner
+from ..plugins import PluginHost
 from ..mcp import get_mcp_manager
 from ..rules.skills import SkillMeta, find_skill, load_skill_text
 from ..settings import load_settings
@@ -41,13 +43,18 @@ class ToolRegistry:
         )
         self.explore_tools = ExploreTools(root, stats)
         self.settings = load_settings(root)
+        self.hooks = HookRunner(root, self.settings)
+        external = not (read_only_shell or strict_read_only_shell)
         if enable_mcp is None:
-            enable_mcp = not (read_only_shell or strict_read_only_shell)
+            enable_mcp = external
         self.mcp = get_mcp_manager(root, self.settings) if enable_mcp else None
+        self.plugins = PluginHost(root, self.settings) if external else None
 
     @property
     def schemas(self) -> list[dict]:
         schemas = list(TOOL_SCHEMAS)
+        if self.plugins is not None:
+            schemas.extend(self.plugins.schemas())
         if self.mcp is not None:
             schemas.extend(self.mcp.schemas())
         return schemas
@@ -61,8 +68,23 @@ class ToolRegistry:
         if not isinstance(arguments, dict):
             return ToolResult(False, "Error: Tool arguments must be an object.")
 
+        normalized = name.strip().lower()
+        pre_hook = self.hooks.run("pre_tool", {"tool": normalized, "arguments": arguments}, blocking=True)
+        if not pre_hook.allowed:
+            return ToolResult(False, "Blocked by hook: " + "; ".join(pre_hook.reasons))
         try:
-            return self._dispatch(name.strip().lower(), arguments)
+            result = self._dispatch(normalized, arguments)
+            self.hooks.run(
+                "post_tool",
+                {
+                    "tool": normalized,
+                    "arguments": arguments,
+                    "ok": result.ok,
+                    "output": result.output[:4_000],
+                    "changed": result.changed,
+                },
+            )
+            return result
         except PathSecurityError as exc:
             return ToolResult(False, f"Security error: {exc}")
         except (ValueError, OSError) as exc:
@@ -117,6 +139,9 @@ class ToolRegistry:
             self.finished = True
             self.summary = str(args.get("summary", "")).strip()
             return ToolResult(True, self.summary or "Task complete.", kind="finish")
+        if name.startswith("plugin__") and self.plugins is not None:
+            result = self.plugins.execute(name, args)
+            return result if result is not None else ToolResult(False, f"Error: Unknown plugin tool '{name}'.")
         if name.startswith("mcp__") and self.mcp is not None:
             return self.mcp.call(name, args)
         return ToolResult(False, f"Error: Unknown tool '{name}'.")
