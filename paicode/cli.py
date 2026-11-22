@@ -201,6 +201,23 @@ def _expand_session_args(argv: list[str]) -> list[str]:
     return expanded
 
 
+def _cmd_serve(host: str, port: int, token: str) -> int:
+    from .server import create_server
+
+    server = create_server(host, port, token)
+    actual_host, actual_port = server.server_address[:2]
+    print(f"Paicode console: http://{actual_host}:{actual_port}")
+    print(f"Token: {server.token}")
+    print("Press Ctrl+C to stop.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("Stopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
 def _cmd_rewind(root: Path, checkpoint_id: str) -> int:
     store = CheckpointStore(root)
     if not checkpoint_id:
@@ -350,6 +367,11 @@ def _build_parser() -> argparse.ArgumentParser:
         child = config_sub.add_parser(name)
         child.add_argument("value")
 
+    serve_parser = subparsers.add_parser("serve", help="Run the local HTTP API and web console.")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8765)
+    serve_parser.add_argument("--token", default=os.getenv("PAICODE_SERVER_TOKEN", ""))
+
     rewind_parser = subparsers.add_parser("rewind", help="List or restore file checkpoints.")
     rewind_parser.add_argument("checkpoint", nargs="?", default="", help="Checkpoint ID prefix or 'latest'.")
 
@@ -405,6 +427,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_mcp(root, args.action, args.server)
     if args.command == "rewind":
         return _cmd_rewind(root, args.checkpoint)
+    if args.command == "serve":
+        return _cmd_serve(args.host, args.port, args.token)
 
     from .tui.app import PaiCodeApp
 
